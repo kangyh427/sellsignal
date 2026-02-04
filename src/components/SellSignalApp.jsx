@@ -149,6 +149,21 @@ const calculateSellPrices = (position, priceData, presetSettings) => {
       prices.candle3_50 = Math.round(prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5);
     }
   }
+  
+  // 매물대 매도법 - 최근 고점 저항대 (최근 20일 중 최고가의 98% 지점)
+  if (priceData && priceData.length >= 20) {
+    const recentHighs = priceData.slice(-20).map(d => d.high);
+    const resistanceHigh = Math.max(...recentHighs);
+    prices.volumeZone = Math.round(resistanceHigh * 0.98);
+  }
+  
+  // 추세선 매도법 - 단순 지지선 (최근 20일 최저가 기준)
+  if (priceData && priceData.length >= 20) {
+    const recentLows = priceData.slice(-20).map(d => d.low);
+    const supportLow = Math.min(...recentLows);
+    prices.trendline = Math.round(supportLow * 1.02);
+  }
+  
   return prices;
 };
 
@@ -816,6 +831,24 @@ const EnhancedCandleChart = ({ data, width = 270, height = 280, buyPrice, sellPr
         </g>
       )}
       
+      {/* 매물대 라인 (저항대) */}
+      {visibleLines?.volumeZone && sellPrices?.volumeZone && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.volumeZone)} x2={width - padding.right} y2={scaleY(sellPrices.volumeZone)} stroke="#84cc16" strokeWidth={1.5} strokeDasharray="6,3"/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.volumeZone) - 8} width={66} height={16} fill="#84cc16" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.volumeZone) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">저항 {sellPrices.volumeZone.toLocaleString()}</text>
+        </g>
+      )}
+      
+      {/* 추세선 라인 (지지선) */}
+      {visibleLines?.trendline && sellPrices?.trendline && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.trendline)} x2={width - padding.right} y2={scaleY(sellPrices.trendline)} stroke="#ec4899" strokeWidth={1.5} strokeDasharray="8,4"/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.trendline) - 8} width={66} height={16} fill="#ec4899" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.trendline) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">지지 {sellPrices.trendline.toLocaleString()}</text>
+        </g>
+      )}
+      
       {/* 현재가 표시 */}
       <circle cx={scaleX(data.length - 1) + candleW/2} cy={scaleY(currentPrice)} r={4} fill={currentPrice >= buyPrice ? '#10b981' : '#ef4444'} stroke="#fff" strokeWidth={1} />
     </svg>
@@ -1325,7 +1358,7 @@ const EarningsWidget = ({ position, isPremium, onShowAINews, onShowAIReport }) =
 // ============================================
 const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgrade }) => {
   const { isMobile, isTablet } = useResponsive();
-  const [visibleLines, setVisibleLines] = useState({ candle3: true, stopLoss: true, twoThird: true, maSignal: true });
+  const [visibleLines, setVisibleLines] = useState({ candle3: true, stopLoss: true, twoThird: true, maSignal: true, volumeZone: true, trendline: true });
   const [showAINews, setShowAINews] = useState(false);
   const [showAIReport, setShowAIReport] = useState(false);
   const [showChart, setShowChart] = useState(!isMobile); // 모바일에서는 차트 토글
@@ -1558,7 +1591,7 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
                   if (!preset) return null;
                   
                   let priceText = '-', priceColor = '#94a3b8';
-                  const hasChartLine = ['candle3', 'stopLoss', 'twoThird', 'maSignal'].includes(presetId);
+                  const hasChartLine = ['candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone', 'trendline'].includes(presetId);
                   
                   if (presetId === 'stopLoss' && sellPrices.stopLoss) { 
                     priceText = '₩' + sellPrices.stopLoss.toLocaleString(); 
@@ -1574,6 +1607,14 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
                   }
                   else if (presetId === 'candle3' && sellPrices.candle3_50) { 
                     priceText = '₩' + sellPrices.candle3_50.toLocaleString(); 
+                  }
+                  else if (presetId === 'volumeZone' && sellPrices.volumeZone) { 
+                    priceText = '₩' + sellPrices.volumeZone.toLocaleString(); 
+                    priceColor = currentPrice >= sellPrices.volumeZone ? '#f59e0b' : '#94a3b8'; 
+                  }
+                  else if (presetId === 'trendline' && sellPrices.trendline) { 
+                    priceText = '₩' + sellPrices.trendline.toLocaleString(); 
+                    priceColor = currentPrice <= sellPrices.trendline ? '#ef4444' : '#94a3b8'; 
                   }
                   
                   return (
