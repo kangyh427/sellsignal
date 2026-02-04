@@ -578,7 +578,7 @@ const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfi
     { label: '총 수익률', value: (totalProfitRate >= 0 ? '+' : '') + totalProfitRate.toFixed(2) + '%', color: totalProfitRate >= 0 ? '#10b981' : '#ef4444', icon: '🎯' },
   ];
 
-  // 모바일: 2x2 그리드 또는 스크롤 가능한 가로 배열
+  // 모바일: 2x2 그리드 - 색상 대비 강화
   if (isMobile) {
     return (
       <div style={{ 
@@ -590,22 +590,22 @@ const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfi
       }}>
         {cards.map((card, i) => (
           <div key={i} style={{ 
-            background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
-            borderRadius: '10px', 
-            padding: '12px', 
-            border: '1px solid rgba(255,255,255,0.08)' 
+            background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)', 
+            borderRadius: '12px', 
+            padding: '14px', 
+            border: '1px solid rgba(255,255,255,0.12)' 
           }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '4px', 
-              marginBottom: '4px' 
+              gap: '5px', 
+              marginBottom: '6px' 
             }}>
-              <span style={{ fontSize: '14px' }}>{card.icon}</span>
-              <span style={{ fontSize: '10px', color: '#64748b' }}>{card.label}</span>
+              <span style={{ fontSize: '15px' }}>{card.icon}</span>
+              <span style={{ fontSize: '12px', color: '#94a3b8' }}>{card.label}</span>
             </div>
             <div style={{ 
-              fontSize: '16px', 
+              fontSize: '17px', 
               fontWeight: '700', 
               color: card.color || '#fff',
               overflow: 'hidden',
@@ -945,11 +945,11 @@ const MarketCycleWidget = ({ isPremium }) => {
 
   return (
     <div style={{ 
-      background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+      background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)', 
       borderRadius: '14px', 
-      padding: isMobile ? '12px' : '16px', 
-      marginBottom: '12px', 
-      border: '1px solid rgba(255,255,255,0.08)' 
+      padding: isMobile ? '14px' : '16px', 
+      marginBottom: '14px', 
+      border: '1px solid rgba(255,255,255,0.12)' 
     }}>
       {/* 헤더 */}
       <div style={{ 
@@ -959,7 +959,7 @@ const MarketCycleWidget = ({ isPremium }) => {
         marginBottom: '12px' 
       }}>
         <h3 style={{ 
-          fontSize: isMobile ? '14px' : '15px', 
+          fontSize: isMobile ? '15px' : '16px', 
           fontWeight: '600', 
           color: '#fff', 
           margin: 0,
@@ -970,7 +970,7 @@ const MarketCycleWidget = ({ isPremium }) => {
           🥚 코스톨라니 달걀
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '10px', color: '#64748b' }}>신뢰도 75%</span>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>신뢰도 75%</span>
           {isPremium && (
             <button 
               onClick={() => {
@@ -1430,11 +1430,11 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
   return (
     <>
       <div style={{ 
-        background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
-        borderRadius: isMobile ? '12px' : '14px', 
-        padding: isMobile ? '12px' : '16px', 
-        marginBottom: isMobile ? '12px' : '14px', 
-        border: '1px solid rgba(255,255,255,0.08)' 
+        background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)', 
+        borderRadius: isMobile ? '14px' : '14px', 
+        padding: isMobile ? '14px' : '16px', 
+        marginBottom: isMobile ? '14px' : '14px', 
+        border: '1px solid rgba(255,255,255,0.12)' 
       }}>
         {/* 헤더 */}
         <div style={{ 
@@ -1528,8 +1528,8 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
-              gap: '6px', 
-              marginBottom: '10px' 
+              gap: '8px', 
+              marginBottom: '12px' 
             }}>
               {[
                 { label: '매수가', value: '₩' + position.buyPrice.toLocaleString() },
@@ -1538,15 +1538,16 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
                 { label: '평가금액', value: '₩' + Math.round(totalValue).toLocaleString() }
               ].map((item, i) => (
                 <div key={i} style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  borderRadius: '6px', 
-                  padding: isMobile ? '10px 8px' : '8px' 
+                  background: 'rgba(0,0,0,0.35)', 
+                  borderRadius: '8px', 
+                  padding: isMobile ? '12px 10px' : '10px',
+                  border: '1px solid rgba(255,255,255,0.08)'
                 }}>
-                  <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#64748b', marginBottom: '2px' }}>{item.label}</div>
+                  <div style={{ fontSize: isMobile ? '12px' : '12px', color: '#94a3b8', marginBottom: '4px' }}>{item.label}</div>
                   <div style={{ 
-                    fontSize: isMobile ? '14px' : '16px', 
+                    fontSize: isMobile ? '16px' : '17px', 
                     fontWeight: '700', 
-                    color: item.color || '#e2e8f0',
+                    color: item.color || '#f1f5f9',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
@@ -1557,28 +1558,28 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
             
             {/* 평가손익 */}
             <div style={{ 
-              background: isProfit ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', 
-              borderRadius: '8px', 
-              padding: isMobile ? '12px' : '10px', 
+              background: isProfit ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', 
+              borderRadius: '10px', 
+              padding: isMobile ? '14px' : '12px', 
               borderLeft: '4px solid ' + (isProfit ? '#10b981' : '#ef4444'), 
-              marginBottom: '10px', 
+              marginBottom: '12px', 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center' 
             }}>
               <div>
-                <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#64748b', marginBottom: '2px' }}>평가손익</div>
-                <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '700', color: isProfit ? '#10b981' : '#ef4444' }}>
+                <div style={{ fontSize: isMobile ? '12px' : '12px', color: '#94a3b8', marginBottom: '4px' }}>평가손익</div>
+                <div style={{ fontSize: isMobile ? '20px' : '22px', fontWeight: '700', color: isProfit ? '#10b981' : '#ef4444' }}>
                   {isProfit ? '+' : ''}₩{Math.round(profitAmount).toLocaleString()}
                 </div>
               </div>
               <div style={{ 
-                fontSize: isMobile ? '20px' : '24px', 
+                fontSize: isMobile ? '22px' : '26px', 
                 fontWeight: '800', 
                 color: isProfit ? '#10b981' : '#ef4444', 
-                background: isProfit ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)', 
-                padding: isMobile ? '6px 10px' : '6px 12px', 
-                borderRadius: '8px' 
+                background: isProfit ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)', 
+                padding: isMobile ? '8px 12px' : '8px 14px', 
+                borderRadius: '10px' 
               }}>
                 {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
               </div>
@@ -1586,19 +1587,20 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
             
             {/* 매도 조건 */}
             <div style={{ 
-              background: 'rgba(0,0,0,0.2)', 
-              borderRadius: '8px', 
-              padding: isMobile ? '10px' : '10px', 
-              marginBottom: '8px', 
-              flex: 1 
+              background: 'rgba(0,0,0,0.35)', 
+              borderRadius: '10px', 
+              padding: isMobile ? '12px' : '12px', 
+              marginBottom: '10px', 
+              flex: 1,
+              border: '1px solid rgba(255,255,255,0.08)'
             }}>
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center', 
-                marginBottom: '6px' 
+                marginBottom: '8px' 
               }}>
-                <span style={{ fontSize: isMobile ? '13px' : '14px', color: '#fff', fontWeight: '600' }}>📊 매도 조건별 기준가격</span>
+                <span style={{ fontSize: isMobile ? '14px' : '15px', color: '#fff', fontWeight: '600' }}>📊 매도 조건별 기준가격</span>
                 <button 
                   onClick={() => onEdit(position)} 
                   style={{ 
@@ -3163,14 +3165,14 @@ export default function SellSignalAppV5() {
           totalProfitRate={totalProfitRate}
         />
 
-        {/* 모바일 탭 네비게이션 */}
+        {/* 모바일 탭 네비게이션 - 2x2 그리드 */}
         {isMobile && (
           <div style={{ 
-            display: 'flex', 
-            gap: '8px', 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '10px', 
             padding: '0 16px', 
             marginBottom: '16px',
-            overflowX: 'auto',
           }}>
             {[
               { id: 'positions', label: '📊 포지션', count: positions.length },
@@ -3182,28 +3184,28 @@ export default function SellSignalAppV5() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 style={{
-                  padding: '10px 16px',
-                  background: activeTab === tab.id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
-                  border: activeTab === tab.id ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '10px',
-                  color: activeTab === tab.id ? '#60a5fa' : '#94a3b8',
-                  fontSize: '13px',
+                  padding: '12px 16px',
+                  background: activeTab === tab.id ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
+                  border: activeTab === tab.id ? '2px solid rgba(59,130,246,0.6)' : '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '12px',
+                  color: activeTab === tab.id ? '#60a5fa' : '#cbd5e1',
+                  fontSize: '14px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '6px',
                 }}
               >
                 {tab.label}
                 {tab.count > 0 && (
                   <span style={{
-                    background: activeTab === tab.id ? '#3b82f6' : 'rgba(255,255,255,0.2)',
+                    background: activeTab === tab.id ? '#3b82f6' : 'rgba(255,255,255,0.25)',
                     color: '#fff',
-                    padding: '2px 6px',
+                    padding: '2px 8px',
                     borderRadius: '6px',
-                    fontSize: '11px',
+                    fontSize: '12px',
                   }}>{tab.count}</span>
                 )}
               </button>
@@ -3263,25 +3265,25 @@ export default function SellSignalAppV5() {
               <div 
                 onClick={() => setActiveTab('market')}
                 style={{ 
-                  background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(249,115,22,0.1) 100%)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: '10px', 
-                  padding: '12px', 
-                  marginBottom: '14px',
+                  background: 'linear-gradient(135deg, rgba(239,68,68,0.2) 0%, rgba(249,115,22,0.15) 100%)',
+                  border: '2px solid rgba(239,68,68,0.4)',
+                  borderRadius: '12px', 
+                  padding: '14px', 
+                  marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   cursor: 'pointer'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '24px' }}>🥚</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '28px' }}>🥚</span>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>4단계: 금리고점 (팔 때)</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>매도 관망 권장 · 탭하여 상세보기</div>
+                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444' }}>4단계: 금리고점 (팔 때)</div>
+                    <div style={{ fontSize: '13px', color: '#cbd5e1' }}>매도 관망 권장 · 탭하여 상세보기</div>
                   </div>
                 </div>
-                <span style={{ color: '#64748b', fontSize: '18px' }}>›</span>
+                <span style={{ color: '#94a3b8', fontSize: '20px' }}>›</span>
               </div>
             )}
             
@@ -3292,14 +3294,14 @@ export default function SellSignalAppV5() {
               marginBottom: '16px' 
             }}>
               <h2 style={{ 
-                fontSize: isMobile ? '16px' : '18px', 
+                fontSize: isMobile ? '17px' : '19px', 
                 fontWeight: '600', 
                 color: '#fff', 
                 margin: 0 
               }}>📊 모니터링 중인 종목</h2>
               <span style={{ 
-                fontSize: isMobile ? '11px' : '13px', 
-                color: '#64748b' 
+                fontSize: isMobile ? '12px' : '14px', 
+                color: '#94a3b8' 
               }}>실시간 조건 감시 중</span>
             </div>
             
@@ -3454,10 +3456,10 @@ export default function SellSignalAppV5() {
           bottom: 0,
           left: 0,
           right: 0,
-          background: 'rgba(15, 23, 42, 0.98)',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          padding: '8px 16px',
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+          background: 'rgba(20, 30, 48, 0.98)',
+          borderTop: '1px solid rgba(255,255,255,0.12)',
+          padding: '10px 16px',
+          paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
           display: 'flex',
           justifyContent: 'space-around',
           backdropFilter: 'blur(10px)',
@@ -3473,9 +3475,10 @@ export default function SellSignalAppV5() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               style={{
-                background: 'none',
+                background: activeTab === item.id ? 'rgba(59,130,246,0.15)' : 'none',
                 border: 'none',
-                padding: '6px 12px',
+                padding: '8px 14px',
+                borderRadius: '10px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -3484,24 +3487,24 @@ export default function SellSignalAppV5() {
                 position: 'relative',
               }}
             >
-              <span style={{ fontSize: '20px' }}>{item.icon}</span>
+              <span style={{ fontSize: '22px' }}>{item.icon}</span>
               <span style={{ 
-                fontSize: '10px', 
-                color: activeTab === item.id ? '#60a5fa' : '#64748b',
-                fontWeight: activeTab === item.id ? '600' : '400',
+                fontSize: '11px', 
+                color: activeTab === item.id ? '#60a5fa' : '#94a3b8',
+                fontWeight: activeTab === item.id ? '600' : '500',
               }}>{item.label}</span>
               {item.badge > 0 && (
                 <span style={{
                   position: 'absolute',
-                  top: '2px',
-                  right: '6px',
+                  top: '4px',
+                  right: '8px',
                   background: '#ef4444',
                   color: '#fff',
-                  fontSize: '9px',
+                  fontSize: '10px',
                   fontWeight: '700',
-                  padding: '1px 5px',
-                  borderRadius: '6px',
-                  minWidth: '16px',
+                  padding: '2px 6px',
+                  borderRadius: '8px',
+                  minWidth: '18px',
                   textAlign: 'center',
                 }}>{item.badge}</span>
               )}
