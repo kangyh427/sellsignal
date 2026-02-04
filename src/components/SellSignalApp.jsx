@@ -108,6 +108,38 @@ const MARKET_CYCLE = {
 };
 
 // ============================================
+// CREST 로고 SVG 컴포넌트
+// ============================================
+const CrestLogo = ({ size = 40 }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block' }}>
+    <defs>
+      <linearGradient id="logoGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#06b6d4" />
+        <stop offset="100%" stopColor="#22d3ee" />
+      </linearGradient>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+    <rect width="100" height="100" rx="16" fill="#0f172a"/>
+    <polyline 
+      points="15,70 35,55 50,75 70,30 85,45" 
+      fill="none" 
+      stroke="url(#logoGradient)" 
+      strokeWidth="6" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      filter="url(#glow)"
+    />
+    <circle cx="70" cy="30" r="6" fill="#22c55e" />
+  </svg>
+);
+
+// ============================================
 // 유틸리티 함수들
 // ============================================
 const generateMockPriceData = (basePrice, days = 60) => {
@@ -203,20 +235,11 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
         }}>
           {/* 로고 영역 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
-              borderRadius: '12px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontSize: '20px' 
-            }}>📈</div>
+            <CrestLogo size={40} />
             <div>
               <h1 style={{ fontSize: '16px', fontWeight: '700', margin: 0, letterSpacing: '2px' }}>CREST</h1>
-              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
-                {isPremium ? '👑 프리미엄' : '무료회원'}
+              <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>
+                {isPremium ? '👑 Premium' : 'Ride the Peak'}
               </p>
             </div>
           </div>
@@ -396,20 +419,11 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
         }}>
           {/* 로고 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '44px', 
-              height: '44px', 
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
-              borderRadius: '14px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontSize: '24px' 
-            }}>📈</div>
+            <CrestLogo size={44} />
             <div>
               <h1 style={{ fontSize: '20px', fontWeight: '700', margin: 0, letterSpacing: '2px' }}>CREST</h1>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                {isPremium ? '👑 프리미엄' : '무료회원'} · Ride the Peak
+              <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+                {isPremium ? '👑 Premium' : 'Ride the Peak'}
               </p>
             </div>
           </div>
@@ -506,20 +520,11 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
           left: '50%', 
           transform: 'translateX(-50%)' 
         }}>
-          <div style={{ 
-            width: '52px', 
-            height: '52px', 
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
-            borderRadius: '16px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            fontSize: '28px' 
-          }}>📈</div>
+          <CrestLogo size={52} />
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, letterSpacing: '3px' }}>CREST</h1>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-              {isPremium ? '👑 프리미엄' : '무료회원'} · Ride the Peak
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+              {isPremium ? '👑 Premium' : 'Ride the Peak'}
             </p>
           </div>
         </div>
