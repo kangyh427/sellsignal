@@ -3073,9 +3073,23 @@ export default function SellSignalAppV5() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState(null);
   const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+  const [showLimitPopup, setShowLimitPopup] = useState(false); // 종목 제한 팝업
   const [activeTab, setActiveTab] = useState('positions'); // 모바일 탭 상태
   
   const isPremium = user?.membership === 'premium';
+  const FREE_STOCK_LIMIT = 3; // 무료회원 종목 제한
+  const PREMIUM_STOCK_LIMIT = 20; // 프리미엄 회원 종목 제한
+  const currentLimit = isPremium ? PREMIUM_STOCK_LIMIT : FREE_STOCK_LIMIT;
+  const remainingSlots = currentLimit - positions.length;
+
+  // 종목 추가 버튼 클릭 핸들러
+  const handleAddStock = () => {
+    if (!isPremium && positions.length >= FREE_STOCK_LIMIT) {
+      setShowLimitPopup(true);
+    } else {
+      setShowAddModal(true);
+    }
+  };
 
   // ⬇️ useEffect들을 if (loading) return 위로 이동 (React Hooks 규칙)
   
@@ -3204,10 +3218,12 @@ export default function SellSignalAppV5() {
         alerts={alerts}
         isPremium={isPremium}
         onShowUpgrade={() => setShowUpgradePopup(true)}
-        onShowAddModal={() => setShowAddModal(true)}
+        onShowAddModal={handleAddStock}
         user={user}
         onShowAuthModal={() => setShowAuthModal(true)}
         onSignOut={signOut}
+        positionCount={positions.length}
+        freeLimit={FREE_STOCK_LIMIT}
       />
 
       {/* 메인 */}
@@ -3358,10 +3374,38 @@ export default function SellSignalAppV5() {
                 color: '#fff', 
                 margin: 0 
               }}>📊 모니터링 중인 종목</h2>
-              <span style={{ 
-                fontSize: isMobile ? '12px' : '14px', 
-                color: '#94a3b8' 
-              }}>실시간 조건 감시 중</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* 목표 구배 효과: 남은 슬롯 표시 */}
+                {!isPremium && positions.length > 0 && positions.length < FREE_STOCK_LIMIT && (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: positions.length === 2 ? '#f59e0b' : '#94a3b8',
+                    background: positions.length === 2 ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)',
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    fontWeight: '600'
+                  }}>
+                    {positions.length === 2 ? '🔥 ' : ''}
+                    {FREE_STOCK_LIMIT - positions.length}자리 남음
+                  </span>
+                )}
+                {!isPremium && positions.length >= FREE_STOCK_LIMIT && (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: '#ef4444',
+                    background: 'rgba(239,68,68,0.15)',
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    fontWeight: '600'
+                  }}>
+                    한도 도달
+                  </span>
+                )}
+                <span style={{ 
+                  fontSize: isMobile ? '12px' : '14px', 
+                  color: '#94a3b8' 
+                }}>{positions.length}/{currentLimit}종목</span>
+              </div>
             </div>
             
             {/* 비로그인 안내 */}
@@ -3884,7 +3928,7 @@ export default function SellSignalAppV5() {
               </div>
               {[
                 { icon: '🚫', text: '광고 완전 제거', free: '❌', premium: '✅' },
-                { icon: '📊', text: '모니터링 종목 수', free: '5개', premium: '20개' },
+                { icon: '📊', text: '모니터링 종목 수', free: '3개', premium: '20개' },
                 { icon: '🤖', text: 'AI 뉴스 분석', free: '❌', premium: '✅' },
                 { icon: '📑', text: 'AI 리포트 분석', free: '❌', premium: '✅' },
                 { icon: '💬', text: '카카오톡 알림', free: '❌', premium: '✅' },
@@ -3960,6 +4004,129 @@ export default function SellSignalAppV5() {
             }}>
               언제든지 해지 가능 · 자동 결제 · 부가세 포함
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* 종목 제한 팝업 - 심리적 전환 유도 */}
+      {showLimitPopup && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.9)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          zIndex: 1000,
+          padding: isMobile ? '16px' : '40px',
+        }}>
+          <div style={{ 
+            background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+            borderRadius: '20px', 
+            padding: isMobile ? '24px' : '32px', 
+            maxWidth: '400px', 
+            width: '100%',
+            border: '1px solid rgba(245,158,11,0.3)',
+            boxShadow: '0 0 60px rgba(245,158,11,0.15)'
+          }}>
+            {/* 아이콘 */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ 
+                fontSize: '64px', 
+                marginBottom: '8px',
+                filter: 'drop-shadow(0 0 20px rgba(245,158,11,0.5))'
+              }}>📊</div>
+              <div style={{ 
+                display: 'inline-block',
+                background: 'rgba(245,158,11,0.15)', 
+                border: '1px solid rgba(245,158,11,0.3)',
+                borderRadius: '20px',
+                padding: '6px 16px',
+                fontSize: '13px',
+                color: '#f59e0b',
+                fontWeight: '600'
+              }}>
+                무료회원 종목 한도 도달
+              </div>
+            </div>
+            
+            {/* 메시지 */}
+            <h2 style={{ 
+              fontSize: isMobile ? '20px' : '22px', 
+              fontWeight: '700', 
+              color: '#fff', 
+              margin: '0 0 12px',
+              textAlign: 'center'
+            }}>
+              더 많은 종목을 관리하고 싶으신가요?
+            </h2>
+            
+            <p style={{ 
+              fontSize: '14px', 
+              color: '#94a3b8', 
+              textAlign: 'center',
+              lineHeight: '1.6',
+              margin: '0 0 20px'
+            }}>
+              무료회원은 <strong style={{ color: '#f59e0b' }}>최대 3종목</strong>까지 관리할 수 있습니다.<br/>
+              프리미엄 회원으로 업그레이드하면<br/>
+              <strong style={{ color: '#10b981' }}>20종목</strong>까지 모니터링할 수 있어요!
+            </p>
+            
+            {/* 사회적 증거 */}
+            <div style={{
+              background: 'rgba(59,130,246,0.1)',
+              border: '1px solid rgba(59,130,246,0.2)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              <span style={{ fontSize: '13px', color: '#60a5fa' }}>
+                💡 프리미엄 회원들은 평균 <strong>12개</strong>의 종목을 정밀 관리 중입니다
+              </span>
+            </div>
+            
+            {/* 버튼 */}
+            <button 
+              onClick={() => { 
+                setShowLimitPopup(false); 
+                setShowUpgradePopup(true); 
+              }}
+              style={{ 
+                width: '100%', 
+                padding: '16px', 
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                border: 'none', 
+                borderRadius: '12px', 
+                color: '#fff', 
+                fontSize: '16px', 
+                fontWeight: '700', 
+                cursor: 'pointer', 
+                marginBottom: '10px',
+                boxShadow: '0 4px 20px rgba(245,158,11,0.4)'
+              }}
+            >
+              👑 프리미엄으로 업그레이드
+            </button>
+            <button 
+              onClick={() => setShowLimitPopup(false)} 
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                background: 'transparent', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '10px',
+                color: '#64748b', 
+                fontSize: '14px', 
+                cursor: 'pointer' 
+              }}
+            >
+              기존 종목으로 계속하기
+            </button>
           </div>
         </div>
       )}
