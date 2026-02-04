@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import { useAuth } from './AuthContext';
 
-// 데모 데이터 (컴포넌트 외부에 정의 - 재생성 방지)
-const DEMO_POSITIONS = [
+// 데모 데이터 (컴포넌트 외부에 정의)
+const DEMO_POSITIONS_RAW = [
   { 
     id: 'demo-1', 
     name: '삼성전자', 
@@ -39,34 +39,39 @@ const DEMO_POSITIONS = [
 ];
 
 // DB 형식 → 앱 형식 변환
-const dbToApp = (dbPosition) => ({
-  id: dbPosition.id,
-  name: dbPosition.name,
-  code: dbPosition.code,
-  buyPrice: dbPosition.buy_price,
-  quantity: dbPosition.quantity,
-  highestPrice: dbPosition.highest_price,
-  selectedPresets: dbPosition.selected_presets || ['candle3', 'stopLoss'],
-  presetSettings: dbPosition.preset_settings || { stopLoss: { value: -5 }, maSignal: { value: 20 } },
-  createdAt: dbPosition.created_at,
-  updatedAt: dbPosition.updated_at,
-});
+function dbToApp(dbPosition) {
+  return {
+    id: dbPosition.id,
+    name: dbPosition.name,
+    code: dbPosition.code,
+    buyPrice: dbPosition.buy_price,
+    quantity: dbPosition.quantity,
+    highestPrice: dbPosition.highest_price,
+    selectedPresets: dbPosition.selected_presets || ['candle3', 'stopLoss'],
+    presetSettings: dbPosition.preset_settings || { stopLoss: { value: -5 }, maSignal: { value: 20 } },
+    createdAt: dbPosition.created_at,
+    updatedAt: dbPosition.updated_at,
+  };
+}
 
 // 앱 형식 → DB 형식 변환
-const appToDb = (appPosition) => ({
-  name: appPosition.name,
-  code: appPosition.code,
-  buy_price: Number(appPosition.buyPrice),
-  quantity: Number(appPosition.quantity),
-  highest_price: Number(appPosition.highestPrice || appPosition.buyPrice),
-  selected_presets: appPosition.selectedPresets || ['candle3', 'stopLoss'],
-  preset_settings: appPosition.presetSettings || { stopLoss: { value: -5 }, maSignal: { value: 20 } },
-});
+function appToDb(appPosition) {
+  return {
+    name: appPosition.name,
+    code: appPosition.code,
+    buy_price: Number(appPosition.buyPrice),
+    quantity: Number(appPosition.quantity),
+    highest_price: Number(appPosition.highestPrice || appPosition.buyPrice),
+    selected_presets: appPosition.selectedPresets || ['candle3', 'stopLoss'],
+    preset_settings: appPosition.presetSettings || { stopLoss: { value: -5 }, maSignal: { value: 20 } },
+  };
+}
+
+// 데모 데이터 (앱 형식으로 미리 변환)
+const DEMO_POSITIONS = DEMO_POSITIONS_RAW.map(dbToApp);
 
 /**
  * 포지션 데이터 Supabase CRUD Hook
- * - 로그인 사용자: Supabase에서 데이터 로드/저장
- * - 비로그인 사용자: 데모 데이터 표시 (읽기 전용)
  */
 export function usePositions() {
   const { user, loading: authLoading } = useAuth();
@@ -74,53 +79,64 @@ export function usePositions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [initialized, setInitialized] = useState(false);
 
-  // 데모 데이터를 앱 형식으로 변환 (메모이제이션)
-  const demoPositions = useMemo(() => DEMO_POSITIONS.map(dbToApp), []);
-
-  // 포지션 로드
-  const fetchPositions = useCallback(async () => {
-    // 이미 초기화되었고 user가 없으면 스킵
-    if (initialized && !user) {
+  // 사용자 변경 시 데이터 로드 (핵심 로직)
+  useEffect(() => {
+    // auth 로딩 중이면 대기
+    if (authLoading) {
       return;
     }
 
+    // 비로그인 사용자: 데모 데이터
     if (!user) {
-      // 비로그인: 데모 데이터 표시
-      setPositions(demoPositions);
+      setPositions(DEMO_POSITIONS);
       setLoading(false);
-      setInitialized(true);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    // 로그인 사용자: Supabase에서 로드
+    let isMounted = true;
 
-      const { data, error: fetchError } = await supabase
-        .from('positions')
-        .select('*')
-        .order('created_at', { ascending: false });
+    async function loadPositions() {
+      try {
+        setLoading(true);
+        setError(null);
 
-      if (fetchError) throw fetchError;
+        const { data, error: fetchError } = await supabase
+          .from('positions')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (data && data.length > 0) {
-        setPositions(data.map(dbToApp));
-      } else {
-        // 신규 사용자: 빈 배열
+        if (!isMounted) return;
+
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        if (data && data.length > 0) {
+          setPositions(data.map(dbToApp));
+        } else {
+          setPositions([]);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('포지션 로드 오류:', err);
+        setError(err.message);
         setPositions([]);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setInitialized(true);
-    } catch (err) {
-      console.error('포지션 로드 오류:', err);
-      setError(err.message);
-      // 오류 시 데모 데이터 폴백
-      setPositions(demoPositions);
-    } finally {
-      setLoading(false);
     }
-  }, [user, demoPositions, initialized]);
+
+    loadPositions();
+
+    // cleanup
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, authLoading]); // user.id만 의존
 
   // 포지션 추가
   const addPosition = useCallback(async (newPosition) => {
@@ -224,17 +240,15 @@ export function usePositions() {
     }
   }, [user]);
 
-  // 최고가 업데이트 (자동)
+  // 최고가 업데이트
   const updateHighestPrice = useCallback(async (id, newHighestPrice) => {
     if (!user) return;
 
     try {
-      const { error: updateError } = await supabase
+      await supabase
         .from('positions')
         .update({ highest_price: newHighestPrice })
         .eq('id', id);
-
-      if (updateError) throw updateError;
 
       setPositions(prev => 
         prev.map(p => p.id === id ? { ...p, highestPrice: newHighestPrice } : p)
@@ -243,13 +257,6 @@ export function usePositions() {
       console.error('최고가 업데이트 오류:', err);
     }
   }, [user]);
-
-  // 사용자 변경 시 데이터 리로드
-  useEffect(() => {
-    if (!authLoading) {
-      fetchPositions();
-    }
-  }, [authLoading, user?.id]); // user?.id로 변경하여 user 객체 전체가 아닌 id만 의존
 
   return {
     positions,
@@ -261,7 +268,6 @@ export function usePositions() {
     updatePosition,
     deletePosition,
     updateHighestPrice,
-    refetch: fetchPositions,
   };
 }
 
