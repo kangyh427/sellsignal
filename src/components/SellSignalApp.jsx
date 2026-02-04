@@ -598,7 +598,7 @@ const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfi
             background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)', 
             borderRadius: '12px', 
             padding: '14px', 
-            border: '1px solid rgba(255,255,255,0.12)' 
+            border: '1px solid rgba(255,255,255,0.2)' 
           }}>
             <div style={{ 
               display: 'flex', 
@@ -1439,85 +1439,71 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
         borderRadius: isMobile ? '14px' : '14px', 
         padding: isMobile ? '14px' : '16px', 
         marginBottom: isMobile ? '14px' : '14px', 
-        border: '1px solid rgba(255,255,255,0.12)' 
+        border: '1px solid rgba(255,255,255,0.2)' 
       }}>
-        {/* 헤더 */}
+        {/* 헤더 - 한 줄로 배치 */}
         <div style={{ 
           display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: isMobile ? 'flex-start' : 'center', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
           marginBottom: '12px',
-          flexWrap: isMobile ? 'wrap' : 'nowrap',
-          gap: isMobile ? '8px' : '0'
+          gap: '8px'
         }}>
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '8px',
-            flexWrap: 'wrap',
-            flex: isMobile ? '1 1 100%' : 'initial'
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden'
           }}>
             <a href={naverStockUrl} target="_blank" rel="noopener noreferrer" style={{ 
-              fontSize: isMobile ? '16px' : '18px', 
+              fontSize: isMobile ? '15px' : '18px', 
               fontWeight: '700', 
               color: '#fff', 
-              textDecoration: 'none' 
+              textDecoration: 'none',
+              whiteSpace: 'nowrap'
             }}>
-              {position.name} ↗
+              {position.name}
             </a>
             <span style={{ 
-              background: 'rgba(59,130,246,0.2)', 
+              background: 'rgba(59,130,246,0.3)', 
               color: '#60a5fa', 
-              padding: isMobile ? '3px 8px' : '4px 10px', 
+              padding: '3px 8px', 
               borderRadius: '5px', 
-              fontSize: isMobile ? '11px' : '13px', 
-              fontWeight: '600' 
+              fontSize: isMobile ? '10px' : '12px', 
+              fontWeight: '600',
+              whiteSpace: 'nowrap'
             }}>
               {position.code}
             </span>
             <span style={{ 
-              background: stage.color + '20', 
+              background: stage.color + '30', 
               color: stage.color, 
-              padding: isMobile ? '3px 8px' : '4px 10px', 
+              padding: '3px 8px', 
               borderRadius: '5px', 
-              fontSize: isMobile ? '11px' : '13px', 
-              fontWeight: '600' 
+              fontSize: isMobile ? '10px' : '12px', 
+              fontWeight: '600',
+              whiteSpace: 'nowrap'
             }}>
               {stage.label}
             </span>
           </div>
-          <div style={{ 
-            display: 'flex', 
-            gap: '6px',
-            marginLeft: isMobile ? 'auto' : '0'
-          }}>
-            <button 
-              onClick={() => onEdit(position)} 
-              style={{ 
-                background: 'rgba(255,255,255,0.08)', 
-                border: 'none', 
-                borderRadius: '6px', 
-                padding: isMobile ? '8px 12px' : '8px 14px', 
-                color: '#94a3b8', 
-                fontSize: isMobile ? '12px' : '13px', 
-                cursor: 'pointer',
-                minHeight: '36px'
-              }}
-            >수정</button>
-            <button 
-              onClick={() => onDelete(position.id)} 
-              style={{ 
-                background: 'rgba(239,68,68,0.15)', 
-                border: 'none', 
-                borderRadius: '6px', 
-                padding: isMobile ? '8px 12px' : '8px 14px', 
-                color: '#ef4444', 
-                fontSize: isMobile ? '12px' : '13px', 
-                cursor: 'pointer',
-                minHeight: '36px'
-              }}
-            >삭제</button>
-          </div>
+          <button 
+            onClick={() => onEdit(position)} 
+            style={{ 
+              background: 'rgba(59,130,246,0.2)', 
+              border: '1px solid rgba(59,130,246,0.4)', 
+              borderRadius: '6px', 
+              padding: isMobile ? '6px 12px' : '8px 14px', 
+              color: '#60a5fa', 
+              fontSize: isMobile ? '12px' : '13px', 
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+          >✏️ 수정</button>
         </div>
         
         {/* 메인 콘텐츠 */}
@@ -1543,10 +1529,10 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
                 { label: '평가금액', value: '₩' + Math.round(totalValue).toLocaleString() }
               ].map((item, i) => (
                 <div key={i} style={{ 
-                  background: 'rgba(0,0,0,0.35)', 
+                  background: 'rgba(0,0,0,0.4)', 
                   borderRadius: '8px', 
                   padding: isMobile ? '12px 10px' : '10px',
-                  border: '1px solid rgba(255,255,255,0.08)'
+                  border: '1px solid rgba(255,255,255,0.2)'
                 }}>
                   <div style={{ fontSize: isMobile ? '12px' : '12px', color: '#94a3b8', marginBottom: '4px' }}>{item.label}</div>
                   <div style={{ 
@@ -1566,7 +1552,7 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
               background: isProfit ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', 
               borderRadius: '10px', 
               padding: isMobile ? '14px' : '12px', 
-              borderLeft: '4px solid ' + (isProfit ? '#10b981' : '#ef4444'), 
+              border: `2px solid ${isProfit ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
               marginBottom: '12px', 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -1592,12 +1578,12 @@ const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgr
             
             {/* 매도 조건 */}
             <div style={{ 
-              background: 'rgba(0,0,0,0.35)', 
+              background: 'rgba(0,0,0,0.4)', 
               borderRadius: '10px', 
               padding: isMobile ? '12px' : '12px', 
               marginBottom: '10px', 
               flex: 1,
-              border: '1px solid rgba(255,255,255,0.08)'
+              border: '1px solid rgba(255,255,255,0.2)'
             }}>
               <div style={{ 
                 display: 'flex', 
@@ -2101,8 +2087,9 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
 // ============================================
 // 종목 추가/수정 모달 - 완전 구현
 // ============================================
-const StockModal = ({ stock, onSave, onClose }) => {
+const StockModal = ({ stock, onSave, onClose, onDelete }) => {
   const { isMobile, isTablet } = useResponsive();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const [form, setForm] = useState(stock || { 
     name: '', 
@@ -2263,7 +2250,7 @@ const StockModal = ({ stock, onSave, onClose }) => {
                 left: 0, 
                 right: 0, 
                 background: '#1e293b', 
-                border: '1px solid rgba(255,255,255,0.15)', 
+                border: '1px solid rgba(255,255,255,0.2)', 
                 borderTop: 'none', 
                 borderRadius: '0 0 12px 12px', 
                 maxHeight: '200px', 
@@ -2274,20 +2261,23 @@ const StockModal = ({ stock, onSave, onClose }) => {
                   <div 
                     key={result.code} 
                     onClick={() => selectStock(result)} 
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      selectStock(result);
+                    }}
                     style={{ 
-                      padding: '14px 16px', 
+                      padding: '16px', 
                       display: 'flex', 
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       cursor: 'pointer', 
-                      borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      transition: 'background 0.15s'
+                      borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                      background: 'transparent',
+                      WebkitTapHighlightColor: 'rgba(59,130,246,0.3)'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{result.name}</span>
-                    <span style={{ color: '#64748b', fontSize: '13px' }}>{result.code} · {result.market}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>{result.code} · {result.market}</span>
                   </div>
                 ))}
               </div>
@@ -2465,6 +2455,70 @@ const StockModal = ({ stock, onSave, onClose }) => {
           borderTop: '1px solid rgba(255,255,255,0.08)',
           background: 'rgba(0,0,0,0.2)'
         }}>
+          {/* 수정 모드일 때만 삭제 버튼 표시 */}
+          {stock && onDelete && (
+            <div style={{ marginBottom: '12px' }}>
+              {!showDeleteConfirm ? (
+                <button 
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{ 
+                    width: '100%',
+                    padding: '12px', 
+                    background: 'rgba(239,68,68,0.1)', 
+                    border: '1px solid rgba(239,68,68,0.3)', 
+                    borderRadius: '10px', 
+                    color: '#ef4444', 
+                    fontSize: '14px', 
+                    cursor: 'pointer'
+                  }}
+                >🗑️ 이 종목 삭제하기</button>
+              ) : (
+                <div style={{
+                  background: 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  borderRadius: '10px',
+                  padding: '12px'
+                }}>
+                  <p style={{ fontSize: '13px', color: '#f87171', margin: '0 0 10px', textAlign: 'center' }}>
+                    ⚠️ 정말 삭제하시겠습니까?
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      onClick={() => setShowDeleteConfirm(false)}
+                      style={{ 
+                        flex: 1,
+                        padding: '10px', 
+                        background: 'rgba(255,255,255,0.1)', 
+                        border: 'none', 
+                        borderRadius: '8px', 
+                        color: '#fff', 
+                        fontSize: '14px', 
+                        cursor: 'pointer'
+                      }}
+                    >취소</button>
+                    <button 
+                      onClick={() => {
+                        onDelete(stock.id);
+                        onClose();
+                      }}
+                      style={{ 
+                        flex: 1,
+                        padding: '10px', 
+                        background: '#ef4444', 
+                        border: 'none', 
+                        borderRadius: '8px', 
+                        color: '#fff', 
+                        fontSize: '14px', 
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >삭제</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div style={{ 
             padding: '10px 12px', 
             background: 'rgba(234,179,8,0.1)', 
@@ -3747,6 +3801,12 @@ export default function SellSignalAppV5() {
             setEditingPosition(null); 
           }} 
           onClose={() => setEditingPosition(null)}
+          onDelete={async (id) => {
+            if (isLoggedIn) {
+              await deletePosition(id);
+            }
+            setEditingPosition(null);
+          }}
           isLoggedIn={isLoggedIn}
           isSaving={isSaving}
         />
