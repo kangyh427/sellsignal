@@ -3626,7 +3626,6 @@ export default function SellSignalAppV5() {
           </div>
         </div>
       )}
-   </div>
 
       {/* 로그인 모달 */}
       {showAuthModal && (
@@ -3635,5 +3634,6 @@ export default function SellSignalAppV5() {
           onClose={() => setShowAuthModal(false)} 
         />
       )}
+         </div>
     );
   }
