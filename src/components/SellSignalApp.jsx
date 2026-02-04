@@ -3588,6 +3588,14 @@ export default function SellSignalAppV5() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+   </div>
+
+      {/* 로그인 모달 */}
+      {showAuthModal && (
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => setShowAuthModal(false)} 
+        />
+      )}
+    );
+  }
