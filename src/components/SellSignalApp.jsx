@@ -457,6 +457,39 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
                 cursor: 'pointer' 
               }}
             >+ 종목 추가</button>
+            {/* 로그인/로그아웃 버튼 - 태블릿 */}
+            {!user ? (
+              <button 
+                onClick={onShowAuthModal}
+                style={{ 
+                  padding: '10px 14px', 
+                  background: 'rgba(16,185,129,0.15)', 
+                  border: '1px solid rgba(16,185,129,0.3)', 
+                  borderRadius: '10px', 
+                  color: '#10b981', 
+                  fontSize: '13px', 
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >👤 로그인</button>
+            ) : (
+              <button 
+                onClick={onSignOut}
+                style={{ 
+                  padding: '10px 14px', 
+                  background: 'rgba(239,68,68,0.15)', 
+                  border: '1px solid rgba(239,68,68,0.3)', 
+                  borderRadius: '10px', 
+                  color: '#ef4444', 
+                  fontSize: '13px', 
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >🚪 로그아웃</button>
+            )}
           </div>
         </div>
       </header>
@@ -558,6 +591,39 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
               cursor: 'pointer' 
             }}
           >+ 종목 추가</button>
+          {/* 로그인/로그아웃 버튼 - 데스크톱 */}
+          {!user ? (
+            <button 
+              onClick={onShowAuthModal}
+              style={{ 
+                padding: '12px 18px', 
+                background: 'rgba(16,185,129,0.15)', 
+                border: '1px solid rgba(16,185,129,0.3)', 
+                borderRadius: '10px', 
+                color: '#10b981', 
+                fontSize: '14px', 
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >👤 로그인</button>
+          ) : (
+            <button 
+              onClick={onSignOut}
+              style={{ 
+                padding: '12px 18px', 
+                background: 'rgba(239,68,68,0.15)', 
+                border: '1px solid rgba(239,68,68,0.3)', 
+                borderRadius: '10px', 
+                color: '#ef4444', 
+                fontSize: '14px', 
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >🚪 로그아웃</button>
+          )}
         </div>
       </div>
     </header>
