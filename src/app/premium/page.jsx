@@ -192,7 +192,7 @@ export default function PremiumPage() {
 
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px' }}>
             {[
-              { text: '최대 5개 종목 모니터링', included: true },
+              { text: '최대 3개 종목 모니터링', included: true },
               { text: '기본 매도 조건 알림', included: true },
               { text: '코스톨라니 달걀 분석', included: true },
               { text: '광고 표시', included: true },
