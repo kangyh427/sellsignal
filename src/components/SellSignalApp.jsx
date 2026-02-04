@@ -3015,32 +3015,12 @@ export default function SellSignalAppV5() {
   const [activeTab, setActiveTab] = useState('positions'); // 모바일 탭 상태
   
   const isPremium = user?.membership === 'premium';
-  
-  // 로딩 상태 처리
-  const loading = authLoading || positionsLoading;
-  
-  // 로딩 화면
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📈</div>
-          <div style={{ fontSize: '16px', color: '#94a3b8' }}>로딩 중...</div>
-        </div>
-      </div>
-    );
-  }
 
+  // ⬇️ useEffect들을 if (loading) return 위로 이동 (React Hooks 규칙)
+  
   // 가격 데이터 초기화
   useEffect(() => {
+    if (positions.length === 0) return;
     const newData = {};
     positions.forEach(pos => { 
       if (!priceDataMap[pos.id]) {
@@ -3075,6 +3055,29 @@ export default function SellSignalAppV5() {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+  
+  // 로딩 상태 처리
+  const loading = authLoading || positionsLoading;
+  
+  // 로딩 화면
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📈</div>
+          <div style={{ fontSize: '16px', color: '#94a3b8' }}>로딩 중...</div>
+        </div>
+      </div>
+    );
+  }
 
   // 총계 계산
   const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0);
