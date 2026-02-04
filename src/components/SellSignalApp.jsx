@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { usePositions } from '@/lib/usePositions';
 import AuthModal from '@/components/AuthModal';
 
 // ============================================
@@ -457,39 +458,6 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
                 cursor: 'pointer' 
               }}
             >+ 종목 추가</button>
-            {/* 로그인/로그아웃 버튼 - 태블릿 */}
-            {!user ? (
-              <button 
-                onClick={onShowAuthModal}
-                style={{ 
-                  padding: '10px 14px', 
-                  background: 'rgba(16,185,129,0.15)', 
-                  border: '1px solid rgba(16,185,129,0.3)', 
-                  borderRadius: '10px', 
-                  color: '#10b981', 
-                  fontSize: '13px', 
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >👤 로그인</button>
-            ) : (
-              <button 
-                onClick={onSignOut}
-                style={{ 
-                  padding: '10px 14px', 
-                  background: 'rgba(239,68,68,0.15)', 
-                  border: '1px solid rgba(239,68,68,0.3)', 
-                  borderRadius: '10px', 
-                  color: '#ef4444', 
-                  fontSize: '13px', 
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >🚪 로그아웃</button>
-            )}
           </div>
         </div>
       </header>
@@ -591,39 +559,6 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, us
               cursor: 'pointer' 
             }}
           >+ 종목 추가</button>
-          {/* 로그인/로그아웃 버튼 - 데스크톱 */}
-          {!user ? (
-            <button 
-              onClick={onShowAuthModal}
-              style={{ 
-                padding: '12px 18px', 
-                background: 'rgba(16,185,129,0.15)', 
-                border: '1px solid rgba(16,185,129,0.3)', 
-                borderRadius: '10px', 
-                color: '#10b981', 
-                fontSize: '14px', 
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >👤 로그인</button>
-          ) : (
-            <button 
-              onClick={onSignOut}
-              style={{ 
-                padding: '12px 18px', 
-                background: 'rgba(239,68,68,0.15)', 
-                border: '1px solid rgba(239,68,68,0.3)', 
-                borderRadius: '10px', 
-                color: '#ef4444', 
-                fontSize: '14px', 
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >🚪 로그아웃</button>
-          )}
         </div>
       </div>
     </header>
@@ -3036,14 +2971,20 @@ const AIReportPopup = ({ position, onClose, isPremium, onUpgrade }) => {
 // ============================================
 export default function SellSignalAppV5() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   
-  const [positions, setPositions] = useState([
-    { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78200, selectedPresets: ['candle3', 'stopLoss', 'twoThird', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
-    { id: 2, name: '현대차', code: '005380', buyPrice: 215000, quantity: 20, highestPrice: 228000, selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } } },
-    { id: 3, name: '한화에어로스페이스', code: '012450', buyPrice: 285000, quantity: 15, highestPrice: 412000, selectedPresets: ['twoThird', 'maSignal', 'volumeZone', 'fundamental'], presetSettings: { maSignal: { value: 60 } } },
-  ]);
+  // Supabase 연동 - 포지션 데이터
+  const { 
+    positions, 
+    loading: positionsLoading, 
+    error: positionsError,
+    isSaving,
+    isLoggedIn,
+    addPosition, 
+    updatePosition, 
+    deletePosition 
+  } = usePositions();
   const [priceDataMap, setPriceDataMap] = useState({});
   const [alerts, setAlerts] = useState([
     // 데모용 샘플 알림
@@ -3074,6 +3015,29 @@ export default function SellSignalAppV5() {
   const [activeTab, setActiveTab] = useState('positions'); // 모바일 탭 상태
   
   const isPremium = user?.membership === 'premium';
+  
+  // 로딩 상태 처리
+  const loading = authLoading || positionsLoading;
+  
+  // 로딩 화면
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📈</div>
+          <div style={{ fontSize: '16px', color: '#94a3b8' }}>로딩 중...</div>
+        </div>
+      </div>
+    );
+  }
 
   // 가격 데이터 초기화
   useEffect(() => {
@@ -3335,14 +3299,37 @@ export default function SellSignalAppV5() {
                 color: '#64748b' 
               }}>실시간 조건 감시 중</span>
             </div>
+            
+            {/* 비로그인 안내 */}
+            {!isLoggedIn && (
+              <div style={{
+                background: 'rgba(59,130,246,0.1)',
+                border: '1px solid rgba(59,130,246,0.3)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <span style={{ fontSize: '20px' }}>💡</span>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#60a5fa', fontWeight: '600' }}>데모 모드</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>로그인하면 내 종목을 저장하고 관리할 수 있습니다</div>
+                </div>
+              </div>
+            )}
+            
             {positions.map(pos => (
               <PositionCard 
                 key={pos.id} 
                 position={pos} 
                 priceData={priceDataMap[pos.id]} 
                 onEdit={setEditingPosition} 
-                onDelete={(id) => { 
-                  setPositions(prev => prev.filter(p => p.id !== id)); 
+                onDelete={async (id) => { 
+                  if (isLoggedIn) {
+                    await deletePosition(id);
+                  }
                   setPriceDataMap(prev => { const u = { ...prev }; delete u[id]; return u; }); 
                 }} 
                 isPremium={isPremium}
@@ -3523,21 +3510,29 @@ export default function SellSignalAppV5() {
       {/* 모달들 */}
       {showAddModal && (
         <StockModal 
-          onSave={(stock) => { 
-            setPositions(prev => [...prev, { ...stock, id: Date.now() }]); 
+          onSave={async (stock) => { 
+            if (isLoggedIn) {
+              await addPosition(stock);
+            }
             setShowAddModal(false); 
           }} 
-          onClose={() => setShowAddModal(false)} 
+          onClose={() => setShowAddModal(false)}
+          isLoggedIn={isLoggedIn}
+          isSaving={isSaving}
         />
       )}
       {editingPosition && (
         <StockModal 
           stock={editingPosition} 
-          onSave={(stock) => { 
-            setPositions(prev => prev.map(p => p.id === stock.id ? stock : p)); 
+          onSave={async (stock) => { 
+            if (isLoggedIn) {
+              await updatePosition(stock.id, stock);
+            }
             setEditingPosition(null); 
           }} 
-          onClose={() => setEditingPosition(null)} 
+          onClose={() => setEditingPosition(null)}
+          isLoggedIn={isLoggedIn}
+          isSaving={isSaving}
         />
       )}
 
