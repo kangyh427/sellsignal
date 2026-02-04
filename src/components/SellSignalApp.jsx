@@ -3586,9 +3586,13 @@ export default function SellSignalAppV5() {
                   flexDirection: 'column',
                   gap: '8px'
                 }}>
-                  {['이용약관', '개인정보처리방침', '프리미엄 안내'].map((item, i) => (
+                  {[
+                    { label: '이용약관', href: '/terms' },
+                    { label: '개인정보처리방침', href: '/privacy' },
+                    { label: '프리미엄 안내', href: '/premium' }
+                  ].map((item, i) => (
                     <li key={i}>
-                      <a href="#" style={{ 
+                      <a href={item.href} style={{ 
                         fontSize: '13px', 
                         color: '#64748b', 
                         textDecoration: 'none',
@@ -3596,7 +3600,7 @@ export default function SellSignalAppV5() {
                       }}
                       onMouseEnter={e => e.target.style.color = '#fff'}
                       onMouseLeave={e => e.target.style.color = '#64748b'}
-                      >{item}</a>
+                      >{item.label}</a>
                     </li>
                   ))}
                 </ul>
