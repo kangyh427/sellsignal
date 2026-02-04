@@ -179,7 +179,7 @@ const calculateDDay = (dateStr) => {
 // ============================================
 // 반응형 헤더 컴포넌트
 // ============================================
-const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal }) => {
+const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal, user, onShowAuthModal, onSignOut }) => {
   const { isMobile, isTablet } = useResponsive();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -268,7 +268,42 @@ const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal }) 
                 justifyContent: 'center',
               }}
             >+</button>
-
+     {/* 로그인/로그아웃 버튼 */}
+            {!user ? (
+              <button 
+                onClick={onShowAuthModal}
+                style={{ 
+                  width: '36px',
+                  height: '36px',
+                  background: 'rgba(16,185,129,0.15)', 
+                  border: '1px solid rgba(16,185,129,0.3)', 
+                  borderRadius: '10px', 
+                  color: '#10b981', 
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >👤</button>
+            ) : (
+              <button 
+                onClick={onSignOut}
+                style={{ 
+                  width: '36px',
+                  height: '36px',
+                  background: 'rgba(239,68,68,0.15)', 
+                  border: '1px solid rgba(239,68,68,0.3)', 
+                  borderRadius: '10px', 
+                  color: '#ef4444', 
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >🚪</button>
+            )}
             {/* 햄버거 메뉴 */}
             <button 
               onClick={() => setShowMobileMenu(!showMobileMenu)}
@@ -3076,6 +3111,9 @@ export default function SellSignalAppV5() {
         isPremium={isPremium}
         onShowUpgrade={() => setShowUpgradePopup(true)}
         onShowAddModal={() => setShowAddModal(true)}
+        user={user}
+        onShowAuthModal={() => setShowAuthModal(true)}
+        onSignOut={signOut}
       />
 
       {/* 메인 */}
