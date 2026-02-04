@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/AuthContext';
+import AuthModal from '@/components/AuthModal';
 
 // ============================================
 // 반응형 설정 및 훅
