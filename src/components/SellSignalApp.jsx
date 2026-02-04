@@ -2935,8 +2935,9 @@ const AIReportPopup = ({ position, onClose, isPremium, onUpgrade }) => {
 // ============================================
 export default function SellSignalAppV5() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
+  const { user, loading, signOut } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
-  const [user, setUser] = useState({ membership: 'free', email: 'demo@test.com' });
   const [positions, setPositions] = useState([
     { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78200, selectedPresets: ['candle3', 'stopLoss', 'twoThird', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
     { id: 2, name: '현대차', code: '005380', buyPrice: 215000, quantity: 20, highestPrice: 228000, selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } } },
