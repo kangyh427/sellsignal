@@ -54,8 +54,42 @@ function dbToApp(dbPosition) {
   };
 }
 
-// 앱 형식 → DB 형식 변환
-function appToDb(appPosition) {
+// [수정됨] 앱 형식 → DB 형식 변환 (부분 업데이트 지원)
+// isUpdate=true일 경우, 존재하는 필드만 변환
+function appToDb(appPosition, isUpdate = false) {
+  // 매핑 테이블
+  const mapping = {
+    name: 'name',
+    code: 'code',
+    buyPrice: 'buy_price',
+    quantity: 'quantity',
+    highestPrice: 'highest_price',
+    selectedPresets: 'selected_presets',
+    presetSettings: 'preset_settings',
+  };
+
+  // 부분 업데이트용: 존재하는 필드만 변환
+  if (isUpdate) {
+    const dbData = {};
+    
+    Object.keys(appPosition).forEach(key => {
+      if (mapping[key] && appPosition[key] !== undefined) {
+        const dbKey = mapping[key];
+        let value = appPosition[key];
+
+        // 숫자형 필드 변환
+        if (['buyPrice', 'quantity', 'highestPrice'].includes(key)) {
+          value = Number(value);
+        }
+        
+        dbData[dbKey] = value;
+      }
+    });
+    
+    return dbData;
+  }
+
+  // 전체 생성용: 기본값 포함
   return {
     name: appPosition.name,
     code: appPosition.code,
@@ -72,6 +106,8 @@ const DEMO_POSITIONS = DEMO_POSITIONS_RAW.map(dbToApp);
 
 /**
  * 포지션 데이터 Supabase CRUD Hook
+ * - 로그인 사용자: Supabase에서 데이터 로드/저장
+ * - 비로그인 사용자: 로컬 상태로 데모 체험 가능
  */
 export function usePositions() {
   const { user, loading: authLoading } = useAuth();
@@ -80,9 +116,8 @@ export function usePositions() {
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 사용자 변경 시 데이터 로드 (핵심 로직)
+  // 사용자 변경 시 데이터 로드
   useEffect(() => {
-    // auth 로딩 중이면 대기
     if (authLoading) {
       return;
     }
@@ -132,17 +167,28 @@ export function usePositions() {
 
     loadPositions();
 
-    // cleanup
     return () => {
       isMounted = false;
     };
-  }, [user?.id, authLoading]); // user.id만 의존
+  }, [user?.id, authLoading]);
 
   // 포지션 추가
   const addPosition = useCallback(async (newPosition) => {
+    // [개선] 비로그인 사용자도 로컬에서 추가 체험 가능
     if (!user) {
-      console.warn('로그인이 필요합니다.');
-      return null;
+      const tempId = `temp-${Date.now()}`;
+      const tempData = {
+        id: tempId,
+        name: newPosition.name,
+        code: newPosition.code,
+        buyPrice: Number(newPosition.buyPrice),
+        quantity: Number(newPosition.quantity),
+        highestPrice: Number(newPosition.highestPrice || newPosition.buyPrice),
+        selectedPresets: newPosition.selectedPresets || ['candle3', 'stopLoss'],
+        presetSettings: newPosition.presetSettings || { stopLoss: { value: -5 }, maSignal: { value: 20 } },
+      };
+      setPositions(prev => [tempData, ...prev]);
+      return tempData;
     }
 
     try {
@@ -150,7 +196,7 @@ export function usePositions() {
       setError(null);
 
       const dbData = {
-        ...appToDb(newPosition),
+        ...appToDb(newPosition, false),
         user_id: user.id,
       };
 
@@ -177,16 +223,24 @@ export function usePositions() {
 
   // 포지션 수정
   const updatePosition = useCallback(async (id, updates) => {
+    // [개선] 비로그인 사용자 로컬 수정 지원
     if (!user) {
-      console.warn('로그인이 필요합니다.');
-      return null;
+      setPositions(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      return { id, ...updates };
     }
 
     try {
       setIsSaving(true);
       setError(null);
 
-      const dbData = appToDb(updates);
+      // [핵심 수정] 부분 업데이트용 변환 (isUpdate = true)
+      const dbData = appToDb(updates, true);
+
+      // 빈 업데이트 방지
+      if (Object.keys(dbData).length === 0) {
+        console.warn('업데이트할 필드가 없습니다.');
+        return null;
+      }
 
       const { data, error: updateError } = await supabase
         .from('positions')
@@ -212,9 +266,10 @@ export function usePositions() {
 
   // 포지션 삭제
   const deletePosition = useCallback(async (id) => {
+    // [개선] 비로그인 사용자 로컬 삭제 지원
     if (!user) {
-      console.warn('로그인이 필요합니다.');
-      return false;
+      setPositions(prev => prev.filter(p => p.id !== id));
+      return true;
     }
 
     try {
@@ -240,21 +295,26 @@ export function usePositions() {
     }
   }, [user]);
 
-  // 최고가 업데이트
+  // 최고가 업데이트 (Optimistic UI)
   const updateHighestPrice = useCallback(async (id, newHighestPrice) => {
+    // 로컬 상태 즉시 반영 (Optimistic Update)
+    setPositions(prev => 
+      prev.map(p => p.id === id ? { ...p, highestPrice: newHighestPrice } : p)
+    );
+
+    // 비로그인은 로컬만 업데이트
     if (!user) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('positions')
         .update({ highest_price: newHighestPrice })
         .eq('id', id);
-
-      setPositions(prev => 
-        prev.map(p => p.id === id ? { ...p, highestPrice: newHighestPrice } : p)
-      );
+        
+      if (error) throw error;
     } catch (err) {
       console.error('최고가 업데이트 오류:', err);
+      // 필요 시 롤백 로직 추가 가능
     }
   }, [user]);
 
