@@ -11,6 +11,7 @@ import {
   AINewsPopup,
   AIReportPopup
 } from '@/components'
+import type { Position } from '@/components/StockModal'
 import { 
   SELL_PRESETS, 
   PROFIT_STAGES, 
@@ -20,18 +21,7 @@ import {
   calculateSellPrices
 } from '@/lib/constants'
 
-// Types
-interface Position {
-  id: number
-  name: string
-  code: string
-  buyPrice: number
-  quantity: number
-  highestPrice?: number
-  selectedPresets: string[]
-  presetSettings: Record<string, { value: number }>
-}
-
+// Types (Position은 StockModal에서 import)
 interface Alert {
   id: number
   stockName: string
@@ -710,9 +700,9 @@ function MobileBottomNav({ activeTab, setActiveTab, alertCount }: {
 }
 
 // 메인 레이아웃 스타일
-function getMainLayoutStyle(isMobile: boolean, isTablet: boolean, isPremium: boolean) {
+function getMainLayoutStyle(isMobile: boolean, isTablet: boolean, isPremium: boolean): React.CSSProperties {
   if (isMobile) {
-    return { display: 'flex', flexDirection: 'column' as const, gap: '16px', padding: '0' }
+    return { display: 'flex', flexDirection: 'column', gap: '16px', padding: '0' }
   }
   if (isTablet) {
     return { display: 'grid', gridTemplateColumns: '1fr 320px', gap: '16px', padding: '0 20px' }
