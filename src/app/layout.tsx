@@ -1,25 +1,27 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
+export const metadata = {
+  title: '매도의 기술 - 주식 매도 시그널 앱',
+  description: '수익 단계별 8가지 매도법을 활용한 스마트 매도 알람 도구',
+};
 
-const inter = Inter({ subsets: ['latin'] })
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#0a0a0f',
+};
 
-export const metadata: Metadata = {
-  title: '매도의 기술 - 주식 매도 시그널 알림',
-  description: '8가지 매도법 기반 실시간 조건 알림 서비스',
-  keywords: ['주식', '매도', '투자', '알림', '시그널'],
-}
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }) {
   return (
     <html lang="ko">
-      <body className={inter.className}>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body style={{ margin: 0, padding: 0, background: '#0a0a0f' }}>
         {children}
       </body>
     </html>
-  )
+  );
 }
