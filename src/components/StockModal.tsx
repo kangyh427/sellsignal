@@ -1,434 +1,406 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
-import { useResponsive } from '@/hooks/useResponsive'
-import { Position, Stock } from '@/types'
-import { SELL_PRESETS } from '@/constants'
-import { searchStocks, findExactStock } from '@/utils'
+import React, { useState } from 'react';
+import type { StockModalProps, Stock, Position, FormState } from '../types';
+import { SELL_PRESETS, STOCK_LIST } from '../constants';
 
-interface StockModalProps {
-  stock?: Position | null
-  onSave: (stock: Position) => void
-  onClose: () => void
-}
+// ============================================
+// StockModal 컴포넌트
+// ============================================
 
-export const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
-  const { isMobile } = useResponsive()
+            </span>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};
 
-  const [form, setForm] = useState<Partial<Position>>(stock || {
-    name: '',
-    code: '',
-    buyPrice: 0,
-    quantity: 0,
-    selectedPresets: ['candle3', 'stopLoss'],
-    presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } }
-  })
-  const [stockQuery, setStockQuery] = useState(stock ? stock.name : '')
-  const [searchResults, setSearchResults] = useState<Stock[]>([])
-  const [showResults, setShowResults] = useState(false)
-  const [stockFound, setStockFound] = useState(!!stock)
+// 메인 앱 컴포넌트
 
-  const handleStockSearch = (query: string) => {
-    setStockQuery(query)
-    if (query.trim().length > 0) {
-      const results = searchStocks(query)
-      setSearchResults(results)
-      setShowResults(results.length > 0)
-      const exact = findExactStock(query)
-      if (exact) {
-        setForm({ ...form, name: exact.name, code: exact.code })
-        setStockFound(true)
-      } else {
-        setStockFound(false)
-      }
+// ============================================
+// StockModal 컴포넌트 (독립 컴포넌트)
+// ============================================
+const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobile }) => {
+  // Form 초기값 안정화 - 모든 필드에 기본값 설정
+  const [form, setForm] = useState<FormState>({
+    stockCode: stock?.stock.code || '',
+    buyPrice: stock?.buyPrice.toString() || '',
+    quantity: stock?.quantity.toString() || '',
+    buyDate: stock?.buyDate || new Date().toISOString().split('T')[0],
+    selectedPresets: stock?.selectedPresets || [],
+    presetSettings: stock?.presetSettings || {},
+    memo: stock?.memo || '',
+  });
+
+  // 자동완성 관련 상태
+  const [stockInput, setStockInput] = useState(stock ? `${stock.stock.name} (${stock.stock.code})` : '');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredStocks, setFilteredStocks] = useState<Stock[]>(STOCK_LIST);
+
+  // 종목 입력 핸들러
+  const handleStockInput = (value: string) => {
+    setStockInput(value);
+    setShowSuggestions(true);
+    
+    if (value.trim() === '') {
+      setFilteredStocks(STOCK_LIST);
+      setForm({ ...form, stockCode: '' });
     } else {
-      setSearchResults([])
-      setShowResults(false)
-      setStockFound(false)
+      const filtered = STOCK_LIST.filter((s: Stock) => 
+        s.name.toLowerCase().includes(value.toLowerCase()) ||
+        s.code.includes(value)
+      );
+      setFilteredStocks(filtered);
     }
-  }
+  };
 
-  const selectStock = (stockItem: Stock) => {
-    setForm({ ...form, name: stockItem.name, code: stockItem.code })
-    setStockQuery(stockItem.name)
-    setStockFound(true)
-    setShowResults(false)
-  }
-
-  const togglePreset = (id: string) => {
-    const current = form.selectedPresets || []
-    setForm({
-      ...form,
-      selectedPresets: current.includes(id) ? current.filter(p => p !== id) : [...current, id]
-    })
-  }
+  // 종목 선택 핸들러
+  const handleSelectStock = (selectedStock: Stock) => {
+    setStockInput(`${selectedStock.name} (${selectedStock.code})`);
+    setForm(prevForm => ({ 
+      ...prevForm, 
+      stockCode: selectedStock.code 
+    }));
+    setShowSuggestions(false);
+  };
 
   const handleSave = () => {
-    if (!form.name || !form.code || !form.buyPrice || !form.quantity) {
-      alert('모든 필수 항목을 입력해주세요.')
-      return
+    // 디버깅용 로그
+    console.log('Form State:', form);
+    console.log('Stock Input:', stockInput);
+    
+    let selectedStock = STOCK_LIST.find((s: Stock) => s.code === form.stockCode);
+    
+    // 리스트에 없는 종목이면 직접 입력된 것으로 처리
+    if (!selectedStock && stockInput.trim() !== '') {
+      // 종목명에서 코드 추출 시도 (예: "테슬라 (TSLA)" -> TSLA)
+      const codeMatch = stockInput.match(/\(([^)]+)\)/);
+      const extractedCode = codeMatch ? codeMatch[1] : '';
+      
+      // 추출된 코드로 다시 한번 STOCK_LIST에서 찾기
+      if (extractedCode) {
+        selectedStock = STOCK_LIST.find((s: Stock) => s.code === extractedCode);
+      }
+      
+      // 그래도 없으면 직접 입력 종목으로 처리
+      if (!selectedStock) {
+        const stockName = stockInput.replace(/\s*\([^)]*\)\s*/, '').trim() || stockInput;
+        selectedStock = {
+          name: stockName,
+          code: extractedCode || `CUSTOM_${Date.now()}`,
+          market: '직접입력',
+          sector: '기타',
+          per: 0,
+          pbr: 0,
+          sectorPer: 0,
+          sectorPbr: 0,
+        };
+      }
     }
-    onSave({
-      ...form,
-      id: stock?.id || Date.now(),
-      buyPrice: Number(form.buyPrice),
-      quantity: Number(form.quantity),
-      highestPrice: Number(form.buyPrice)
-    } as Position)
-  }
+    
+    if (!selectedStock) {
+      alert('종목을 입력해주세요');
+      return;
+    }
 
-  const isFormValid = form.name && form.code && form.buyPrice && form.quantity
+    const buyPrice = parseFloat(form.buyPrice);
+    const quantity = parseInt(form.quantity);
+    
+    if (isNaN(buyPrice) || isNaN(quantity) || buyPrice <= 0 || quantity <= 0) {
+      alert('올바른 금액과 수량을 입력해주세요');
+      return;
+    }
+
+    const newPosition: Position = {
+      id: stock?.id || Date.now().toString(),
+      stock: selectedStock,
+      buyPrice,
+      quantity,
+      currentPrice: buyPrice * (1 + (Math.random() * 0.2 - 0.05)),
+      buyDate: form.buyDate,
+      selectedPresets: form.selectedPresets,
+      presetSettings: form.presetSettings,
+      memo: form.memo,
+      alerts: [],
+      priceHistory: [],
+    };
+
+    console.log('Saving Position:', newPosition);
+    onSave(newPosition);
+  };
+
+  const togglePreset = (presetId: string) => {
+    setForm(prev => ({
+      ...prev,
+      selectedPresets: prev.selectedPresets.includes(presetId)
+        ? prev.selectedPresets.filter((id: string) => id !== presetId)
+        : [...prev.selectedPresets, presetId],
+      // 프리셋 설정 초기화 (undefined 방지)
+      presetSettings: {
+        ...prev.presetSettings,
+        [presetId]: prev.presetSettings[presetId] || { value: SELL_PRESETS[presetId].inputDefault || 0 }
+      }
+    }));
+  };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.85)',
-        display: 'flex',
-        alignItems: isMobile ? 'flex-end' : 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: isMobile ? '0' : '20px'
-      }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.8)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: isMobile ? '16px' : '20px',
+    }}
+    onClick={() => setShowSuggestions(false)}
     >
       <div style={{
         background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-        borderRadius: isMobile ? '20px 20px 0 0' : '20px',
+        borderRadius: '16px',
+        padding: isMobile ? '20px' : '28px',
+        maxWidth: '500px',
         width: '100%',
-        maxWidth: isMobile ? '100%' : '600px',
-        maxHeight: isMobile ? '95vh' : '90vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        border: '1px solid rgba(255,255,255,0.1)'
-      }}>
-        {/* 헤더 */}
-        <div style={{
-          padding: isMobile ? '16px 20px' : '20px 24px',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+        maxHeight: '90vh',
+        overflow: 'auto',
+        border: '1px solid rgba(255,255,255,0.1)',
+      }}
+      onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{ 
+          fontSize: isMobile ? '20px' : '24px', 
+          fontWeight: '700', 
+          color: '#fff', 
+          marginBottom: '20px' 
         }}>
-          <h2 style={{
-            fontSize: isMobile ? '18px' : '20px',
-            fontWeight: '700',
-            color: '#fff',
-            margin: 0
-          }}>
-            {stock ? '🔍 종목 수정' : '➕ 새 종목 추가'}
-          </h2>
-          <button
-            onClick={onClose}
+          {stock ? '종목 정보 수정' : '종목 추가'}
+        </h2>
+
+        {/* 종목 선택 */}
+        <div style={{ marginBottom: '16px', position: 'relative' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+            종목 선택 (직접 입력 가능)
+          </label>
+          <input
+            type="text"
+            value={stockInput}
+            onChange={(e) => handleStockInput(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            placeholder="종목명 또는 종목코드 입력"
             style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '8px 16px',
+              width: '100%',
+              padding: '10px 12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
               color: '#fff',
               fontSize: '14px',
-              cursor: 'pointer',
-              minHeight: '40px'
             }}
-          >닫기</button>
+          />
+          
+          {/* 자동완성 드롭다운 */}
+          {showSuggestions && filteredStocks.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              maxHeight: '200px',
+              overflowY: 'auto',
+              background: '#1e293b',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              marginTop: '4px',
+              zIndex: 1000,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            }}>
+              {filteredStocks.map((s: Stock) => (
+                <div
+                  key={s.code}
+                  onClick={() => handleSelectStock(s)}
+                  style={{
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    color: '#fff',
+                    fontSize: '14px',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(139,92,246,0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {s.name} ({s.code})
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* 도움말 */}
+          {stockInput && !form.stockCode && (
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#94a3b8', 
+              marginTop: '4px',
+              fontStyle: 'italic',
+            }}>
+              💡 리스트에 없는 종목도 직접 입력 가능합니다
+            </div>
+          )}
         </div>
 
-        {/* 스크롤 영역 */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: isMobile ? '16px 20px' : '20px 24px'
-        }}>
-          {/* 종목 검색 */}
-          <div style={{ marginBottom: '16px', position: 'relative' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '13px',
-              color: '#94a3b8',
-              marginBottom: '8px',
-              fontWeight: '500'
-            }}>종목명 또는 종목코드 *</label>
+        {/* 매수 정보 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+              매수가
+            </label>
             <input
-              type="text"
-              value={stockQuery}
-              onChange={e => handleStockSearch(e.target.value)}
-              onFocus={() => searchResults.length > 0 && setShowResults(true)}
-              placeholder="예: 삼성전자 또는 005930"
+              type="number"
+              value={form.buyPrice}
+              onChange={(e) => setForm(prev => ({ ...prev, buyPrice: e.target.value }))}
+              placeholder="50000"
               style={{
                 width: '100%',
-                padding: '14px 16px',
+                padding: '10px 12px',
                 background: 'rgba(255,255,255,0.05)',
-                border: stockFound ? '2px solid rgba(16,185,129,0.5)' : '1px solid rgba(255,255,255,0.15)',
-                borderRadius: showResults ? '12px 12px 0 0' : '12px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px',
                 color: '#fff',
-                fontSize: '16px',
-                outline: 'none',
-                boxSizing: 'border-box'
+                fontSize: '14px',
               }}
             />
-            {showResults && searchResults.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#1e293b',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderTop: 'none',
-                borderRadius: '0 0 12px 12px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                zIndex: 100
-              }}>
-                {searchResults.map((result, idx) => (
-                  <div
-                    key={result.code}
-                    onClick={() => selectStock(result)}
-                    style={{
-                      padding: '14px 16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{result.name}</span>
-                    <span style={{ color: '#64748b', fontSize: '13px' }}>{result.code} · {result.market}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {stockFound && form.name && (
-              <div style={{
-                marginTop: '8px',
-                fontSize: '13px',
-                color: '#10b981',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                ✓ {form.name} ({form.code}) 선택됨
-              </div>
-            )}
           </div>
-
-          {/* 매수가, 수량 */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-            gap: '12px',
-            marginBottom: '20px'
-          }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                color: '#94a3b8',
-                marginBottom: '8px',
-                fontWeight: '500'
-              }}>매수가 (원) *</label>
-              <input
-                type="number"
-                value={form.buyPrice || ''}
-                onChange={e => setForm({ ...form, buyPrice: Number(e.target.value) })}
-                placeholder="72000"
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  fontSize: '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                color: '#94a3b8',
-                marginBottom: '8px',
-                fontWeight: '500'
-              }}>수량 (주) *</label>
-              <input
-                type="number"
-                value={form.quantity || ''}
-                onChange={e => setForm({ ...form, quantity: Number(e.target.value) })}
-                placeholder="100"
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  fontSize: '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+              수량
+            </label>
+            <input
+              type="number"
+              value={form.quantity}
+              onChange={(e) => setForm(prev => ({ ...prev, quantity: e.target.value }))}
+              placeholder="10"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '14px',
+              }}
+            />
           </div>
+        </div>
 
-          {/* 매도 조건 선택 */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{
-              fontSize: '15px',
-              fontWeight: '600',
-              color: '#fff',
-              display: 'block',
-              marginBottom: '12px'
-            }}>📚 매도의 기술 조건 선택</label>
-            <div style={{
-              fontSize: '12px',
-              color: '#f59e0b',
-              marginBottom: '12px',
-              background: 'rgba(245,158,11,0.1)',
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+            매수일
+          </label>
+          <input
+            type="date"
+            value={form.buyDate}
+            onChange={(e) => setForm(prev => ({ ...prev, buyDate: e.target.value }))}
+            style={{
+              width: '100%',
               padding: '10px 12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '8px',
-              lineHeight: '1.5'
-            }}>
-              ⚠️ 아래 기본값은 예시일 뿐입니다. 반드시 본인의 투자 원칙에 따라 수정하십시오.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {Object.values(SELL_PRESETS).map(preset => {
-                const isSelected = (form.selectedPresets || []).includes(preset.id)
-                return (
-                  <div
-                    key={preset.id}
+              color: '#fff',
+              fontSize: '14px',
+            }}
+          />
+        </div>
+
+        {/* 매도 전략 선택 */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>
+            매도 전략 선택
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            {Object.values(SELL_PRESETS).map((preset: SellPreset) => (
+              <button
+                key={preset.id}
+                onClick={() => togglePreset(preset.id)}
+                style={{
+                  padding: '10px',
+                  background: form.selectedPresets.includes(preset.id)
+                    ? 'rgba(139,92,246,0.2)'
+                    : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${form.selectedPresets.includes(preset.id) ? '#8b5cf6' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div>{preset.icon} {preset.name}</div>
+                {preset.hasInput && form.selectedPresets.includes(preset.id) && (
+                  <input
+                    type="number"
+                    value={form.presetSettings[preset.id]?.value ?? preset.inputDefault ?? 0}
+                    onChange={(e) => setForm(prev => ({
+                      ...prev,
+                      presetSettings: {
+                        ...prev.presetSettings,
+                        [preset.id]: { value: parseFloat(e.target.value) || 0 }
+                      }
+                    }))}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={preset.inputLabel}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: isMobile ? '14px' : '14px 16px',
-                      background: isSelected ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.02)',
-                      border: isSelected ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.05)',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                    onClick={() => togglePreset(preset.id)}
-                  >
-                    <div style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '6px',
-                      background: isSelected ? '#3b82f6' : 'rgba(255,255,255,0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '14px',
+                      width: '100%',
+                      marginTop: '6px',
+                      padding: '4px 8px',
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '4px',
                       color: '#fff',
-                      flexShrink: 0
-                    }}>
-                      {isSelected && '✓'}
-                    </div>
-                    <span style={{ fontSize: '20px', flexShrink: 0 }}>{preset.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff' }}>{preset.name}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{preset.description}</div>
-                    </div>
-                    {preset.hasInput && isSelected && (
-                      <input
-                        type="number"
-                        value={form.presetSettings?.[preset.id]?.value ?? preset.inputDefault}
-                        onChange={e => {
-                          e.stopPropagation()
-                          setForm({
-                            ...form,
-                            presetSettings: {
-                              ...form.presetSettings,
-                              [preset.id]: { value: Number(e.target.value) }
-                            }
-                          })
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          width: '70px',
-                          padding: '8px 10px',
-                          background: 'rgba(255,255,255,0.1)',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          borderRadius: '8px',
-                          color: '#fff',
-                          fontSize: '14px',
-                          outline: 'none',
-                          textAlign: 'center',
-                          flexShrink: 0
-                        }}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                      fontSize: '11px',
+                    }}
+                  />
+                )}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* 하단 버튼 */}
-        <div style={{
-          padding: isMobile ? '16px 20px' : '16px 24px',
-          paddingBottom: isMobile ? 'max(16px, env(safe-area-inset-bottom))' : '16px',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          background: 'rgba(0,0,0,0.2)'
-        }}>
-          <div style={{
-            padding: '10px 12px',
-            background: 'rgba(234,179,8,0.1)',
-            borderRadius: '8px',
-            marginBottom: '12px'
-          }}>
-            <p style={{ fontSize: '11px', color: '#eab308', margin: 0, lineHeight: '1.5' }}>
-              ⚠️ 본 알람은 사용자가 직접 선택한 기술적 조건에 따른 단순 정보 제공이며, 투자자문이나 투자권유가 아닙니다.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: '16px',
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '16px',
-                cursor: 'pointer',
-                minHeight: '52px'
-              }}
-            >취소</button>
-            <button
-              onClick={handleSave}
-              disabled={!isFormValid}
-              style={{
-                flex: 1,
-                padding: '16px',
-                background: isFormValid
-                  ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
-                  : 'rgba(100,116,139,0.3)',
-                border: 'none',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: isFormValid ? 'pointer' : 'not-allowed',
-                minHeight: '52px',
-                opacity: isFormValid ? 1 : 0.6
-              }}
-            >
-              {stock ? '수정 완료' : '알람 설정 완료'}
-            </button>
-          </div>
+        {/* 메모 */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+            메모
+          </label>
+          <textarea
+            value={form.memo}
+            onChange={(e) => setForm(prev => ({ ...prev, memo: e.target.value }))}
+            placeholder="투자 근거나 메모를 입력하세요"
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '14px',
+              resize: 'vertical',
+            }}
+          />
         </div>
-      </div>
-    </div>
-  )
-}
+
+        {/* 버튼 */}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={handleSave}
+            style={{
+
+export default StockModal;
