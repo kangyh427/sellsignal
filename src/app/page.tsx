@@ -205,11 +205,11 @@ export default function SellSignalApp() {
 
       {/* 헤더 */}
       <ResponsiveHeader
-        alerts={alerts}
+        alertCount={alerts.length}
         isPremium={isPremium}
         onShowUpgrade={() => setShowUpgradePopup(true)}
         onShowAddModal={() => setShowAddModal(true)}
-      />
+        />
 
       {/* 메인 */}
       <main style={{
