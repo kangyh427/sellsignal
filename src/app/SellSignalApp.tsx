@@ -2,6 +2,48 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+
+// ✅ 새로 추가: 타입 import
+import type { 
+  Position, 
+  User, 
+  Alert, 
+  PositionWithProfit,
+  ChartDataPoint,
+  PricePoint,
+  SellPreset,
+  Stock
+} from '../types';
+
+// ✅ 새로 추가: 훅 import
+import { useResponsive } from '../hooks/useResponsive';
+
+// ✅ 새로 추가: 유틸 함수 import
+import { 
+  calculateSellPrices, 
+  generateMockPriceData,
+  calculateDDay,
+  formatKoreanNumber,
+  formatPercent 
+} from '../utils/calculations';
+
+// ✅ 새로 추가: 상수 import
+import { 
+  SELL_PRESETS, 
+  STOCK_LIST, 
+  MARKET_CYCLE,
+  PROFIT_STAGES,
+  EARNINGS_DATA
+} from '../constants';
+
+// ✅ 새로 추가: 컴포넌트 import
+import EnhancedCandleChart from '../components/EnhancedCandleChart';
+import StockModal from '../components/StockModal';
+import ResponsiveHeader from '../components/ResponsiveHeader';
+
 // ============================================
 // TypeScript 인터페이스 정의
 // ============================================
