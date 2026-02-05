@@ -68,6 +68,7 @@ interface Position {
   memo?: string;
   alerts?: Alert[];
   priceHistory?: PricePoint[];
+  highestPriceRecorded?: number; // 보유 중 최고가 (2/3 매도법 계산용)
 }
 
 // 수익률이 계산된 포지션 타입
@@ -145,6 +146,7 @@ interface StockModalProps {
   stock?: Position;
   onSave: (position: Position) => void;
   onClose: () => void;
+  isMobile: boolean;
 }
 
 // ============================================
@@ -223,9 +225,10 @@ const calculateSellPrices = (position: Position, priceData?: ChartDataPoint[], p
     prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings.stopLoss.value || -5) / 100));
   }
   
-  // 2/3 익절가
+  // 2/3 익절가 - 보유 중 최고가 기준으로 계산
   if (position.currentPrice > position.buyPrice) {
-    const highestPrice = position.currentPrice;
+    // highestPriceRecorded가 있으면 사용, 없으면 currentPrice 사용 (호환성)
+    const highestPrice = position.highestPriceRecorded || position.currentPrice;
     prices.twoThird = Math.round(highestPrice - (highestPrice - position.buyPrice) / 3);
   }
   
@@ -458,6 +461,17 @@ const EnhancedCandleChart: React.FC<CandleChartProps> = ({
           <rect x={width - padding.right} y={scaleY(sellPrices.maSignal) - 8} width={66} height={16} fill="#06b6d4" rx={2} />
           <text x={width - padding.right + 3} y={scaleY(sellPrices.maSignal) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
             이평 {sellPrices.maSignal.toLocaleString()}
+          </text>
+        </g>
+      )}
+      
+      {/* 3봉 매도법 라인 */}
+      {visibleLines?.candle3_50 && sellPrices?.candle3_50 && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.candle3_50)} x2={width - padding.right} y2={scaleY(sellPrices.candle3_50)} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="2,2"/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.candle3_50) - 8} width={66} height={16} fill="#f59e0b" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.candle3_50) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+            3봉 {sellPrices.candle3_50.toLocaleString()}
           </text>
         </g>
       )}
@@ -891,7 +905,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({ alerts, isPremium, 
 // ============================================
 // StockModal 컴포넌트 (독립 컴포넌트)
 // ============================================
-const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
+const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobile }) => {
   // Form 초기값 안정화 - 모든 필드에 기본값 설정
   const [form, setForm] = useState<FormState>({
     stockCode: stock?.stock.code || '',
@@ -1360,6 +1374,42 @@ export default function SellSignalApp() {
     }
   }, [positions]); // positions 전체를 의존성으로 사용하되, ref로 중복 초기화 방지
 
+  // highestPriceRecorded 자동 업데이트
+  useEffect(() => {
+    if (positions.length === 0) return;
+    
+    const updatedPositions = positions.map((pos: Position) => {
+      // 최고가가 없거나 현재가가 최고가보다 높으면 업데이트
+      const currentHighest = pos.highestPriceRecorded || pos.buyPrice;
+      
+      if (pos.currentPrice > currentHighest) {
+        return {
+          ...pos,
+          highestPriceRecorded: pos.currentPrice
+        };
+      }
+      
+      // highestPriceRecorded가 없는 경우 초기화
+      if (!pos.highestPriceRecorded) {
+        return {
+          ...pos,
+          highestPriceRecorded: Math.max(pos.buyPrice, pos.currentPrice)
+        };
+      }
+      
+      return pos;
+    });
+    
+    // 실제 변경이 있을 때만 업데이트
+    const hasChanges = updatedPositions.some((pos: Position, idx: number) => 
+      pos.highestPriceRecorded !== positions[idx].highestPriceRecorded
+    );
+    
+    if (hasChanges) {
+      setPositions(updatedPositions);
+    }
+  }, [positions]);
+
   // 포지션별 수익률 계산 (메모이제이션)
   const positionsWithProfitRate = useMemo<PositionWithProfit[]>(() => {
     return positions.map((pos: Position): PositionWithProfit => {
@@ -1816,10 +1866,24 @@ export default function SellSignalApp() {
       {showAddModal && (
         <StockModal 
           onSave={(stock: Position) => { 
-            setPositions(prev => [...prev, { ...stock, id: Date.now().toString() }]); 
+            // 새 포지션 추가 시 priceHistory 즉시 생성
+            const history = generateMockPriceData(stock.buyPrice, 60);
+            const newPosition: Position = {
+              ...stock,
+              id: Date.now().toString(),
+              priceHistory: history.map((d: ChartDataPoint) => ({
+                date: d.date.toISOString(),
+                price: d.close,
+                volume: d.volume
+              })),
+              highestPriceRecorded: Math.max(stock.buyPrice, stock.currentPrice)
+            };
+            
+            setPositions(prev => [...prev, newPosition]); 
             setShowAddModal(false); 
           }} 
           onClose={() => setShowAddModal(false)} 
+          isMobile={isMobile}
         />
       )}
       {editingPosition && (
@@ -1830,6 +1894,7 @@ export default function SellSignalApp() {
             setEditingPosition(null); 
           }} 
           onClose={() => setEditingPosition(null)} 
+          isMobile={isMobile}
         />
       )}
 
