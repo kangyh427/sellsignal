@@ -134,7 +134,7 @@ const findExactStock = (query) => {
 };
 
 const calculateSellPrices = (position, priceData, presetSettings) => {
-  const prices = {};
+  const prices: any = {};
   prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings?.stopLoss?.value || -5) / 100));
   if (position.highestPrice) {
     prices.twoThird = Math.round(position.highestPrice - (position.highestPrice - position.buyPrice) / 3);
