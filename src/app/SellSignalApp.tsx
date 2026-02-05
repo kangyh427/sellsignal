@@ -27,6 +27,14 @@ interface PresetSettings {
   };
 }
 
+// 매도가격 타입
+interface SellPrices {
+  stopLoss?: number;      // 손절가
+  twoThird?: number;      // 2/3 익절가
+  maSignal?: number;      // 이동평균선 기준가
+  candle3_50?: number;    // 3봉 매도법 기준가
+}
+
 // 주식 종목 타입
 interface Stock {
   name: string;
@@ -192,8 +200,8 @@ const getResponsiveValue = <T,>(isMobile: boolean, isTablet: boolean, mobileVal:
 // ============================================
 
 // 매도 가격 계산
-const calculateSellPrices = (position: Position, priceData?: ChartDataPoint[], presetSettings?: PresetSettings) => {
-  const prices: any = {};
+const calculateSellPrices = (position: Position, priceData?: ChartDataPoint[], presetSettings?: PresetSettings): SellPrices => {
+  const prices: SellPrices = {};
   
   // 손절가
   if (presetSettings?.stopLoss) {
@@ -247,7 +255,7 @@ interface CandleChartProps {
   width?: number;
   height?: number;
   buyPrice: number;
-  sellPrices?: any;
+  sellPrices?: SellPrices;
   visibleLines?: any;
 }
 
@@ -274,7 +282,7 @@ const EnhancedCandleChart: React.FC<CandleChartProps> = ({
   
   const allPrices = data.flatMap(d => [d.high, d.low])
     .concat([buyPrice])
-    .concat(Object.values(sellPrices).filter(Boolean));
+    .concat(Object.values(sellPrices).filter((price): price is number => typeof price === 'number'));
   const minP = Math.min(...allPrices) * 0.98;
   const maxP = Math.max(...allPrices) * 1.02;
   const range = maxP - minP || 1;
