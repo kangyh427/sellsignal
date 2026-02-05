@@ -188,6 +188,487 @@ const getResponsiveValue = <T,>(isMobile: boolean, isTablet: boolean, mobileVal:
 };
 
 // ============================================
+// 추가 유틸리티 함수들
+// ============================================
+
+// 매도 가격 계산
+const calculateSellPrices = (position: Position, priceData?: ChartDataPoint[], presetSettings?: PresetSettings) => {
+  const prices: any = {};
+  
+  // 손절가
+  if (presetSettings?.stopLoss) {
+    prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings.stopLoss.value || -5) / 100));
+  }
+  
+  // 2/3 익절가
+  if (position.currentPrice > position.buyPrice) {
+    const highestPrice = position.currentPrice;
+    prices.twoThird = Math.round(highestPrice - (highestPrice - position.buyPrice) / 3);
+  }
+  
+  // 이동평균선
+  if (priceData && priceData.length > 0) {
+    const maPeriod = presetSettings?.maSignal?.value || 20;
+    if (priceData.length >= maPeriod) {
+      const recentPrices = priceData.slice(-maPeriod);
+      const sum = recentPrices.reduce((acc, d) => acc + d.close, 0);
+      prices.maSignal = Math.round(sum / maPeriod);
+    }
+  }
+  
+  // 3봉 매도법
+  if (priceData && priceData.length >= 2) {
+    const prevCandle = priceData[priceData.length - 2];
+    if (prevCandle.close > prevCandle.open) {
+      prices.candle3_50 = Math.round(prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5);
+    }
+  }
+  
+  return prices;
+};
+
+// D-Day 계산
+const calculateDDay = (dateStr: string): string => {
+  const targetDate = new Date(dateStr);
+  const today = new Date();
+  const diff = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (diff === 0) return 'D-Day';
+  if (diff > 0) return `D-${diff}`;
+  return `D+${Math.abs(diff)}`;
+};
+
+// ============================================
+// 캔들차트 컴포넌트
+// ============================================
+
+interface CandleChartProps {
+  data: ChartDataPoint[];
+  width?: number;
+  height?: number;
+  buyPrice: number;
+  sellPrices?: any;
+  visibleLines?: any;
+}
+
+const EnhancedCandleChart: React.FC<CandleChartProps> = ({ 
+  data, 
+  width = 270, 
+  height = 280, 
+  buyPrice, 
+  sellPrices = {}, 
+  visibleLines = {} 
+}) => {
+  if (!data || data.length === 0) return null;
+  
+  const isSmallChart = width < 280;
+  const fontSize = {
+    xAxis: isSmallChart ? 10 : 11,
+    yAxis: isSmallChart ? 9 : 10,
+    label: isSmallChart ? 8 : 9
+  };
+  
+  const padding = { top: 10, right: 70, bottom: 34, left: 6 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+  
+  const allPrices = data.flatMap(d => [d.high, d.low])
+    .concat([buyPrice])
+    .concat(Object.values(sellPrices).filter(Boolean));
+  const minP = Math.min(...allPrices) * 0.98;
+  const maxP = Math.max(...allPrices) * 1.02;
+  const range = maxP - minP || 1;
+  const candleW = Math.max(3, (chartW / data.length) - 1.5);
+  
+  const scaleY = (p: number) => padding.top + chartH - ((p - minP) / range) * chartH;
+  const scaleX = (i: number) => padding.left + (i / data.length) * chartW;
+  const currentPrice = data[data.length - 1]?.close || buyPrice;
+
+  const formatDate = (date: Date) => {
+    const d = new Date(date);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const getXAxisIndices = () => {
+    const dataLen = data.length;
+    if (dataLen <= 10) {
+      return Array.from({ length: dataLen }, (_, i) => i).filter((_, i) => i % 2 === 0);
+    } else if (dataLen <= 20) {
+      return [
+        0, 
+        Math.floor(dataLen * 0.25), 
+        Math.floor(dataLen * 0.5), 
+        Math.floor(dataLen * 0.75), 
+        dataLen - 1
+      ];
+    } else {
+      return [
+        0, 
+        Math.floor(dataLen * 0.2), 
+        Math.floor(dataLen * 0.4), 
+        Math.floor(dataLen * 0.6), 
+        Math.floor(dataLen * 0.8), 
+        dataLen - 1
+      ];
+    }
+  };
+  
+  const xAxisIndices = getXAxisIndices();
+  
+  const formatPrice = (price: number) => Math.round(price).toLocaleString();
+
+  return (
+    <svg width={width} height={height} style={{ display: 'block', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+      {/* Y축 그리드 및 가격 라벨 */}
+      {[0,1,2,3,4].map(i => {
+        const price = minP + (range * i / 4);
+        const y = scaleY(price);
+        return (
+          <g key={i}>
+            <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255,255,255,0.12)" strokeDasharray="3,3" />
+            <text 
+              x={width - padding.right + 4} 
+              y={y + 4} 
+              fill="#d4d4d8" 
+              fontSize={fontSize.yAxis}
+              fontWeight="600"
+            >
+              {formatPrice(price)}
+            </text>
+          </g>
+        );
+      })}
+      
+      {/* X축 기준선 */}
+      <line 
+        x1={padding.left} 
+        y1={height - padding.bottom} 
+        x2={width - padding.right} 
+        y2={height - padding.bottom} 
+        stroke="rgba(255,255,255,0.2)" 
+      />
+      
+      {/* X축 날짜 라벨 */}
+      {xAxisIndices.map((idx, i) => {
+        if (idx >= data.length || !data[idx]?.date) return null;
+        const x = scaleX(idx) + candleW / 2;
+        return (
+          <g key={`x-${i}`}>
+            <line 
+              x1={x} 
+              y1={height - padding.bottom} 
+              x2={x} 
+              y2={height - padding.bottom + 4} 
+              stroke="rgba(255,255,255,0.4)" 
+            />
+            <text 
+              x={x} 
+              y={height - padding.bottom + 18} 
+              fill="#d4d4d8" 
+              fontSize={fontSize.xAxis} 
+              textAnchor="middle"
+              fontWeight="600"
+            >
+              {formatDate(data[idx].date)}
+            </text>
+          </g>
+        );
+      })}
+      
+      {/* 캔들 */}
+      {data.map((c, i) => {
+        const x = scaleX(i);
+        const isUp = c.close >= c.open;
+        const color = isUp ? '#10b981' : '#ef4444';
+        return (
+          <g key={i}>
+            <line x1={x + candleW/2} y1={scaleY(c.high)} x2={x + candleW/2} y2={scaleY(c.low)} stroke={color} strokeWidth={1} />
+            <rect 
+              x={x} 
+              y={scaleY(Math.max(c.open, c.close))} 
+              width={candleW} 
+              height={Math.max(1, Math.abs(scaleY(c.open) - scaleY(c.close)))} 
+              fill={color} 
+            />
+          </g>
+        );
+      })}
+      
+      {/* 매수가 라인 */}
+      <line x1={padding.left} y1={scaleY(buyPrice)} x2={width - padding.right} y2={scaleY(buyPrice)} stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4,2"/>
+      <rect x={width - padding.right} y={scaleY(buyPrice) - 8} width={66} height={16} fill="#3b82f6" rx={2} />
+      <text x={width - padding.right + 3} y={scaleY(buyPrice) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+        매수 {buyPrice.toLocaleString()}
+      </text>
+      
+      {/* 손절가 라인 */}
+      {visibleLines?.stopLoss && sellPrices?.stopLoss && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.stopLoss)} x2={width - padding.right} y2={scaleY(sellPrices.stopLoss)} stroke="#ef4444" strokeWidth={1.5}/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.stopLoss) - 8} width={66} height={16} fill="#ef4444" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.stopLoss) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+            손절 {sellPrices.stopLoss.toLocaleString()}
+          </text>
+        </g>
+      )}
+      
+      {/* 2/3 익절가 라인 */}
+      {visibleLines?.twoThird && sellPrices?.twoThird && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.twoThird)} x2={width - padding.right} y2={scaleY(sellPrices.twoThird)} stroke="#8b5cf6" strokeWidth={1.5}/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.twoThird) - 8} width={66} height={16} fill="#8b5cf6" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.twoThird) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+            2/3익 {sellPrices.twoThird.toLocaleString()}
+          </text>
+        </g>
+      )}
+      
+      {/* 이동평균선 라인 */}
+      {visibleLines?.maSignal && sellPrices?.maSignal && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.maSignal)} x2={width - padding.right} y2={scaleY(sellPrices.maSignal)} stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="4,2"/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.maSignal) - 8} width={66} height={16} fill="#06b6d4" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.maSignal) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+            이평 {sellPrices.maSignal.toLocaleString()}
+          </text>
+        </g>
+      )}
+      
+      {/* 현재가 표시 */}
+      <circle 
+        cx={scaleX(data.length - 1) + candleW/2} 
+        cy={scaleY(currentPrice)} 
+        r={4} 
+        fill={currentPrice >= buyPrice ? '#10b981' : '#ef4444'} 
+        stroke="#fff" 
+        strokeWidth={1} 
+      />
+    </svg>
+  );
+};
+
+// ============================================
+// 요약 카드 컴포넌트
+// ============================================
+
+interface SummaryCardsProps {
+  totalCost: number;
+  totalValue: number;
+  totalProfit: number;
+  totalProfitRate: number;
+}
+
+const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({ 
+  totalCost, 
+  totalValue, 
+  totalProfit, 
+  totalProfitRate 
+}) => {
+  const { isMobile } = useResponsive();
+  
+  const cards = [
+    { label: '총 매수금액', value: formatKoreanNumber(totalCost), color: '#64748b' },
+    { label: '평가금액', value: formatKoreanNumber(totalValue), color: '#3b82f6' },
+    { label: '평가손익', value: formatKoreanNumber(totalProfit), color: totalProfit >= 0 ? '#10b981' : '#ef4444' },
+    { label: '수익률', value: formatPercent(totalProfitRate), color: totalProfitRate >= 0 ? '#10b981' : '#ef4444' },
+  ];
+
+  return (
+    <div style={{ 
+      display: 'grid', 
+      gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', 
+      gap: isMobile ? '10px' : '12px',
+      marginBottom: '20px' 
+    }}>
+      {cards.map((card, i) => (
+        <div key={i} style={{
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px 12px' : '16px',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          <div style={{ 
+            fontSize: isMobile ? '11px' : '12px', 
+            color: '#94a3b8', 
+            marginBottom: '6px' 
+          }}>
+            {card.label}
+          </div>
+          <div style={{ 
+            fontSize: isMobile ? '16px' : '18px', 
+            fontWeight: '700', 
+            color: card.color 
+          }}>
+            {card.value}{card.label.includes('수익률') ? '' : '원'}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================
+// 시장 사이클 위젯
+// ============================================
+
+interface MarketCycleWidgetProps {
+  isPremium: boolean;
+}
+
+const MarketCycleWidget: React.FC<MarketCycleWidgetProps> = ({ isPremium }) => {
+  const { isMobile } = useResponsive();
+  
+  const getRecommendation = (phase: number) => {
+    if (phase <= 2) return { text: '매수 적기', color: '#10b981' };
+    if (phase <= 4) return { text: '매도 관망', color: '#eab308' };
+    return { text: '매도 검토', color: '#ef4444' };
+  };
+
+  const getPointOnEgg = (angleDeg: number) => {
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const a = 40;
+    const b = 50;
+    const x = 80 + a * Math.cos(angleRad);
+    const y = 80 - b * Math.sin(angleRad);
+    return { x, y };
+  };
+
+  const rec = getRecommendation(MARKET_CYCLE.currentPhase);
+  const currentAngle = 90 - (MARKET_CYCLE.currentPhase - 1) * 45;
+  const currentPoint = getPointOnEgg(currentAngle);
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(139,92,246,0.1) 100%)',
+      borderRadius: '16px',
+      padding: isMobile ? '16px' : '20px',
+      border: '1px solid rgba(59,130,246,0.2)',
+      marginBottom: '20px',
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '16px' 
+      }}>
+        <div>
+          <h3 style={{ 
+            fontSize: isMobile ? '16px' : '18px', 
+            fontWeight: '700', 
+            color: '#fff', 
+            margin: '0 0 6px' 
+          }}>
+            🔄 시장 사이클 분석
+          </h3>
+          <p style={{ 
+            fontSize: '13px', 
+            color: '#94a3b8', 
+            margin: 0 
+          }}>
+            현재 단계: {MARKET_CYCLE.phaseName}
+          </p>
+        </div>
+        <div style={{
+          background: rec.color,
+          color: '#fff',
+          padding: '6px 12px',
+          borderRadius: '8px',
+          fontSize: '13px',
+          fontWeight: '600',
+        }}>
+          {rec.text}
+        </div>
+      </div>
+
+      <div style={{ 
+        display: 'flex', 
+        gap: '20px', 
+        alignItems: 'center',
+        flexDirection: isMobile ? 'column' : 'row' 
+      }}>
+        {/* SVG 사이클 차트 */}
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <defs>
+            <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.3" />
+            </linearGradient>
+          </defs>
+          
+          {/* 배경 타원 */}
+          <ellipse cx="80" cy="80" rx="40" ry="50" fill="url(#eggGradient)" stroke="rgba(59,130,246,0.5)" strokeWidth="2" />
+          
+          {/* 단계 포인트들 */}
+          {[1,2,3,4,5].map(phase => {
+            const angle = 90 - (phase - 1) * 45;
+            const point = getPointOnEgg(angle);
+            const isActive = phase === MARKET_CYCLE.currentPhase;
+            
+            return (
+              <g key={phase}>
+                <circle 
+                  cx={point.x} 
+                  cy={point.y} 
+                  r={isActive ? 8 : 5} 
+                  fill={isActive ? rec.color : 'rgba(255,255,255,0.3)'} 
+                  stroke="#fff" 
+                  strokeWidth={isActive ? 2 : 1}
+                />
+                <text 
+                  x={point.x} 
+                  y={point.y + (phase <= 2 ? -12 : phase === 3 ? 20 : 15)} 
+                  fill="#fff" 
+                  fontSize="10" 
+                  textAnchor="middle"
+                  fontWeight="600"
+                >
+                  {phase}단계
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* 상세 정보 */}
+        <div style={{ flex: 1 }}>
+          <div style={{ 
+            fontSize: '13px', 
+            color: '#e2e8f0', 
+            marginBottom: '12px',
+            lineHeight: '1.6' 
+          }}>
+            {MARKET_CYCLE.description}
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{
+              background: 'rgba(255,255,255,0.05)',
+              borderRadius: '8px',
+              padding: '8px 10px',
+            }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8' }}>기준금리</div>
+              <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>
+                {MARKET_CYCLE.interestRate}%
+              </div>
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.05)',
+              borderRadius: '8px',
+              padding: '8px 10px',
+            }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8' }}>신뢰도</div>
+              <div style={{ fontSize: '16px', fontWeight: '700', color: '#10b981' }}>
+                {MARKET_CYCLE.confidence}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // 매도의 기술 프리셋 정의
 // ============================================
 const SELL_PRESETS: Record<string, SellPreset> = {
@@ -890,35 +1371,16 @@ export default function SellSignalApp() {
       }}>
         {activeTab === 'home' && (
           <>
-            {/* 포트폴리오 요약 */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(99,102,241,0.1) 100%)',
-              borderRadius: '16px',
-              padding: isMobile ? '20px' : '24px',
-              marginBottom: '20px',
-              border: '1px solid rgba(139,92,246,0.2)',
-            }}>
-              <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '8px' }}>
-                총 평가금액
-              </div>
-              <div style={{ 
-                fontSize: isMobile ? '28px' : '32px', 
-                fontWeight: '800', 
-                color: '#fff',
-                marginBottom: '8px',
-              }}>
-                {formatKoreanNumber(portfolioStats.totalValue)}원
-              </div>
-              <div style={{ 
-                display: 'flex', 
-                gap: '12px', 
-                fontSize: '13px',
-                color: portfolioStats.profitRate >= 0 ? '#10b981' : '#ef4444',
-              }}>
-                <span>{formatPercent(portfolioStats.profitRate)}</span>
-                <span>{formatKoreanNumber(portfolioStats.totalProfit)}원</span>
-              </div>
-            </div>
+            {/* 포트폴리오 요약 카드 */}
+            <ResponsiveSummaryCards
+              totalCost={portfolioStats.totalInvestment}
+              totalValue={portfolioStats.totalValue}
+              totalProfit={portfolioStats.totalProfit}
+              totalProfitRate={portfolioStats.profitRate}
+            />
+
+            {/* 시장 사이클 위젯 */}
+            <MarketCycleWidget isPremium={isPremium} />
 
             {/* 포지션 리스트 */}
             <div style={{ marginBottom: '20px' }}>
@@ -978,78 +1440,243 @@ export default function SellSignalApp() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {positionsWithProfitRate.map((pos: any) => (
-                    <div
-                      key={pos.id}
-                      onClick={() => setEditingPosition(pos)}
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        borderRadius: '12px',
-                        padding: isMobile ? '16px' : '20px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                        e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>
-                            {pos.stock.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            {pos.quantity}주 · 매수가 {formatKoreanNumber(pos.buyPrice)}원
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ 
-                            fontSize: '16px', 
-                            fontWeight: '700',
-                            color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
-                          }}>
-                            {formatPercent(pos.profitRate)}
-                          </div>
-                          <div style={{ 
-                            fontSize: '13px',
-                            color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
-                          }}>
-                            {formatKoreanNumber(pos.profitAmount)}원
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {pos.selectedPresets.length > 0 && (
+                  {positionsWithProfitRate.map((pos: any) => {
+                    // 차트 데이터 생성 (priceHistory가 있으면 사용)
+                    const chartData = pos.priceHistory && pos.priceHistory.length > 0
+                      ? pos.priceHistory.map((p: PricePoint) => ({
+                          date: new Date(p.date),
+                          open: p.price || p.close,
+                          high: (p.price || p.close) * 1.01,
+                          low: (p.price || p.close) * 0.99,
+                          close: p.price || p.close,
+                          volume: p.volume || 0
+                        }))
+                      : generateMockPriceData(pos.buyPrice, 30);
+                    
+                    // 매도 가격 계산
+                    const sellPrices = calculateSellPrices(pos, chartData, pos.presetSettings);
+                    
+                    // 수익 구간 판단
+                    const getStage = () => {
+                      if (pos.profitRate < 5) return 'initial';
+                      if (pos.profitRate < 10) return 'profit5';
+                      return 'profit10';
+                    };
+                    
+                    const stage = getStage();
+                    const stageInfo = PROFIT_STAGES[stage];
+
+                    return (
+                      <div
+                        key={pos.id}
+                        style={{
+                          background: 'rgba(255,255,255,0.03)',
+                          borderRadius: '16px',
+                          padding: isMobile ? '16px' : '20px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                        }}
+                      >
+                        {/* 헤더 */}
                         <div style={{ 
                           display: 'flex', 
-                          gap: '6px', 
-                          flexWrap: 'wrap',
-                          marginTop: '10px',
+                          justifyContent: 'space-between', 
+                          marginBottom: '16px',
+                          alignItems: 'flex-start' 
                         }}>
-                          {pos.selectedPresets.map((presetId: string) => (
-                            <span
-                              key={presetId}
-                              style={{
-                                fontSize: '11px',
-                                padding: '4px 8px',
-                                background: 'rgba(139,92,246,0.2)',
-                                color: '#a78bfa',
-                                borderRadius: '4px',
-                              }}
-                            >
-                              {SELL_PRESETS[presetId].icon} {SELL_PRESETS[presetId].name}
-                            </span>
-                          ))}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              marginBottom: '6px' 
+                            }}>
+                              <h3 style={{ 
+                                fontSize: isMobile ? '17px' : '19px', 
+                                fontWeight: '700', 
+                                color: '#fff',
+                                margin: 0 
+                              }}>
+                                {pos.stock.name}
+                              </h3>
+                              <span style={{
+                                fontSize: '13px',
+                                color: '#64748b',
+                                fontWeight: '500'
+                              }}>
+                                {pos.stock.code}
+                              </span>
+                            </div>
+                            
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              fontSize: '13px',
+                              color: '#94a3b8' 
+                            }}>
+                              <span>{pos.quantity}주</span>
+                              <span>·</span>
+                              <span>매수가 {formatKoreanNumber(pos.buyPrice)}원</span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ 
+                              fontSize: isMobile ? '19px' : '21px', 
+                              fontWeight: '800',
+                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
+                              marginBottom: '4px'
+                            }}>
+                              {formatPercent(pos.profitRate)}
+                            </div>
+                            <div style={{ 
+                              fontSize: '14px',
+                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
+                              fontWeight: '600'
+                            }}>
+                              {formatKoreanNumber(pos.profitAmount)}원
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* 수익 단계 표시 */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: `${stageInfo.color}20`,
+                          color: stageInfo.color,
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          marginBottom: '16px'
+                        }}>
+                          <span>{stageInfo.label}</span>
+                          <span style={{ opacity: 0.7 }}>({stageInfo.range})</span>
+                        </div>
+
+                        {/* 차트 */}
+                        {chartData && chartData.length > 0 && (
+                          <div style={{ marginBottom: '16px' }}>
+                            <EnhancedCandleChart
+                              data={chartData}
+                              width={isMobile ? window.innerWidth - 64 : 500}
+                              height={isMobile ? 240 : 280}
+                              buyPrice={pos.buyPrice}
+                              sellPrices={sellPrices}
+                              visibleLines={{
+                                stopLoss: pos.selectedPresets.includes('stopLoss'),
+                                twoThird: pos.selectedPresets.includes('twoThird'),
+                                maSignal: pos.selectedPresets.includes('maSignal'),
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* 선택된 매도 전략 */}
+                        {pos.selectedPresets.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ 
+                              fontSize: '13px', 
+                              color: '#94a3b8', 
+                              marginBottom: '8px',
+                              fontWeight: '600' 
+                            }}>
+                              설정된 매도 전략
+                            </div>
+                            <div style={{ 
+                              display: 'flex', 
+                              gap: '6px', 
+                              flexWrap: 'wrap' 
+                            }}>
+                              {pos.selectedPresets.map((presetId: string) => {
+                                const preset = SELL_PRESETS[presetId];
+                                const price = sellPrices[presetId];
+                                return (
+                                  <div
+                                    key={presetId}
+                                    style={{
+                                      fontSize: '12px',
+                                      padding: '6px 10px',
+                                      background: `${preset.color}20`,
+                                      color: preset.color,
+                                      borderRadius: '6px',
+                                      border: `1px solid ${preset.color}40`,
+                                      fontWeight: '600'
+                                    }}
+                                  >
+                                    {preset.icon} {preset.name}
+                                    {price && ` (${formatKoreanNumber(price)})`}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 메모 */}
+                        {pos.memo && (
+                          <div style={{
+                            fontSize: '13px',
+                            color: '#94a3b8',
+                            background: 'rgba(255,255,255,0.03)',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            marginBottom: '12px',
+                            lineHeight: '1.5'
+                          }}>
+                            {pos.memo}
+                          </div>
+                        )}
+
+                        {/* 액션 버튼들 */}
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '8px',
+                          borderTop: '1px solid rgba(255,255,255,0.05)',
+                          paddingTop: '12px'
+                        }}>
+                          <button
+                            onClick={() => setEditingPosition(pos)}
+                            style={{
+                              flex: 1,
+                              padding: '10px',
+                              background: 'rgba(59,130,246,0.1)',
+                              border: '1px solid rgba(59,130,246,0.3)',
+                              borderRadius: '8px',
+                              color: '#60a5fa',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`${pos.stock.name} 종목을 삭제하시겠습니까?`)) {
+                                setPositions(prev => prev.filter(p => p.id !== pos.id));
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '10px',
+                              background: 'rgba(239,68,68,0.1)',
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              borderRadius: '8px',
+                              color: '#ef4444',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
