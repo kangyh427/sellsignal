@@ -1,20 +1,24 @@
-'use client'
+'use client';
 
-import React from 'react'
+import React from 'react';
 
 interface MobileNavProps {
-  activeTab: string
-  onTabChange: (tab: string) => void
-  alertCount: number
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  alertCount: number;
 }
 
-export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onTabChange, alertCount }) => {
-  const tabs = [
+export const MobileNav: React.FC<MobileNavProps> = ({
+  activeTab,
+  setActiveTab,
+  alertCount,
+}) => {
+  const navItems = [
     { id: 'positions', icon: '📊', label: '포지션' },
     { id: 'alerts', icon: '🔔', label: '알림', badge: alertCount },
     { id: 'market', icon: '🥚', label: '시장' },
     { id: 'guide', icon: '📚', label: '가이드' },
-  ]
+  ];
 
   return (
     <nav style={{
@@ -31,10 +35,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onTabChange, al
       backdropFilter: 'blur(10px)',
       zIndex: 100,
     }}>
-      {tabs.map(item => (
+      {navItems.map((item) => (
         <button
           key={item.id}
-          onClick={() => onTabChange(item.id)}
+          onClick={() => setActiveTab(item.id)}
           style={{
             background: 'none',
             border: 'none',
@@ -45,6 +49,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onTabChange, al
             gap: '4px',
             cursor: 'pointer',
             position: 'relative',
+            minWidth: '60px',
           }}
         >
           <span style={{ fontSize: '20px' }}>{item.icon}</span>
@@ -71,5 +76,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onTabChange, al
         </button>
       ))}
     </nav>
-  )
-}
+  );
+};
+
+export default MobileNav;
