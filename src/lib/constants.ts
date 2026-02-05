@@ -1,110 +1,152 @@
-import type { SellPreset, ProfitStage, StockInfo, MarketCycle } from '@/types/database'
+// 캔들 데이터 타입
+export interface CandleData {
+  date: Date
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
 
-// 8가지 매도법 프리셋
+// 매도 프리셋 타입
+export interface SellPreset {
+  id: string
+  name: string
+  icon: string
+  description: string
+  stages: string[]
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  color: string
+  hasInput?: boolean
+  inputLabel?: string
+  inputDefault?: number
+}
+
+// 수익 단계 타입
+export interface ProfitStage {
+  label: string
+  color: string
+  range: string
+  methods: string[]
+}
+
+// 주식 정보 타입
+export interface StockInfo {
+  name: string
+  code: string
+  market: string
+  sector: string
+  per: number
+  pbr: number
+  sectorPer: number
+  sectorPbr: number
+}
+
+// 매도의 기술 프리셋 정의
 export const SELL_PRESETS: Record<string, SellPreset> = {
-  candle3: {
-    id: 'candle3',
-    name: '봉 3개 매도법',
-    icon: '📊',
-    description: '음봉이 직전 양봉의 50% 이상 덮을 때',
-    stages: ['initial', 'profit5'],
-    severity: 'high',
-    color: '#f59e0b',
+  candle3: { 
+    id: 'candle3', 
+    name: '봉 3개 매도법', 
+    icon: '📊', 
+    description: '음봉이 직전 양봉의 50% 이상 덮을 때', 
+    stages: ['initial', 'profit5'], 
+    severity: 'high', 
+    color: '#f59e0b' 
   },
-  stopLoss: {
-    id: 'stopLoss',
-    name: '손실제한 매도법',
-    icon: '🛑',
-    description: '매수가 대비 설정% 도달 시',
-    stages: ['initial', 'profit5'],
-    hasInput: true,
-    inputLabel: '손절 기준 (%)',
-    inputDefault: -5,
-    severity: 'critical',
-    color: '#ef4444',
+  stopLoss: { 
+    id: 'stopLoss', 
+    name: '손실제한 매도법', 
+    icon: '🛑', 
+    description: '매수가 대비 설정% 도달 시', 
+    stages: ['initial', 'profit5'], 
+    hasInput: true, 
+    inputLabel: '손절 기준 (%)', 
+    inputDefault: -5, 
+    severity: 'critical', 
+    color: '#ef4444' 
   },
-  twoThird: {
-    id: 'twoThird',
-    name: '2/3 익절 매도법',
-    icon: '📈',
-    description: '최고 수익 대비 1/3 하락 시',
-    stages: ['profit5', 'profit10'],
-    severity: 'medium',
-    color: '#8b5cf6',
+  twoThird: { 
+    id: 'twoThird', 
+    name: '2/3 익절 매도법', 
+    icon: '📈', 
+    description: '최고 수익 대비 1/3 하락 시', 
+    stages: ['profit5', 'profit10'], 
+    severity: 'medium', 
+    color: '#8b5cf6' 
   },
-  maSignal: {
-    id: 'maSignal',
-    name: '이동평균선 매도법',
-    icon: '📉',
-    description: '이동평균선 하향 돌파 시',
-    stages: ['profit5', 'profit10'],
-    hasInput: true,
-    inputLabel: '이동평균 기간 (일)',
-    inputDefault: 20,
-    severity: 'high',
-    color: '#06b6d4',
+  maSignal: { 
+    id: 'maSignal', 
+    name: '이동평균선 매도법', 
+    icon: '📉', 
+    description: '이동평균선 하향 돌파 시', 
+    stages: ['profit5', 'profit10'], 
+    hasInput: true, 
+    inputLabel: '이동평균 기간 (일)', 
+    inputDefault: 20, 
+    severity: 'high', 
+    color: '#06b6d4' 
   },
-  volumeZone: {
-    id: 'volumeZone',
-    name: '매물대 매도법',
-    icon: '🏔️',
-    description: '저항대 도달 후 하락 시',
-    stages: ['profit5', 'profit10'],
-    severity: 'medium',
-    color: '#84cc16',
+  volumeZone: { 
+    id: 'volumeZone', 
+    name: '매물대 매도법', 
+    icon: '🏔️', 
+    description: '저항대 도달 후 하락 시', 
+    stages: ['profit5', 'profit10'], 
+    severity: 'medium', 
+    color: '#84cc16' 
   },
-  trendline: {
-    id: 'trendline',
-    name: '추세선 매도법',
-    icon: '📐',
-    description: '지지선/저항선 이탈 시',
-    stages: ['profit10'],
-    severity: 'medium',
-    color: '#ec4899',
+  trendline: { 
+    id: 'trendline', 
+    name: '추세선 매도법', 
+    icon: '📐', 
+    description: '지지선/저항선 이탈 시', 
+    stages: ['profit10'], 
+    severity: 'medium', 
+    color: '#ec4899' 
   },
-  fundamental: {
-    id: 'fundamental',
-    name: '기업가치 반전',
-    icon: '📰',
-    description: '실적 발표/뉴스 모니터링',
-    stages: ['profit10'],
-    severity: 'high',
-    color: '#f97316',
+  fundamental: { 
+    id: 'fundamental', 
+    name: '기업가치 반전', 
+    icon: '📰', 
+    description: '실적 발표/뉴스 모니터링', 
+    stages: ['profit10'], 
+    severity: 'high', 
+    color: '#f97316' 
   },
-  cycle: {
-    id: 'cycle',
-    name: '경기순환 매도법',
-    icon: '🔄',
-    description: '금리/경기 사이클 기반',
-    stages: ['profit10'],
-    severity: 'low',
-    color: '#64748b',
+  cycle: { 
+    id: 'cycle', 
+    name: '경기순환 매도법', 
+    icon: '🔄', 
+    description: '금리/경기 사이클 기반', 
+    stages: ['profit10'], 
+    severity: 'low', 
+    color: '#64748b' 
   },
 }
 
 // 수익 단계 정의
 export const PROFIT_STAGES: Record<string, ProfitStage> = {
-  initial: {
-    label: '초기 단계',
-    color: '#6b7280',
-    range: '0~5%',
-    methods: ['candle3', 'stopLoss'],
+  initial: { 
+    label: '초기 단계', 
+    color: '#6b7280', 
+    range: '0~5%', 
+    methods: ['candle3', 'stopLoss'] 
   },
-  profit5: {
-    label: '5% 수익 구간',
-    color: '#eab308',
-    range: '5~10%',
-    methods: ['candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone'],
+  profit5: { 
+    label: '5% 수익 구간', 
+    color: '#eab308', 
+    range: '5~10%', 
+    methods: ['candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone'] 
   },
-  profit10: {
-    label: '10%+ 수익 구간',
-    color: '#10b981',
-    range: '10% 이상',
-    methods: ['twoThird', 'maSignal', 'volumeZone', 'fundamental', 'trendline', 'cycle'],
+  profit10: { 
+    label: '10%+ 수익 구간', 
+    color: '#10b981', 
+    range: '10% 이상', 
+    methods: ['twoThird', 'maSignal', 'volumeZone', 'fundamental', 'trendline', 'cycle'] 
   },
 }
 
-// 샘플 종목 데이터
+// 샘플 주식 목록
 export const SAMPLE_STOCKS: StockInfo[] = [
   { name: '삼성전자', code: '005930', market: '코스피', sector: '반도체', per: 12.5, pbr: 1.2, sectorPer: 15.2, sectorPbr: 1.8 },
   { name: '삼성전자우', code: '005935', market: '코스피', sector: '반도체', per: 11.8, pbr: 1.1, sectorPer: 15.2, sectorPbr: 1.8 },
@@ -121,93 +163,114 @@ export const SAMPLE_STOCKS: StockInfo[] = [
   { name: 'KB금융', code: '105560', market: '코스피', sector: '금융', per: 5.2, pbr: 0.5, sectorPer: 5.8, sectorPbr: 0.45 },
 ]
 
-// 샘플 경기 사이클 데이터
-export const SAMPLE_MARKET_CYCLE: MarketCycle = {
-  currentPhase: 4,
-  phaseName: '금리인상 논의',
-  description: '금리 고점 근처, 과열 조정 국면',
-  recommendation: '매도 관망',
-  interestRate: 3.5,
-  confidence: 75,
-  details: { kospiPer: 11.8, bondYield: 3.52, fedRate: 4.5 },
+// 샘플 시장 사이클 데이터
+export const SAMPLE_MARKET_CYCLE = { 
+  currentPhase: 4, 
+  phaseName: '금리인상 논의', 
+  description: '금리 고점 근처, 과열 조정 국면', 
+  recommendation: '매도 관망', 
+  interestRate: 3.5, 
+  confidence: 75, 
+  details: { 
+    kospiPer: 11.8, 
+    bondYield: 3.52, 
+    fedRate: 4.5 
+  } 
 }
 
 // 종목 검색 함수
-export function searchStocks(query: string): StockInfo[] {
+export const searchStocks = (query: string): StockInfo[] => {
   if (!query || query.trim().length === 0) return []
   const q = query.trim().toLowerCase()
   return SAMPLE_STOCKS.filter(
-    (stock) => stock.name.toLowerCase().includes(q) || stock.code.includes(q)
+    stock => stock.name.toLowerCase().includes(q) || stock.code.includes(q)
   ).slice(0, 10)
 }
 
 // 정확한 종목 찾기
-export function findExactStock(query: string): StockInfo | null {
+export const findExactStock = (query: string): StockInfo | null => {
   if (!query) return null
-  return (
-    SAMPLE_STOCKS.find(
-      (stock) =>
-        stock.name === query ||
-        stock.code === query ||
-        stock.name.toLowerCase() === query.toLowerCase()
-    ) || null
-  )
-}
-
-// D-Day 계산
-export function calculateDDay(dateStr: string): string {
-  const diff = Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-  if (diff === 0) return 'D-Day'
-  if (diff > 0) return 'D-' + diff
-  return 'D+' + Math.abs(diff)
+  return SAMPLE_STOCKS.find(
+    stock => 
+      stock.name === query || 
+      stock.code === query || 
+      stock.name.toLowerCase() === query.toLowerCase()
+  ) || null
 }
 
 // 모의 가격 데이터 생성
-export function generateMockPriceData(basePrice: number, days: number = 60) {
-  const data = []
+export const generateMockPriceData = (basePrice: number, days: number = 60): CandleData[] => {
+  const data: CandleData[] = []
   let price = basePrice
+  
   for (let i = 0; i < days; i++) {
     const change = (Math.random() - 0.47) * basePrice * 0.025
     price = Math.max(price + change, basePrice * 0.7)
+    
     const high = price * (1 + Math.random() * 0.02)
     const low = price * (1 - Math.random() * 0.02)
     const open = low + Math.random() * (high - low)
     const close = low + Math.random() * (high - low)
-    data.push({
-      date: new Date(Date.now() - (days - i) * 86400000),
-      open,
-      high,
-      low,
-      close,
-      volume: Math.floor(Math.random() * 1000000 + 500000),
+    
+    data.push({ 
+      date: new Date(Date.now() - (days - i) * 86400000), 
+      open, 
+      high, 
+      low, 
+      close, 
+      volume: Math.floor(Math.random() * 1000000 + 500000) 
     })
   }
+  
   return data
 }
 
+// 포지션 타입 (계산용)
+interface PositionForCalc {
+  buyPrice: number
+  highestPrice: number
+  presetSettings?: Record<string, { value: number }>
+}
+
 // 매도 가격 계산
-export function calculateSellPrices(
-  buyPrice: number,
-  highestPrice: number | null,
-  priceData: any[] | null,
-  presetSettings?: { stopLoss?: { value: number }; maSignal?: { value: number } }
-) {
+export const calculateSellPrices = (
+  position: PositionForCalc,
+  priceData: CandleData[],
+  presetSettings?: Record<string, { value: number }>
+): Record<string, number> => {
   const prices: Record<string, number> = {}
-  prices.stopLoss = Math.round(buyPrice * (1 + (presetSettings?.stopLoss?.value || -5) / 100))
-  if (highestPrice) {
-    prices.twoThird = Math.round(highestPrice - (highestPrice - buyPrice) / 3)
+  const settings = presetSettings || position.presetSettings || {}
+  
+  // 손절가 계산
+  prices.stopLoss = Math.round(position.buyPrice * (1 + (settings.stopLoss?.value || -5) / 100))
+  
+  // 2/3 익절가 계산
+  if (position.highestPrice && position.highestPrice > position.buyPrice) {
+    prices.twoThird = Math.round(position.highestPrice - (position.highestPrice - position.buyPrice) / 3)
   }
-  const maPeriod = presetSettings?.maSignal?.value || 20
+  
+  // 이동평균선 계산
+  const maPeriod = settings.maSignal?.value || 20
   if (priceData && priceData.length >= maPeriod) {
-    prices.maSignal = Math.round(
-      priceData.slice(-maPeriod).reduce((sum: number, d: any) => sum + d.close, 0) / maPeriod
-    )
+    const sum = priceData.slice(-maPeriod).reduce((acc, d) => acc + d.close, 0)
+    prices.maSignal = Math.round(sum / maPeriod)
   }
+  
+  // 봉 3개 매도 기준가 (직전 양봉의 50%)
   if (priceData && priceData.length >= 2) {
     const prevCandle = priceData[priceData.length - 2]
     if (prevCandle.close > prevCandle.open) {
       prices.candle3_50 = Math.round(prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5)
     }
   }
+  
   return prices
+}
+
+// D-Day 계산
+export const calculateDDay = (dateStr: string): string => {
+  const diff = Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+  if (diff === 0) return 'D-Day'
+  if (diff > 0) return 'D-' + diff
+  return 'D+' + Math.abs(diff)
 }
