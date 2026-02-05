@@ -55,28 +55,36 @@ const BREAKPOINTS = {
   tablet: 768,
   desktop: 1024,
   wide: 1400
-};
+}
 
-// ë°˜ì‘í˜• í›… - í™”ë©´ í¬ê¸° ê°ì§€
+// 반응형 훅 - 화면 크기 감지 (SSR 안전)
 const useResponsive = () => {
-  const [windowSize, setWindowSize] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
-    height: typeof window !== 'undefined' ? window.innerHeight : 800,
-  });
+  const [windowSize, setWindowSize] = useState<{width: number, height: number} | null>(null)
 
   useEffect(() => {
     const handleResize = () => {
       setWindowSize({
         width: window.innerWidth,
         height: window.innerHeight,
-      });
-    };
+      })
+    }
 
-    window.addEventListener('resize', handleResize);
-    handleResize();
+    handleResize()
+    window.addEventListener('resize', handleResize)
     
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  if (!windowSize) {
+    return {
+      width: 1200,
+      height: 800,
+      isMobile: false,
+      isTablet: false,
+      isDesktop: true,
+      isWide: false,
+    }
+  }
 
   return {
     width: windowSize.width,
@@ -85,10 +93,21 @@ const useResponsive = () => {
     isTablet: windowSize.width >= BREAKPOINTS.tablet && windowSize.width < BREAKPOINTS.desktop,
     isDesktop: windowSize.width >= BREAKPOINTS.desktop,
     isWide: windowSize.width >= BREAKPOINTS.wide,
-  };
-};
+  }
+}
 
-// ë°˜ì‘í˜• ìŠ¤íƒ€ì¼ í—¬í¼
+// 반응형 스타일 헬퍼 (타입 추가)
+const getResponsiveValue = <T,>(
+  isMobile: boolean, 
+  isTablet: boolean, 
+  mobileVal: T, 
+  tabletVal: T, 
+  desktopVal: T
+): T => {
+  if (isMobile) return mobileVal
+  if (isTablet) return tabletVal
+  return desktopVal
+}
 const getResponsiveValue = (isMobile, isTablet, mobileVal, tabletVal, desktopVal) => {
   if (isMobile) return mobileVal;
   if (isTablet) return tabletVal;
