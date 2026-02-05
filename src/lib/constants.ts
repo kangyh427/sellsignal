@@ -1,49 +1,7 @@
-// 캔들 데이터 타입
-export interface CandleData {
-  date: Date
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
-
-// 매도 프리셋 타입
-export interface SellPreset {
-  id: string
-  name: string
-  icon: string
-  description: string
-  stages: string[]
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  color: string
-  hasInput?: boolean
-  inputLabel?: string
-  inputDefault?: number
-}
-
-// 수익 단계 타입
-export interface ProfitStage {
-  label: string
-  color: string
-  range: string
-  methods: string[]
-}
-
-// 주식 정보 타입
-export interface StockInfo {
-  name: string
-  code: string
-  market: string
-  sector: string
-  per: number
-  pbr: number
-  sectorPer: number
-  sectorPbr: number
-}
-
+// ============================================
 // 매도의 기술 프리셋 정의
-export const SELL_PRESETS: Record<string, SellPreset> = {
+// ============================================
+export const SELL_PRESETS = {
   candle3: { 
     id: 'candle3', 
     name: '봉 3개 매도법', 
@@ -122,10 +80,9 @@ export const SELL_PRESETS: Record<string, SellPreset> = {
     severity: 'low', 
     color: '#64748b' 
   },
-}
+} as const
 
-// 수익 단계 정의
-export const PROFIT_STAGES: Record<string, ProfitStage> = {
+export const PROFIT_STAGES = {
   initial: { 
     label: '초기 단계', 
     color: '#6b7280', 
@@ -144,10 +101,12 @@ export const PROFIT_STAGES: Record<string, ProfitStage> = {
     range: '10% 이상', 
     methods: ['twoThird', 'maSignal', 'volumeZone', 'fundamental', 'trendline', 'cycle'] 
   },
-}
+} as const
 
-// 샘플 주식 목록
-export const SAMPLE_STOCKS: StockInfo[] = [
+// ============================================
+// 종목 목록 데이터
+// ============================================
+export const STOCK_LIST = [
   { name: '삼성전자', code: '005930', market: '코스피', sector: '반도체', per: 12.5, pbr: 1.2, sectorPer: 15.2, sectorPbr: 1.8 },
   { name: '삼성전자우', code: '005935', market: '코스피', sector: '반도체', per: 11.8, pbr: 1.1, sectorPer: 15.2, sectorPbr: 1.8 },
   { name: '삼성SDI', code: '006400', market: '코스피', sector: '2차전지', per: 25.3, pbr: 2.1, sectorPer: 28.5, sectorPbr: 3.2 },
@@ -161,52 +120,58 @@ export const SAMPLE_STOCKS: StockInfo[] = [
   { name: '셀트리온', code: '068270', market: '코스피', sector: '바이오', per: 32.5, pbr: 3.8, sectorPer: 45.0, sectorPbr: 5.2 },
   { name: '기아', code: '000270', market: '코스피', sector: '자동차', per: 4.5, pbr: 0.7, sectorPer: 7.2, sectorPbr: 0.8 },
   { name: 'KB금융', code: '105560', market: '코스피', sector: '금융', per: 5.2, pbr: 0.5, sectorPer: 5.8, sectorPbr: 0.45 },
-]
+] as const
 
-// 샘플 시장 사이클 데이터
-export const SAMPLE_MARKET_CYCLE = { 
+// ============================================
+// 실적 데이터
+// ============================================
+export const EARNINGS_DATA: Record<string, {
+  name: string
+  nextEarningsDate: string
+  lastEarnings: { surprise: number }
+}> = {
+  '005930': { name: '삼성전자', nextEarningsDate: '2026-04-25', lastEarnings: { surprise: 5.2 } },
+  '005380': { name: '현대차', nextEarningsDate: '2026-04-22', lastEarnings: { surprise: 8.3 } },
+  '012450': { name: '한화에어로스페이스', nextEarningsDate: '2026-05-10', lastEarnings: { surprise: 15.8 } },
+  '000660': { name: 'SK하이닉스', nextEarningsDate: '2026-04-23', lastEarnings: { surprise: 12.5 } },
+  '035420': { name: '네이버', nextEarningsDate: '2026-04-28', lastEarnings: { surprise: -2.5 } },
+}
+
+// ============================================
+// 경기 사이클 데이터
+// ============================================
+export const MARKET_CYCLE = { 
   currentPhase: 4, 
   phaseName: '금리인상 논의', 
   description: '금리 고점 근처, 과열 조정 국면', 
   recommendation: '매도 관망', 
   interestRate: 3.5, 
   confidence: 75, 
-  details: { 
-    kospiPer: 11.8, 
-    bondYield: 3.52, 
-    fedRate: 4.5 
-  } 
+  details: { kospiPer: 11.8, bondYield: 3.52, fedRate: 4.5 } 
+} as const
+
+// ============================================
+// 유틸리티 함수들
+// ============================================
+
+// 가격 데이터 타입
+export interface PriceData {
+  date: Date
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
 }
 
-// 종목 검색 함수
-export const searchStocks = (query: string): StockInfo[] => {
-  if (!query || query.trim().length === 0) return []
-  const q = query.trim().toLowerCase()
-  return SAMPLE_STOCKS.filter(
-    stock => stock.name.toLowerCase().includes(q) || stock.code.includes(q)
-  ).slice(0, 10)
-}
-
-// 정확한 종목 찾기
-export const findExactStock = (query: string): StockInfo | null => {
-  if (!query) return null
-  return SAMPLE_STOCKS.find(
-    stock => 
-      stock.name === query || 
-      stock.code === query || 
-      stock.name.toLowerCase() === query.toLowerCase()
-  ) || null
-}
-
-// 모의 가격 데이터 생성
-export const generateMockPriceData = (basePrice: number, days: number = 60): CandleData[] => {
-  const data: CandleData[] = []
+// Mock 가격 데이터 생성
+export const generateMockPriceData = (basePrice: number, days: number = 60): PriceData[] => {
+  const data: PriceData[] = []
   let price = basePrice
   
   for (let i = 0; i < days; i++) {
     const change = (Math.random() - 0.47) * basePrice * 0.025
     price = Math.max(price + change, basePrice * 0.7)
-    
     const high = price * (1 + Math.random() * 0.02)
     const low = price * (1 - Math.random() * 0.02)
     const open = low + Math.random() * (high - low)
@@ -225,38 +190,63 @@ export const generateMockPriceData = (basePrice: number, days: number = 60): Can
   return data
 }
 
-// 포지션 타입 (계산용)
+// 종목 검색
+export const searchStocks = (query: string) => {
+  if (!query || query.trim().length === 0) return []
+  const q = query.trim().toLowerCase()
+  return STOCK_LIST.filter(stock => 
+    stock.name.toLowerCase().includes(q) || stock.code.includes(q)
+  ).slice(0, 10)
+}
+
+// 정확한 종목 찾기
+export const findExactStock = (query: string) => {
+  if (!query) return null
+  return STOCK_LIST.find(stock => 
+    stock.name === query || 
+    stock.code === query || 
+    stock.name.toLowerCase() === query.toLowerCase()
+  )
+}
+
+// 매도가 계산
 interface PositionForCalc {
   buyPrice: number
-  highestPrice: number
+  highestPrice?: number
   presetSettings?: Record<string, { value: number }>
 }
 
-// 매도 가격 계산
+export interface SellPrices {
+  stopLoss?: number
+  twoThird?: number
+  maSignal?: number
+  candle3_50?: number
+}
+
 export const calculateSellPrices = (
-  position: PositionForCalc,
-  priceData: CandleData[],
+  position: PositionForCalc, 
+  priceData: PriceData[], 
   presetSettings?: Record<string, { value: number }>
-): Record<string, number> => {
-  const prices: Record<string, number> = {}
-  const settings = presetSettings || position.presetSettings || {}
+): SellPrices => {
+  const prices: SellPrices = {}
   
-  // 손절가 계산
-  prices.stopLoss = Math.round(position.buyPrice * (1 + (settings.stopLoss?.value || -5) / 100))
+  // 손절가
+  prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings?.stopLoss?.value || -5) / 100))
   
-  // 2/3 익절가 계산
-  if (position.highestPrice && position.highestPrice > position.buyPrice) {
+  // 2/3 익절가
+  if (position.highestPrice) {
     prices.twoThird = Math.round(position.highestPrice - (position.highestPrice - position.buyPrice) / 3)
   }
   
-  // 이동평균선 계산
-  const maPeriod = settings.maSignal?.value || 20
+  // 이동평균선 가격
+  const maPeriod = presetSettings?.maSignal?.value || 20
   if (priceData && priceData.length >= maPeriod) {
-    const sum = priceData.slice(-maPeriod).reduce((acc, d) => acc + d.close, 0)
-    prices.maSignal = Math.round(sum / maPeriod)
+    prices.maSignal = Math.round(
+      priceData.slice(-maPeriod).reduce((sum, d) => sum + d.close, 0) / maPeriod
+    )
   }
   
-  // 봉 3개 매도 기준가 (직전 양봉의 50%)
+  // 봉 3개 매도 기준가
   if (priceData && priceData.length >= 2) {
     const prevCandle = priceData[priceData.length - 2]
     if (prevCandle.close > prevCandle.open) {
