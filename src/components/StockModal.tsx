@@ -328,10 +328,10 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff' }}>{preset.name}</div>
                       <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{preset.description}</div>
                     </div>
-                    {preset.hasInput && isSelected && (
+                    {'hasInput' in preset && preset.hasInput && isSelected && (
                       <input 
                         type="number" 
-                        value={form.presetSettings?.[preset.id]?.value ?? preset.inputDefault} 
+                        value={form.presetSettings?.[preset.id]?.value ?? ('inputDefault' in preset ? preset.inputDefault : 0)} 
                         onChange={e => { 
                           e.stopPropagation()
                           setForm({ 
