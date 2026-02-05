@@ -673,7 +673,7 @@ function PositionCard({
   const profitAmount = (currentPrice - position.buyPrice) * position.quantity
   const totalValue = currentPrice * position.quantity
   const isProfit = profitRate >= 0
-  const sellPrices = calculateSellPrices(position, priceData, position.presetSettings)
+  const sellPrices = calculateSellPrices(position, priceData || [], position.presetSettings)
   
   const getStage = () => {
     if (profitRate < 0) return { ...PROFIT_STAGES.initial, label: '손실 구간', color: '#ef4444' }
