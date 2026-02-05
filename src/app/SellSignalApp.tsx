@@ -153,7 +153,7 @@ const calculateSellPrices = (position, priceData, presetSettings) => {
 };
 
 const calculateDDay = (dateStr) => {
-  const diff = Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
+  const diff = Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   if (diff === 0) return 'D-Day';
   if (diff > 0) return 'D-' + diff;
   return 'D+' + Math.abs(diff);
