@@ -3,11 +3,17 @@
 import { useResponsive } from '@/hooks'
 import { SELL_PRESETS } from '@/lib/constants'
 
-interface Alert {
-  id: string
+// Alert 타입 - id를 number로 통일
+export interface Alert {
+  id: number
   stockName: string
-  stockCode: string
-  presetId: string
+  code: string
+  preset: {
+    id: string
+    name: string
+    icon: string
+    severity: 'critical' | 'high' | 'medium' | 'low'
+  }
   message: string
   currentPrice?: number
   targetPrice?: number
@@ -16,25 +22,22 @@ interface Alert {
 
 interface AlertCardProps {
   alert: Alert
-  onDismiss: (id: string) => void
+  onDismiss: (id: number) => void
 }
 
 export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
   const { isMobile } = useResponsive()
   
-  const preset = SELL_PRESETS[alert.presetId]
-  
-  const severityColors: Record<string, { bg: string; label: string }> = {
-    critical: { bg: '#ef4444', label: '긴급' },
-    high: { bg: '#f97316', label: '높음' },
-    medium: { bg: '#eab308', label: '보통' },
-    low: { bg: '#3b82f6', label: '참고' }
+  const severityColors: Record<string, { bg: string; label: string }> = { 
+    critical: { bg: '#ef4444', label: '긴급' }, 
+    high: { bg: '#f97316', label: '높음' }, 
+    medium: { bg: '#eab308', label: '보통' }, 
+    low: { bg: '#3b82f6', label: '참고' } 
   }
+  const severity = severityColors[alert?.preset?.severity] || { bg: '#64748b', label: '알림' }
   
-  const severity = severityColors[preset?.severity || 'medium'] || { bg: '#64748b', label: '알림' }
-  
-  // 시간 포맷
-  const formatTime = (timestamp: number): string => {
+  const formatTime = (timestamp: number) => {
+    if (!timestamp) return '방금 전'
     const diff = Date.now() - timestamp
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return '방금 전'
@@ -43,7 +46,7 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
     if (hours < 24) return `${hours}시간 전`
     return '1일 이상'
   }
-
+  
   return (
     <div style={{ 
       background: `linear-gradient(135deg, ${severity.bg}15 0%, ${severity.bg}08 100%)`, 
@@ -69,10 +72,10 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'flex-start',
-        paddingLeft: '12px'
+        paddingLeft: '8px'
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* 헤더 */}
+          {/* 헤더: 아이콘 + 매도법 이름 + 심각도 배지 */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -80,12 +83,12 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             marginBottom: '8px',
             flexWrap: 'wrap'
           }}>
-            <span style={{ fontSize: isMobile ? '18px' : '20px' }}>{preset?.icon || '🔔'}</span>
+            <span style={{ fontSize: isMobile ? '18px' : '20px' }}>{alert?.preset?.icon || '🔔'}</span>
             <span style={{ 
               fontSize: isMobile ? '13px' : '14px', 
               fontWeight: '700', 
               color: severity.bg 
-            }}>{preset?.name || '알림'}</span>
+            }}>{alert?.preset?.name || '알림'}</span>
             <span style={{
               fontSize: '10px',
               fontWeight: '600',
@@ -102,9 +105,7 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             fontWeight: '600', 
             color: '#fff', 
             marginBottom: '6px' 
-          }}>
-            {alert.stockName} ({alert.stockCode})
-          </div>
+          }}>{alert?.stockName || '종목'}</div>
           
           {/* 메시지 */}
           <div style={{ 
@@ -113,20 +114,19 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             lineHeight: '1.4',
             marginBottom: '8px'
           }}>
-            {alert.message}
+            {alert?.message || '설정한 조건에 도달했습니다'}
           </div>
           
-          {/* 가격 정보 */}
-          {alert.currentPrice && (
+          {/* 가격 정보 (있는 경우) */}
+          {alert?.currentPrice && (
             <div style={{
               display: 'flex',
-              gap: '16px',
+              gap: '12px',
               fontSize: '12px',
-              color: '#94a3b8',
-              marginBottom: '8px'
+              color: '#94a3b8'
             }}>
               <span>현재가: <strong style={{ color: '#fff' }}>₩{alert.currentPrice.toLocaleString()}</strong></span>
-              {alert.targetPrice && (
+              {alert?.targetPrice && (
                 <span>기준가: <strong style={{ color: severity.bg }}>₩{alert.targetPrice.toLocaleString()}</strong></span>
               )}
             </div>
@@ -135,15 +135,16 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
           {/* 시간 */}
           <div style={{ 
             fontSize: '11px', 
-            color: '#64748b'
+            color: '#64748b',
+            marginTop: '8px'
           }}>
-            {formatTime(alert.timestamp)}
+            {formatTime(alert?.timestamp)}
           </div>
         </div>
         
         {/* 확인 버튼 */}
         <button 
-          onClick={() => onDismiss(alert.id)} 
+          onClick={() => onDismiss(alert?.id)} 
           style={{ 
             background: 'rgba(255,255,255,0.1)', 
             border: 'none', 
@@ -154,8 +155,7 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             fontWeight: '500',
             cursor: 'pointer',
             minHeight: isMobile ? '44px' : '36px',
-            marginLeft: '12px',
-            flexShrink: 0
+            transition: 'background 0.15s'
           }}
         >
           확인
