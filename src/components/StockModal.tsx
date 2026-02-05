@@ -3,18 +3,7 @@
 import { useState } from 'react'
 import { useResponsive } from '@/hooks'
 import { SELL_PRESETS, searchStocks, findExactStock } from '@/lib/constants'
-
-// Position 타입 정의 - id는 number로 통일
-export interface Position {
-  id: number
-  name: string
-  code: string
-  buyPrice: number
-  quantity: number
-  highestPrice?: number
-  selectedPresets: string[]
-  presetSettings: Record<string, { value: number }>
-}
+import type { Position } from '@/types'
 
 interface StockModalProps {
   stock?: Position | null
@@ -201,10 +190,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       alignItems: 'center',
                       cursor: 'pointer', 
                       borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      transition: 'background 0.15s'
                     }}
-                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
                   >
                     <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{result.name}</span>
                     <span style={{ color: '#64748b', fontSize: '13px' }}>{result.code} · {result.market}</span>
@@ -320,7 +306,6 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       border: isSelected ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.05)', 
                       borderRadius: '12px', 
                       cursor: 'pointer',
-                      transition: 'all 0.15s'
                     }} 
                     onClick={() => togglePreset(preset.id)}
                   >
