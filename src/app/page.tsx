@@ -1,70 +1,217 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useResponsive } from '@/hooks'
-import { 
-  SELL_PRESETS, 
-  PROFIT_STAGES, 
-  STOCK_LIST, 
-  EARNINGS_DATA,
-  generateMockPriceData,
-  calculateSellPrices,
-  calculateDDay
-} from '@/lib/constants'
-import type { Position, Alert, PriceData } from '@/types'
-import CandleChart from '@/components/CandleChart'
-import StockModal from '@/components/StockModal'
-import AlertCard from '@/components/AlertCard'
-import { AINewsPopup, AIReportPopup } from '@/components/AIPopups'
-import MarketCycleWidget from '@/components/MarketCycleWidget'
-import UpgradeModal from '@/components/UpgradeModal'
+import React, { useState, useEffect } from 'react'
 
-// 초기 포지션 데이터
-const INITIAL_POSITIONS: Position[] = [
-  { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78200, selectedPresets: ['candle3', 'stopLoss', 'twoThird', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
-  { id: 2, name: '현대차', code: '005380', buyPrice: 215000, quantity: 20, highestPrice: 228000, selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } } },
-  { id: 3, name: '한화에어로스페이스', code: '012450', buyPrice: 285000, quantity: 15, highestPrice: 412000, selectedPresets: ['twoThird', 'maSignal', 'volumeZone', 'fundamental'], presetSettings: { maSignal: { value: 60 } } },
-]
+// ============================================
+// 타입 정의
+// ============================================
+interface Position {
+  id: number
+  name: string
+  code: string
+  buyPrice: number
+  quantity: number
+  highestPrice?: number
+  selectedPresets: string[]
+  presetSettings?: Record<string, { value: number }>
+}
 
-// 초기 알림 데이터
-const INITIAL_ALERTS: Alert[] = [
-  {
-    id: 1,
-    stockName: '삼성전자',
-    code: '005930',
-    preset: SELL_PRESETS.stopLoss,
-    message: '손절 기준가(-5%) 근접! 현재 -4.2%',
-    currentPrice: 68500,
-    targetPrice: 67925,
-    timestamp: Date.now() - 300000
-  },
-  {
-    id: 2,
-    stockName: '한화에어로스페이스',
-    code: '012450',
-    preset: SELL_PRESETS.twoThird,
-    message: '최고점 대비 1/3 하락 근접',
-    currentPrice: 365000,
-    targetPrice: 369600,
-    timestamp: Date.now() - 1800000
+interface Alert {
+  id: number
+  stockName: string
+  code: string
+  preset: typeof SELL_PRESETS[keyof typeof SELL_PRESETS]
+  message: string
+  currentPrice?: number
+  targetPrice?: number
+  timestamp: number
+}
+
+interface PriceData {
+  date: Date
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+interface Stock {
+  name: string
+  code: string
+  market: string
+  sector?: string
+  per?: number
+  pbr?: number
+  sectorPer?: number
+  sectorPbr?: number
+}
+
+// ============================================
+// ë°˜ì‘í˜• ì„¤ì • ë° í›…
+// ============================================
+const BREAKPOINTS = {
+  mobile: 480,
+  tablet: 768,
+  desktop: 1024,
+  wide: 1400
+};
+
+// ë°˜ì‘í˜• í›… - í™”ë©´ í¬ê¸° ê°ì§€
+const useResponsive = () => {
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return {
+    width: windowSize.width,
+    height: windowSize.height,
+    isMobile: windowSize.width < BREAKPOINTS.tablet,
+    isTablet: windowSize.width >= BREAKPOINTS.tablet && windowSize.width < BREAKPOINTS.desktop,
+    isDesktop: windowSize.width >= BREAKPOINTS.desktop,
+    isWide: windowSize.width >= BREAKPOINTS.wide,
+  };
+};
+
+// ë°˜ì‘í˜• ìŠ¤íƒ€ì¼ í—¬í¼
+const getResponsiveValue = (isMobile, isTablet, mobileVal, tabletVal, desktopVal) => {
+  if (isMobile) return mobileVal;
+  if (isTablet) return tabletVal;
+  return desktopVal;
+};
+
+// ============================================
+// ë§¤ë„ì˜ ê¸°ìˆ  í”„ë¦¬ì…‹ ì •ì˜
+// ============================================
+const SELL_PRESETS = {
+  candle3: { id: 'candle3', name: 'ë´‰ 3ê°œ ë§¤ë„ë²•', icon: 'ðŸ“Š', description: 'ìŒë´‰ì´ ì§ì „ ì–‘ë´‰ì˜ 50% ì´ìƒ ë®ì„ ë•Œ', stages: ['initial', 'profit5'], severity: 'high', color: '#f59e0b' },
+  stopLoss: { id: 'stopLoss', name: 'ì†ì‹¤ì œí•œ ë§¤ë„ë²•', icon: 'ðŸ›‘', description: 'ë§¤ìˆ˜ê°€ ëŒ€ë¹„ ì„¤ì •% ë„ë‹¬ ì‹œ', stages: ['initial', 'profit5'], hasInput: true, inputLabel: 'ì†ì ˆ ê¸°ì¤€ (%)', inputDefault: -5, severity: 'critical', color: '#ef4444' },
+  twoThird: { id: 'twoThird', name: '2/3 ìµì ˆ ë§¤ë„ë²•', icon: 'ðŸ“ˆ', description: 'ìµœê³  ìˆ˜ìµ ëŒ€ë¹„ 1/3 í•˜ë½ ì‹œ', stages: ['profit5', 'profit10'], severity: 'medium', color: '#8b5cf6' },
+  maSignal: { id: 'maSignal', name: 'ì´ë™í‰ê· ì„  ë§¤ë„ë²•', icon: 'ðŸ“‰', description: 'ì´ë™í‰ê· ì„  í•˜í–¥ ëŒíŒŒ ì‹œ', stages: ['profit5', 'profit10'], hasInput: true, inputLabel: 'ì´ë™í‰ê·  ê¸°ê°„ (ì¼)', inputDefault: 20, severity: 'high', color: '#06b6d4' },
+  volumeZone: { id: 'volumeZone', name: 'ë§¤ë¬¼ëŒ€ ë§¤ë„ë²•', icon: 'ðŸ”ï¸', description: 'ì €í•­ëŒ€ ë„ë‹¬ í›„ í•˜ë½ ì‹œ', stages: ['profit5', 'profit10'], severity: 'medium', color: '#84cc16' },
+  trendline: { id: 'trendline', name: 'ì¶”ì„¸ì„  ë§¤ë„ë²•', icon: 'ðŸ“', description: 'ì§€ì§€ì„ /ì €í•­ì„  ì´íƒˆ ì‹œ', stages: ['profit10'], severity: 'medium', color: '#ec4899' },
+  fundamental: { id: 'fundamental', name: 'ê¸°ì—…ê°€ì¹˜ ë°˜ì „', icon: 'ðŸ“°', description: 'ì‹¤ì  ë°œí‘œ/ë‰´ìŠ¤ ëª¨ë‹ˆí„°ë§', stages: ['profit10'], severity: 'high', color: '#f97316' },
+  cycle: { id: 'cycle', name: 'ê²½ê¸°ìˆœí™˜ ë§¤ë„ë²•', icon: 'ðŸ”„', description: 'ê¸ˆë¦¬/ê²½ê¸° ì‚¬ì´í´ ê¸°ë°˜', stages: ['profit10'], severity: 'low', color: '#64748b' },
+};
+
+const PROFIT_STAGES = {
+  initial: { label: 'ì´ˆê¸° ë‹¨ê³„', color: '#6b7280', range: '0~5%', methods: ['candle3', 'stopLoss'] },
+  profit5: { label: '5% ìˆ˜ìµ êµ¬ê°„', color: '#eab308', range: '5~10%', methods: ['candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone'] },
+  profit10: { label: '10%+ ìˆ˜ìµ êµ¬ê°„', color: '#10b981', range: '10% ì´ìƒ', methods: ['twoThird', 'maSignal', 'volumeZone', 'fundamental', 'trendline', 'cycle'] },
+};
+
+const STOCK_LIST = [
+  { name: 'ì‚¼ì„±ì „ìž', code: '005930', market: 'ì½”ìŠ¤í”¼', sector: 'ë°˜ë„ì²´', per: 12.5, pbr: 1.2, sectorPer: 15.2, sectorPbr: 1.8 },
+  { name: 'ì‚¼ì„±ì „ìžìš°', code: '005935', market: 'ì½”ìŠ¤í”¼', sector: 'ë°˜ë„ì²´', per: 11.8, pbr: 1.1, sectorPer: 15.2, sectorPbr: 1.8 },
+  { name: 'ì‚¼ì„±SDI', code: '006400', market: 'ì½”ìŠ¤í”¼', sector: '2ì°¨ì „ì§€', per: 25.3, pbr: 2.1, sectorPer: 28.5, sectorPbr: 3.2 },
+  { name: 'í˜„ëŒ€ì°¨', code: '005380', market: 'ì½”ìŠ¤í”¼', sector: 'ìžë™ì°¨', per: 5.8, pbr: 0.6, sectorPer: 7.2, sectorPbr: 0.8 },
+  { name: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤', code: '012450', market: 'ì½”ìŠ¤í”¼', sector: 'ë°©ì‚°', per: 35.2, pbr: 4.5, sectorPer: 22.0, sectorPbr: 2.8 },
+  { name: 'SKí•˜ì´ë‹‰ìŠ¤', code: '000660', market: 'ì½”ìŠ¤í”¼', sector: 'ë°˜ë„ì²´', per: 8.5, pbr: 1.8, sectorPer: 15.2, sectorPbr: 1.8 },
+  { name: 'ë„¤ì´ë²„', code: '035420', market: 'ì½”ìŠ¤í”¼', sector: 'ITì„œë¹„ìŠ¤', per: 22.1, pbr: 1.5, sectorPer: 25.0, sectorPbr: 2.5 },
+  { name: 'ì¹´ì¹´ì˜¤', code: '035720', market: 'ì½”ìŠ¤í”¼', sector: 'ITì„œë¹„ìŠ¤', per: 45.2, pbr: 1.8, sectorPer: 25.0, sectorPbr: 2.5 },
+  { name: 'LGí™”í•™', code: '051910', market: 'ì½”ìŠ¤í”¼', sector: 'í™”í•™', per: 18.5, pbr: 1.2, sectorPer: 12.0, sectorPbr: 0.9 },
+  { name: 'POSCOí™€ë”©ìŠ¤', code: '005490', market: 'ì½”ìŠ¤í”¼', sector: 'ì² ê°•', per: 8.2, pbr: 0.5, sectorPer: 6.5, sectorPbr: 0.4 },
+  { name: 'ì…€íŠ¸ë¦¬ì˜¨', code: '068270', market: 'ì½”ìŠ¤í”¼', sector: 'ë°”ì´ì˜¤', per: 32.5, pbr: 3.8, sectorPer: 45.0, sectorPbr: 5.2 },
+  { name: 'ê¸°ì•„', code: '000270', market: 'ì½”ìŠ¤í”¼', sector: 'ìžë™ì°¨', per: 4.5, pbr: 0.7, sectorPer: 7.2, sectorPbr: 0.8 },
+  { name: 'KBê¸ˆìœµ', code: '105560', market: 'ì½”ìŠ¤í”¼', sector: 'ê¸ˆìœµ', per: 5.2, pbr: 0.5, sectorPer: 5.8, sectorPbr: 0.45 },
+];
+
+const EARNINGS_DATA = {
+  '005930': { name: 'ì‚¼ì„±ì „ìž', nextEarningsDate: '2026-04-25', lastEarnings: { surprise: 5.2 } },
+  '005380': { name: 'í˜„ëŒ€ì°¨', nextEarningsDate: '2026-04-22', lastEarnings: { surprise: 8.3 } },
+  '012450': { name: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤', nextEarningsDate: '2026-05-10', lastEarnings: { surprise: 15.8 } },
+  '000660': { name: 'SKí•˜ì´ë‹‰ìŠ¤', nextEarningsDate: '2026-04-23', lastEarnings: { surprise: 12.5 } },
+  '035420': { name: 'ë„¤ì´ë²„', nextEarningsDate: '2026-04-28', lastEarnings: { surprise: -2.5 } },
+};
+
+const MARKET_CYCLE = { 
+  currentPhase: 4, 
+  phaseName: 'ê¸ˆë¦¬ì¸ìƒ ë…¼ì˜', 
+  description: 'ê¸ˆë¦¬ ê³ ì  ê·¼ì²˜, ê³¼ì—´ ì¡°ì • êµ­ë©´', 
+  recommendation: 'ë§¤ë„ ê´€ë§', 
+  interestRate: 3.5, 
+  confidence: 75, 
+  details: { kospiPer: 11.8, bondYield: 3.52, fedRate: 4.5 } 
+};
+
+// ============================================
+// ìœ í‹¸ë¦¬í‹° í•¨ìˆ˜ë“¤
+// ============================================
+const generateMockPriceData = (basePrice, days = 60) => {
+  const data = [];
+  let price = basePrice;
+  for (let i = 0; i < days; i++) {
+    const change = (Math.random() - 0.47) * basePrice * 0.025;
+    price = Math.max(price + change, basePrice * 0.7);
+    const high = price * (1 + Math.random() * 0.02);
+    const low = price * (1 - Math.random() * 0.02);
+    const open = low + Math.random() * (high - low);
+    const close = low + Math.random() * (high - low);
+    data.push({ date: new Date(Date.now() - (days - i) * 86400000), open, high, low, close, volume: Math.floor(Math.random() * 1000000 + 500000) });
   }
-]
+  return data;
+};
 
-// 반응형 헤더 컴포넌트
-function ResponsiveHeader({ 
-  alerts, 
-  isPremium, 
-  onShowUpgrade, 
-  onShowAddModal 
-}: {
-  alerts: Alert[]
-  isPremium: boolean
-  onShowUpgrade: () => void
-  onShowAddModal: () => void
-}) {
-  const { isMobile, isTablet } = useResponsive()
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
+const searchStocks = (query) => {
+  if (!query || query.trim().length === 0) return [];
+  const q = query.trim().toLowerCase();
+  return STOCK_LIST.filter(stock => stock.name.toLowerCase().includes(q) || stock.code.includes(q)).slice(0, 10);
+};
 
+const findExactStock = (query) => {
+  if (!query) return null;
+  return STOCK_LIST.find(stock => stock.name === query || stock.code === query || stock.name.toLowerCase() === query.toLowerCase());
+};
+
+const calculateSellPrices = (position, priceData, presetSettings) => {
+  const prices = {};
+  prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings?.stopLoss?.value || -5) / 100));
+  if (position.highestPrice) {
+    prices.twoThird = Math.round(position.highestPrice - (position.highestPrice - position.buyPrice) / 3);
+  }
+  const maPeriod = presetSettings?.maSignal?.value || 20;
+  if (priceData && priceData.length >= maPeriod) {
+    prices.maSignal = Math.round(priceData.slice(-maPeriod).reduce((sum, d) => sum + d.close, 0) / maPeriod);
+  }
+  if (priceData && priceData.length >= 2) {
+    const prevCandle = priceData[priceData.length - 2];
+    if (prevCandle.close > prevCandle.open) {
+      prices.candle3_50 = Math.round(prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5);
+    }
+  }
+  return prices;
+};
+
+const calculateDDay = (dateStr) => {
+  const diff = Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'D-Day';
+  if (diff > 0) return 'D-' + diff;
+  return 'D+' + Math.abs(diff);
+};
+
+// ============================================
+// ë°˜ì‘í˜• í—¤ë” ì»´í¬ë„ŒíŠ¸
+// ============================================
+const ResponsiveHeader = ({ alerts, isPremium, onShowUpgrade, onShowAddModal }) => {
+  const { isMobile, isTablet } = useResponsive();
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // ëª¨ë°”ì¼ í—¤ë”
   if (isMobile) {
     return (
       <header style={{ 
@@ -81,6 +228,7 @@ function ResponsiveHeader({
           justifyContent: 'space-between', 
           alignItems: 'center' 
         }}>
+          {/* ë¡œê³  ì˜ì—­ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ 
               width: '40px', 
@@ -91,16 +239,18 @@ function ResponsiveHeader({
               alignItems: 'center', 
               justifyContent: 'center', 
               fontSize: '20px' 
-            }}>📈</div>
+            }}>ðŸ“ˆ</div>
             <div>
-              <h1 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: '#fff' }}>매도의 기술</h1>
+              <h1 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>ë§¤ë„ì˜ ê¸°ìˆ </h1>
               <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
-                {isPremium ? '👑 프리미엄' : '무료회원'}
+                {isPremium ? 'ðŸ‘‘ í”„ë¦¬ë¯¸ì—„' : 'ë¬´ë£ŒíšŒì›'}
               </p>
             </div>
           </div>
 
+          {/* ìš°ì¸¡ ë²„íŠ¼ë“¤ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* ì•Œë¦¼ ë°°ì§€ */}
             {alerts.length > 0 && (
               <div style={{ 
                 position: 'relative',
@@ -112,7 +262,7 @@ function ResponsiveHeader({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <span style={{ fontSize: '18px' }}>🔔</span>
+                <span style={{ fontSize: '18px' }}>ðŸ””</span>
                 <span style={{ 
                   position: 'absolute',
                   top: '-4px',
@@ -129,6 +279,7 @@ function ResponsiveHeader({
               </div>
             )}
 
+            {/* ì¢…ëª© ì¶”ê°€ ë²„íŠ¼ */}
             <button 
               onClick={onShowAddModal}
               style={{ 
@@ -146,6 +297,7 @@ function ResponsiveHeader({
               }}
             >+</button>
 
+            {/* í–„ë²„ê±° ë©”ë‰´ */}
             <button 
               onClick={() => setShowMobileMenu(!showMobileMenu)}
               style={{ 
@@ -161,10 +313,11 @@ function ResponsiveHeader({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-            >☰</button>
+            >â˜°</button>
           </div>
         </div>
 
+        {/* ëª¨ë°”ì¼ ë“œë¡­ë‹¤ìš´ ë©”ë‰´ */}
         {showMobileMenu && (
           <div style={{
             position: 'absolute',
@@ -193,7 +346,7 @@ function ResponsiveHeader({
                   cursor: 'pointer',
                   textAlign: 'center',
                 }}
-              >👑 프리미엄 업그레이드</button>
+              >ðŸ‘‘ í”„ë¦¬ë¯¸ì—„ ì—…ê·¸ë ˆì´ë“œ</button>
             )}
             <button 
               onClick={() => { onShowAddModal(); setShowMobileMenu(false); }}
@@ -208,13 +361,14 @@ function ResponsiveHeader({
                 cursor: 'pointer',
                 textAlign: 'center',
               }}
-            >+ 종목 추가</button>
+            >+ ì¢…ëª© ì¶”ê°€</button>
           </div>
         )}
       </header>
-    )
+    );
   }
 
+  // íƒœë¸”ë¦¿ í—¤ë”
   if (isTablet) {
     return (
       <header style={{ 
@@ -232,6 +386,7 @@ function ResponsiveHeader({
           justifyContent: 'space-between', 
           alignItems: 'center' 
         }}>
+          {/* ë¡œê³  */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ 
               width: '44px', 
@@ -242,15 +397,16 @@ function ResponsiveHeader({
               alignItems: 'center', 
               justifyContent: 'center', 
               fontSize: '24px' 
-            }}>📈</div>
+            }}>ðŸ“ˆ</div>
             <div>
-              <h1 style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: '#fff' }}>매도의 기술</h1>
+              <h1 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>ë§¤ë„ì˜ ê¸°ìˆ </h1>
               <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                {isPremium ? '👑 프리미엄' : '무료회원'} · 조건 알람 도구
+                {isPremium ? 'ðŸ‘‘ í”„ë¦¬ë¯¸ì—„' : 'ë¬´ë£ŒíšŒì›'} Â· ì¡°ê±´ ì•ŒëžŒ ë„êµ¬
               </p>
             </div>
           </div>
 
+          {/* ì•Œë¦¼ + ë²„íŠ¼ë“¤ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {alerts.length > 0 && (
               <div style={{ 
@@ -260,9 +416,10 @@ function ResponsiveHeader({
                 padding: '8px 14px', 
                 background: 'rgba(239,68,68,0.2)', 
                 borderRadius: '10px', 
+                animation: 'pulse 2s infinite' 
               }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}개 알림</span>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}ê°œ ì•Œë¦¼</span>
               </div>
             )}
             {!isPremium && (
@@ -278,7 +435,7 @@ function ResponsiveHeader({
                   fontWeight: '600', 
                   cursor: 'pointer' 
                 }}
-              >👑 업그레이드</button>
+              >ðŸ‘‘ ì—…ê·¸ë ˆì´ë“œ</button>
             )}
             <button 
               onClick={onShowAddModal} 
@@ -292,14 +449,14 @@ function ResponsiveHeader({
                 fontWeight: '600', 
                 cursor: 'pointer' 
               }}
-            >+ 종목 추가</button>
+            >+ ì¢…ëª© ì¶”ê°€</button>
           </div>
         </div>
       </header>
-    )
+    );
   }
 
-  // 데스크톱 헤더
+  // ë°ìŠ¤í¬í†± í—¤ë” (ì›ë³¸ê³¼ ë™ì¼)
   return (
     <header style={{ 
       background: 'rgba(15, 23, 42, 0.95)', 
@@ -325,9 +482,10 @@ function ResponsiveHeader({
               padding: '10px 16px', 
               background: 'rgba(239,68,68,0.2)', 
               borderRadius: '10px', 
+              animation: 'pulse 2s infinite' 
             }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}개 알림</span>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}ê°œ ì•Œë¦¼</span>
             </div>
           )}
         </div>
@@ -349,11 +507,11 @@ function ResponsiveHeader({
             alignItems: 'center', 
             justifyContent: 'center', 
             fontSize: '28px' 
-          }}>📈</div>
+          }}>ðŸ“ˆ</div>
           <div>
-            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0, color: '#fff' }}>매도의 기술</h1>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0 }}>ë§¤ë„ì˜ ê¸°ìˆ </h1>
             <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-              {isPremium ? '👑 프리미엄' : '무료회원'} · 조건 알람 도구
+              {isPremium ? 'ðŸ‘‘ í”„ë¦¬ë¯¸ì—„' : 'ë¬´ë£ŒíšŒì›'} Â· ì¡°ê±´ ì•ŒëžŒ ë„êµ¬
             </p>
           </div>
         </div>
@@ -378,7 +536,7 @@ function ResponsiveHeader({
                 fontWeight: '600', 
                 cursor: 'pointer' 
               }}
-            >👑 업그레이드</button>
+            >ðŸ‘‘ ì—…ê·¸ë ˆì´ë“œ</button>
           )}
           <button 
             onClick={onShowAddModal} 
@@ -392,34 +550,27 @@ function ResponsiveHeader({
               fontWeight: '600', 
               cursor: 'pointer' 
             }}
-          >+ 종목 추가</button>
+          >+ ì¢…ëª© ì¶”ê°€</button>
         </div>
       </div>
     </header>
-  )
-}
+  );
+};
 
-// 반응형 요약 카드
-function ResponsiveSummaryCards({ 
-  totalCost, 
-  totalValue, 
-  totalProfit, 
-  totalProfitRate 
-}: {
-  totalCost: number
-  totalValue: number
-  totalProfit: number
-  totalProfitRate: number
-}) {
-  const { isMobile, isTablet } = useResponsive()
+// ============================================
+// ë°˜ì‘í˜• ìš”ì•½ ì¹´ë“œ ì»´í¬ë„ŒíŠ¸
+// ============================================
+const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfitRate }) => {
+  const { isMobile, isTablet } = useResponsive();
 
   const cards = [
-    { label: '총 매수금액', value: '₩' + Math.round(totalCost).toLocaleString(), icon: '💵' },
-    { label: '총 평가금액', value: '₩' + Math.round(totalValue).toLocaleString(), icon: '💰' },
-    { label: '총 평가손익', value: (totalProfit >= 0 ? '+' : '') + '₩' + Math.round(totalProfit).toLocaleString(), color: totalProfit >= 0 ? '#10b981' : '#ef4444', icon: '📈' },
-    { label: '총 수익률', value: (totalProfitRate >= 0 ? '+' : '') + totalProfitRate.toFixed(2) + '%', color: totalProfitRate >= 0 ? '#10b981' : '#ef4444', icon: '🎯' },
-  ]
+    { label: 'ì´ ë§¤ìˆ˜ê¸ˆì•¡', value: 'â‚©' + Math.round(totalCost).toLocaleString(), icon: 'ðŸ’µ' },
+    { label: 'ì´ í‰ê°€ê¸ˆì•¡', value: 'â‚©' + Math.round(totalValue).toLocaleString(), icon: 'ðŸ’°' },
+    { label: 'ì´ í‰ê°€ì†ìµ', value: (totalProfit >= 0 ? '+' : '') + 'â‚©' + Math.round(totalProfit).toLocaleString(), color: totalProfit >= 0 ? '#10b981' : '#ef4444', icon: 'ðŸ“ˆ' },
+    { label: 'ì´ ìˆ˜ìµë¥ ', value: (totalProfitRate >= 0 ? '+' : '') + totalProfitRate.toFixed(2) + '%', color: totalProfitRate >= 0 ? '#10b981' : '#ef4444', icon: 'ðŸŽ¯' },
+  ];
 
+  // ëª¨ë°”ì¼: 2x2 ê·¸ë¦¬ë“œ ë˜ëŠ” ìŠ¤í¬ë¡¤ ê°€ëŠ¥í•œ ê°€ë¡œ ë°°ì—´
   if (isMobile) {
     return (
       <div style={{ 
@@ -456,9 +607,10 @@ function ResponsiveSummaryCards({
           </div>
         ))}
       </div>
-    )
+    );
   }
 
+  // íƒœë¸”ë¦¿: 4ì—´ ê·¸ë¦¬ë“œ (ìž‘ì€ íŒ¨ë”©)
   if (isTablet) {
     return (
       <div style={{ 
@@ -492,9 +644,10 @@ function ResponsiveSummaryCards({
           </div>
         ))}
       </div>
-    )
+    );
   }
 
+  // ë°ìŠ¤í¬í†±: ì›ë³¸ ìŠ¤íƒ€ì¼
   return (
     <div style={{ 
       display: 'grid', 
@@ -526,28 +679,594 @@ function ResponsiveSummaryCards({
         </div>
       ))}
     </div>
-  )
-}
+  );
+};
 
-// 실적 위젯
-function EarningsWidget({ 
-  position, 
-  isPremium, 
-  onShowAINews, 
-  onShowAIReport 
-}: {
-  position: Position
-  isPremium: boolean
-  onShowAINews: () => void
-  onShowAIReport: () => void
-}) {
-  const { isMobile } = useResponsive()
-  const earnings = EARNINGS_DATA[position.code as keyof typeof EARNINGS_DATA]
-  const stockInfo = STOCK_LIST.find(s => s.code === position.code)
-  if (!earnings || !stockInfo) return null
+// ============================================
+// ë°˜ì‘í˜• ìº”ë“¤ ì°¨íŠ¸ ì»´í¬ë„ŒíŠ¸
+// ============================================
+// ìº”ë“¤ ì°¨íŠ¸ ì»´í¬ë„ŒíŠ¸ - Xì¶• ë‚ ì§œ & Yì¶• ê°€ê²© ê°œì„ 
+// ============================================
+const EnhancedCandleChart = ({ data, width = 270, height = 280, buyPrice, sellPrices, visibleLines }) => {
+  if (!data || data.length === 0) return null;
   
-  const dDay = calculateDDay(earnings.nextEarningsDate)
-  const naverNewsUrl = 'https://finance.naver.com/item/news.naver?code=' + position.code
+  // ì°¨íŠ¸ í¬ê¸°ì— ë”°ë¥¸ í°íŠ¸ í¬ê¸° ê²°ì •
+  const isSmallChart = width < 280;
+  const fontSize = {
+    xAxis: isSmallChart ? 10 : 11,
+    yAxis: isSmallChart ? 9 : 10,
+    label: isSmallChart ? 8 : 9
+  };
+  
+  const padding = { top: 10, right: 70, bottom: 34, left: 6 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+  
+  const allPrices = data.flatMap(d => [d.high, d.low]).concat([buyPrice]).concat(Object.values(sellPrices || {}).filter(Boolean));
+  const minP = Math.min(...allPrices) * 0.98;
+  const maxP = Math.max(...allPrices) * 1.02;
+  const range = maxP - minP || 1;
+  const candleW = Math.max(3, (chartW / data.length) - 1.5);
+  
+  const scaleY = (p) => padding.top + chartH - ((p - minP) / range) * chartH;
+  const scaleX = (i) => padding.left + (i / data.length) * chartW;
+  const currentPrice = data[data.length - 1]?.close || buyPrice;
+
+  // ë‚ ì§œ í¬ë§· - ì›”/ì¼ í˜•ì‹
+  const formatDate = (date) => {
+    const d = new Date(date);
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    return `${month}/${day}`;
+  };
+
+  // Xì¶• ë‚ ì§œ í‘œì‹œ ìœ„ì¹˜ ê³„ì‚° - í•­ìƒ 5ê°œ ì´ìƒ í‘œì‹œ
+  const getXAxisIndices = () => {
+    const dataLen = data.length;
+    // ê¸°ë³¸ì ìœ¼ë¡œ 5~6ê°œ í‘œì‹œ (ì°¨íŠ¸ í¬ê¸°ì™€ ë¬´ê´€í•˜ê²Œ)
+    if (dataLen <= 10) {
+      // ë°ì´í„°ê°€ ì ìœ¼ë©´ ì „ì²´ í‘œì‹œ
+      return Array.from({ length: dataLen }, (_, i) => i).filter((_, i) => i % 2 === 0);
+    } else if (dataLen <= 20) {
+      // 5ê°œ í‘œì‹œ
+      return [
+        0, 
+        Math.floor(dataLen * 0.25), 
+        Math.floor(dataLen * 0.5), 
+        Math.floor(dataLen * 0.75), 
+        dataLen - 1
+      ];
+    } else {
+      // 6ê°œ í‘œì‹œ
+      return [
+        0, 
+        Math.floor(dataLen * 0.2), 
+        Math.floor(dataLen * 0.4), 
+        Math.floor(dataLen * 0.6), 
+        Math.floor(dataLen * 0.8), 
+        dataLen - 1
+      ];
+    }
+  };
+  
+  const xAxisIndices = getXAxisIndices();
+  
+  // ê°€ê²© í¬ë§· - ì‹¤ì œ ê°€ê²© (ì½¤ë§ˆ í¬í•¨)
+  const formatPrice = (price) => {
+    return Math.round(price).toLocaleString();
+  };
+
+  return (
+    <svg width={width} height={height} style={{ display: 'block', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+      {/* Yì¶• ê·¸ë¦¬ë“œ ë° ê°€ê²© ë¼ë²¨ - 5ë‹¨ê³„ */}
+      {[0,1,2,3,4].map(i => {
+        const price = minP + (range * i / 4);
+        const y = scaleY(price);
+        return (
+          <g key={i}>
+            <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255,255,255,0.12)" strokeDasharray="3,3" />
+            <text 
+              x={width - padding.right + 4} 
+              y={y + 4} 
+              fill="#d4d4d8" 
+              fontSize={fontSize.yAxis}
+              fontWeight="600"
+            >
+              {formatPrice(price)}
+            </text>
+          </g>
+        );
+      })}
+      
+      {/* Xì¶• ê¸°ì¤€ì„  */}
+      <line 
+        x1={padding.left} 
+        y1={height - padding.bottom} 
+        x2={width - padding.right} 
+        y2={height - padding.bottom} 
+        stroke="rgba(255,255,255,0.2)" 
+      />
+      
+      {/* Xì¶• ë‚ ì§œ ë¼ë²¨ - 5~6ê°œ */}
+      {xAxisIndices.map((idx, i) => {
+        if (idx >= data.length || !data[idx]?.date) return null;
+        const x = scaleX(idx) + candleW / 2;
+        return (
+          <g key={`x-${i}`}>
+            {/* ëˆˆê¸ˆì„  */}
+            <line 
+              x1={x} 
+              y1={height - padding.bottom} 
+              x2={x} 
+              y2={height - padding.bottom + 4} 
+              stroke="rgba(255,255,255,0.4)" 
+            />
+            {/* ë‚ ì§œ í…ìŠ¤íŠ¸ */}
+            <text 
+              x={x} 
+              y={height - padding.bottom + 18} 
+              fill="#d4d4d8" 
+              fontSize={fontSize.xAxis} 
+              textAnchor="middle"
+              fontWeight="600"
+            >
+              {formatDate(data[idx].date)}
+            </text>
+          </g>
+        );
+      })}
+      
+      {/* ìº”ë“¤ */}
+      {data.map((c, i) => {
+        const x = scaleX(i);
+        const isUp = c.close >= c.open;
+        const color = isUp ? '#10b981' : '#ef4444';
+        return (
+          <g key={i}>
+            <line x1={x + candleW/2} y1={scaleY(c.high)} x2={x + candleW/2} y2={scaleY(c.low)} stroke={color} strokeWidth={1} />
+            <rect x={x} y={scaleY(Math.max(c.open, c.close))} width={candleW} height={Math.max(1, Math.abs(scaleY(c.open) - scaleY(c.close)))} fill={color} />
+          </g>
+        );
+      })}
+      
+      {/* ë§¤ìˆ˜ê°€ ë¼ì¸ */}
+      <line x1={padding.left} y1={scaleY(buyPrice)} x2={width - padding.right} y2={scaleY(buyPrice)} stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4,2"/>
+      <rect x={width - padding.right} y={scaleY(buyPrice) - 8} width={66} height={16} fill="#3b82f6" rx={2} />
+      <text x={width - padding.right + 3} y={scaleY(buyPrice) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">ë§¤ìˆ˜ {buyPrice.toLocaleString()}</text>
+      
+      {/* ì†ì ˆê°€ ë¼ì¸ */}
+      {visibleLines?.stopLoss && sellPrices?.stopLoss && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.stopLoss)} x2={width - padding.right} y2={scaleY(sellPrices.stopLoss)} stroke="#ef4444" strokeWidth={1.5}/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.stopLoss) - 8} width={66} height={16} fill="#ef4444" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.stopLoss) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">ì†ì ˆ {sellPrices.stopLoss.toLocaleString()}</text>
+        </g>
+      )}
+      
+      {/* 2/3 ìµì ˆê°€ ë¼ì¸ */}
+      {visibleLines?.twoThird && sellPrices?.twoThird && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.twoThird)} x2={width - padding.right} y2={scaleY(sellPrices.twoThird)} stroke="#8b5cf6" strokeWidth={1.5}/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.twoThird) - 8} width={66} height={16} fill="#8b5cf6" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.twoThird) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">2/3ìµ {sellPrices.twoThird.toLocaleString()}</text>
+        </g>
+      )}
+      
+      {/* ì´ë™í‰ê· ì„  ë¼ì¸ */}
+      {visibleLines?.maSignal && sellPrices?.maSignal && (
+        <g>
+          <line x1={padding.left} y1={scaleY(sellPrices.maSignal)} x2={width - padding.right} y2={scaleY(sellPrices.maSignal)} stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="4,2"/>
+          <rect x={width - padding.right} y={scaleY(sellPrices.maSignal) - 8} width={66} height={16} fill="#06b6d4" rx={2} />
+          <text x={width - padding.right + 3} y={scaleY(sellPrices.maSignal) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">ì´í‰ {sellPrices.maSignal.toLocaleString()}</text>
+        </g>
+      )}
+      
+      {/* í˜„ìž¬ê°€ í‘œì‹œ */}
+      <circle cx={scaleX(data.length - 1) + candleW/2} cy={scaleY(currentPrice)} r={4} fill={currentPrice >= buyPrice ? '#10b981' : '#ef4444'} stroke="#fff" strokeWidth={1} />
+    </svg>
+  );
+};
+
+// ============================================
+// ì½”ìŠ¤í†¨ë¼ë‹ˆ ë‹¬ê±€ ìœ„ì ¯ - ì™„ì „ SVG êµ¬í˜„
+// ============================================
+const MarketCycleWidget = ({ isPremium }) => {
+  const { isMobile, isTablet } = useResponsive();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  // í˜„ìž¬ ê²½ê¸° ì‚¬ì´í´ ë‹¨ê³„ (1~6)
+  const currentPhase = 4; // ê¸ˆë¦¬ê³ ì  ê·¼ì²˜, ì£¼ì‹ë§¤ë„ ì‹œê¸°
+  const currentPhaseRange = [70, 110]; // í˜„ìž¬ ìœ„ì¹˜ ë²”ìœ„ (ê°ë„, 90ë„ê°€ ê¸ˆë¦¬ê³ ì )
+  
+  // 6ë‹¨ê³„ ì •ì˜ (ì‹œê³„ë°©í–¥: Dâ†’Câ†’Bâ†’Aâ†’Fâ†’Eâ†’D)
+  const phases = [
+    { id: 1, name: 'D', label: 'ê¸ˆë¦¬ì €ì ', subLabel: 'ì‚´ ë•Œ', action: 'ì£¼ì‹ë§¤ìˆ˜', color: '#10b981', angle: 270 },
+    { id: 2, name: 'C', label: 'B3', subLabel: 'ë¶€ë™ì‚°íˆ¬ìž', action: 'ì±„ê¶Œë§¤ë„', color: '#22c55e', angle: 315 },
+    { id: 3, name: 'B', label: 'B1-B2', subLabel: 'ì˜ˆê¸ˆì¸ì¶œ', action: 'ì±„ê¶Œíˆ¬ìž', color: '#eab308', angle: 0 },
+    { id: 4, name: 'A', label: 'ê¸ˆë¦¬ê³ ì ', subLabel: 'íŒ” ë•Œ', action: 'ì£¼ì‹ë§¤ë„', color: '#ef4444', angle: 90 },
+    { id: 5, name: 'F', label: 'A3', subLabel: 'ì˜ˆê¸ˆìž…ê¸ˆ', action: 'ì£¼ì‹ë§¤ë„', color: '#f97316', angle: 135 },
+    { id: 6, name: 'E', label: 'A1-A2', subLabel: 'ì£¼ì‹íˆ¬ìž', action: 'ë¶€ë™ì‚°ë§¤ë„', color: '#3b82f6', angle: 225 },
+  ];
+  
+  const currentPhaseData = phases.find(p => p.id === currentPhase) || phases[3];
+  
+  // ì¶”ì²œ í–‰ë™
+  const getRecommendation = (phase) => {
+    if (phase <= 2) return { text: 'ë§¤ìˆ˜ ì ê¸°', color: '#10b981', bg: 'rgba(16,185,129,0.15)' };
+    if (phase === 3) return { text: 'ê¸°ë‹¤ë¦´ ë•Œ', color: '#eab308', bg: 'rgba(234,179,8,0.15)' };
+    if (phase >= 4) return { text: 'ë§¤ë„ ê´€ë§', color: '#ef4444', bg: 'rgba(239,68,68,0.15)' };
+    return { text: 'ê´€ë§', color: '#64748b', bg: 'rgba(100,116,139,0.15)' };
+  };
+  
+  const recommendation = getRecommendation(currentPhase);
+  
+  // SVG í¬ê¸° ê³„ì‚°
+  const svgSize = isMobile ? 200 : isTablet ? 220 : 240;
+  const centerX = svgSize / 2;
+  const centerY = svgSize / 2;
+  const radiusX = isMobile ? 70 : 85; // ë‹¬ê±€ ê°€ë¡œ ë°˜ì§€ë¦„
+  const radiusY = isMobile ? 85 : 100; // ë‹¬ê±€ ì„¸ë¡œ ë°˜ì§€ë¦„ (ì„¸ë¡œê°€ ë” ê¹€)
+
+  // ë‹¬ê±€ ìœ„ì˜ ì  ìœ„ì¹˜ ê³„ì‚° (ê°ë„ ê¸°ë°˜)
+  const getPointOnEgg = (angleDeg) => {
+    const angleRad = (angleDeg - 90) * Math.PI / 180;
+    // ë‹¬ê±€ ëª¨ì–‘ì„ ìœ„í•´ ìƒë‹¨ì„ ì•½ê°„ ì¢ê²Œ
+    const topFactor = angleDeg > 45 && angleDeg < 135 ? 0.85 : 1;
+    const x = centerX + radiusX * Math.cos(angleRad) * topFactor;
+    const y = centerY + radiusY * Math.sin(angleRad);
+    return { x, y };
+  };
+
+  return (
+    <div style={{ 
+      background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+      borderRadius: '14px', 
+      padding: isMobile ? '12px' : '16px', 
+      marginBottom: '12px', 
+      border: '1px solid rgba(255,255,255,0.08)' 
+    }}>
+      {/* í—¤ë” */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        marginBottom: '12px' 
+      }}>
+        <h3 style={{ 
+          fontSize: isMobile ? '14px' : '15px', 
+          fontWeight: '600', 
+          color: '#fff', 
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
+        }}>
+          ðŸ¥š ì½”ìŠ¤í†¨ë¼ë‹ˆ ë‹¬ê±€
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '10px', color: '#64748b' }}>ì‹ ë¢°ë„ 75%</span>
+          {isPremium && (
+            <button 
+              onClick={() => {
+                setIsAnalyzing(true);
+                setTimeout(() => setIsAnalyzing(false), 1500);
+              }}
+              disabled={isAnalyzing}
+              style={{ 
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
+                border: 'none', 
+                borderRadius: '6px', 
+                padding: '4px 10px', 
+                color: '#fff', 
+                fontSize: '10px', 
+                cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                opacity: isAnalyzing ? 0.6 : 1
+              }}
+            >
+              {isAnalyzing ? 'ë¶„ì„ì¤‘...' : 'ðŸ¤– AI'}
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* ë‹¬ê±€ SVG + í˜„ìž¬ ìƒíƒœ */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: isMobile ? 'center' : 'flex-start',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? '12px' : '16px',
+        marginBottom: '12px'
+      }}>
+        {/* ë‹¬ê±€ SVG */}
+        <svg 
+          width={svgSize} 
+          height={svgSize} 
+          viewBox={`0 0 ${svgSize} ${svgSize}`}
+          style={{ flexShrink: 0 }}
+        >
+          <defs>
+            {/* ë°°ê²½ ê·¸ë¼ë””ì–¸íŠ¸ - í˜¸í™©ê¸°/ë¶ˆí™©ê¸° */}
+            <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(251,191,36,0.15)" />
+              <stop offset="50%" stopColor="rgba(251,191,36,0.05)" />
+              <stop offset="50%" stopColor="rgba(147,197,253,0.05)" />
+              <stop offset="100%" stopColor="rgba(147,197,253,0.15)" />
+            </linearGradient>
+            {/* ë‹¬ê±€ ê·¸ë¼ë””ì–¸íŠ¸ */}
+            <radialGradient id="eggGradient" cx="40%" cy="30%" r="60%">
+              <stop offset="0%" stopColor="#fcd9b6" />
+              <stop offset="100%" stopColor="#f5c89a" />
+            </radialGradient>
+            {/* ë§¤ìˆ˜ ì˜ì—­ ê·¸ë¼ë””ì–¸íŠ¸ */}
+            <linearGradient id="buyZone" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(16,185,129,0.3)" />
+              <stop offset="100%" stopColor="rgba(16,185,129,0.05)" />
+            </linearGradient>
+            {/* ë§¤ë„ ì˜ì—­ ê·¸ë¼ë””ì–¸íŠ¸ */}
+            <linearGradient id="sellZone" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(239,68,68,0.3)" />
+              <stop offset="100%" stopColor="rgba(239,68,68,0.05)" />
+            </linearGradient>
+          </defs>
+          
+          {/* ë°°ê²½ */}
+          <rect x="0" y="0" width={svgSize} height={svgSize} fill="url(#bgGradient)" rx="8" />
+          
+          {/* í˜¸í™©ê¸°/ë¶ˆí™©ê¸° ë¼ë²¨ */}
+          <text x="15" y="18" fill="#fbbf24" fontSize="9" fontWeight="600">í˜¸í™©ê¸°</text>
+          <text x={svgSize - 40} y="18" fill="#93c5fd" fontSize="9" fontWeight="600">ë¶ˆí™©ê¸°</text>
+          
+          {/* ê²½ê¸°ì„±ìˆ™/ê²½ê¸°ì¹¨ì²´ ì¤‘ì•™ì„  */}
+          <line 
+            x1="10" y1={centerY} 
+            x2={svgSize - 10} y2={centerY} 
+            stroke="rgba(255,255,255,0.15)" 
+            strokeDasharray="3,3" 
+          />
+          <text x="12" y={centerY - 5} fill="#64748b" fontSize="8">ê²½ê¸°ì„±ìˆ™</text>
+          <text x={svgSize - 45} y={centerY - 5} fill="#64748b" fontSize="8">ê²½ê¸°ì¹¨ì²´</text>
+          
+          {/* ë‹¬ê±€ ëª¨ì–‘ (íƒ€ì›) */}
+          <ellipse 
+            cx={centerX} 
+            cy={centerY} 
+            rx={radiusX} 
+            ry={radiusY} 
+            fill="url(#eggGradient)"
+            stroke="rgba(0,0,0,0.2)"
+            strokeWidth="2"
+          />
+          
+          {/* ë‹¬ê±€ ë‚´ë¶€ ì˜ì—­ êµ¬ë¶„ì„  */}
+          <line 
+            x1={centerX - radiusX + 15} y1={centerY - radiusY * 0.35}
+            x2={centerX + radiusX - 15} y2={centerY - radiusY * 0.35}
+            stroke="rgba(0,0,0,0.15)"
+            strokeDasharray="4,2"
+          />
+          <line 
+            x1={centerX - radiusX + 10} y1={centerY + radiusY * 0.35}
+            x2={centerX + radiusX - 10} y2={centerY + radiusY * 0.35}
+            stroke="rgba(0,0,0,0.15)"
+            strokeDasharray="4,2"
+          />
+          
+          {/* ë‹¬ê±€ ë‚´ë¶€ í…ìŠ¤íŠ¸ */}
+          <text x={centerX} y={centerY - radiusY * 0.55} textAnchor="middle" fill="#c0392b" fontSize={isMobile ? '11' : '13'} fontWeight="700">íŒ” ë•Œ</text>
+          <text x={centerX} y={centerY + 4} textAnchor="middle" fill="#7f8c8d" fontSize={isMobile ? '10' : '12'} fontWeight="600">ê¸°ë‹¤ë¦´ ë•Œ</text>
+          <text x={centerX} y={centerY + radiusY * 0.6} textAnchor="middle" fill="#27ae60" fontSize={isMobile ? '11' : '13'} fontWeight="700">ì‚´ ë•Œ</text>
+          
+          {/* ê¸ˆë¦¬ê³ ì  (ìƒë‹¨) */}
+          <text x={centerX} y={centerY - radiusY - 12} textAnchor="middle" fill="#ef4444" fontSize="10" fontWeight="700">ê¸ˆë¦¬ê³ ì </text>
+          
+          {/* ê¸ˆë¦¬ì €ì  (í•˜ë‹¨) */}
+          <text x={centerX} y={centerY + radiusY + 18} textAnchor="middle" fill="#10b981" fontSize="10" fontWeight="700">ê¸ˆë¦¬ì €ì </text>
+          
+          {/* ê¸ˆë¦¬ìƒìŠ¹ê¸° í™”ì‚´í‘œ (ì¢Œì¸¡) - ê¹”ë”í•œ ì§ì„  */}
+          <line 
+            x1={centerX - radiusX - 10} 
+            y1={centerY + 35} 
+            x2={centerX - radiusX - 10} 
+            y2={centerY - 35}
+            stroke="#ef4444"
+            strokeWidth="2"
+          />
+          {/* í™”ì‚´í‘œ ë¨¸ë¦¬ */}
+          <polygon 
+            points={`${centerX - radiusX - 10},${centerY - 40} ${centerX - radiusX - 15},${centerY - 30} ${centerX - radiusX - 5},${centerY - 30}`}
+            fill="#ef4444"
+          />
+          <text x={centerX - radiusX - 20} y={centerY} textAnchor="middle" fill="#ef4444" fontSize="8" transform={`rotate(-90, ${centerX - radiusX - 20}, ${centerY})`}>ê¸ˆë¦¬â†‘</text>
+          
+          {/* ê¸ˆë¦¬í•˜ë½ê¸° í™”ì‚´í‘œ (ìš°ì¸¡) - ê¹”ë”í•œ ì§ì„  */}
+          <line 
+            x1={centerX + radiusX + 10} 
+            y1={centerY - 35} 
+            x2={centerX + radiusX + 10} 
+            y2={centerY + 35}
+            stroke="#3b82f6"
+            strokeWidth="2"
+          />
+          {/* í™”ì‚´í‘œ ë¨¸ë¦¬ */}
+          <polygon 
+            points={`${centerX + radiusX + 10},${centerY + 40} ${centerX + radiusX + 5},${centerY + 30} ${centerX + radiusX + 15},${centerY + 30}`}
+            fill="#3b82f6"
+          />
+          <text x={centerX + radiusX + 20} y={centerY} textAnchor="middle" fill="#3b82f6" fontSize="8" transform={`rotate(90, ${centerX + radiusX + 20}, ${centerY})`}>ê¸ˆë¦¬â†“</text>
+          
+          {/* í˜„ìž¬ ìœ„ì¹˜ë¥¼ ë‹¬ê±€ ë‚´ë¶€ì— ë¶€ì±„ê¼´ ì˜ì—­ìœ¼ë¡œ í‘œí˜„ */}
+          {(() => {
+            const startAngle = (currentPhaseRange[0] - 90) * Math.PI / 180;
+            const endAngle = (currentPhaseRange[1] - 90) * Math.PI / 180;
+            
+            // ë‹¬ê±€ ê²½ê³„ì˜ ì‹œìž‘ì ê³¼ ëì 
+            const x1 = centerX + (radiusX - 5) * Math.cos(startAngle);
+            const y1 = centerY + (radiusY - 5) * Math.sin(startAngle);
+            const x2 = centerX + (radiusX - 5) * Math.cos(endAngle);
+            const y2 = centerY + (radiusY - 5) * Math.sin(endAngle);
+            
+            return (
+              <g>
+                {/* ë¶€ì±„ê¼´ ì˜ì—­ (ì¤‘ì‹¬ì—ì„œ ê²½ê³„ê¹Œì§€) */}
+                <path 
+                  d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radiusX - 5} ${radiusY - 5} 0 0 1 ${x2} ${y2} Z`}
+                  fill="rgba(239,68,68,0.35)"
+                  stroke="rgba(239,68,68,0.8)"
+                  strokeWidth="2"
+                />
+                {/* íŽ„ìŠ¤ ì• ë‹ˆë©”ì´ì…˜ */}
+                <path 
+                  d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radiusX - 5} ${radiusY - 5} 0 0 1 ${x2} ${y2} Z`}
+                  fill="rgba(239,68,68,0.2)"
+                  stroke="none"
+                >
+                  <animate attributeName="opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite" />
+                </path>
+                {/* í˜„ìž¬ ìœ„ì¹˜ í‘œì‹œ ì  (ì¤‘ì•™) */}
+                {(() => {
+                  const midAngle = ((currentPhaseRange[0] + currentPhaseRange[1]) / 2 - 90) * Math.PI / 180;
+                  const dotX = centerX + (radiusX - 25) * Math.cos(midAngle);
+                  const dotY = centerY + (radiusY - 25) * Math.sin(midAngle);
+                  return (
+                    <>
+                      <circle cx={dotX} cy={dotY} r="6" fill="#ef4444" stroke="#fff" strokeWidth="2" />
+                      <circle cx={dotX} cy={dotY} r="6" fill="none" stroke="#ef4444" strokeWidth="2">
+                        <animate attributeName="r" values="6;12;6" dur="1.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.8;0;0.8" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
+                    </>
+                  );
+                })()}
+              </g>
+            );
+          })()}
+          
+          {/* ìˆœí™˜ í™”ì‚´í‘œ */}
+          <path 
+            d={`M ${centerX + 20} ${centerY - radiusY + 25} 
+                Q ${centerX + radiusX - 10} ${centerY - radiusY + 15}, ${centerX + radiusX - 5} ${centerY - 20}`}
+            stroke="rgba(255,255,255,0.3)"
+            strokeWidth="2"
+            fill="none"
+            markerEnd="url(#circleArrow)"
+          />
+          <defs>
+            <marker id="circleArrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6" fill="rgba(255,255,255,0.5)" />
+            </marker>
+          </defs>
+        </svg>
+        
+        {/* í˜„ìž¬ ìƒíƒœ ì •ë³´ */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* í˜„ìž¬ ë‹¨ê³„ */}
+          <div style={{ 
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: recommendation.bg, 
+            border: `1px solid ${recommendation.color}40`, 
+            borderRadius: '8px', 
+            padding: '8px 12px',
+            marginBottom: '10px'
+          }}>
+            <span style={{ 
+              width: '24px', 
+              height: '24px', 
+              borderRadius: '50%', 
+              background: currentPhaseData.color,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: '12px',
+              fontWeight: '700'
+            }}>{currentPhase}</span>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: currentPhaseData.color }}>
+                {currentPhaseData.label} ë‹¨ê³„
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                {currentPhaseData.action}
+              </div>
+            </div>
+          </div>
+          
+          {/* ì¶”ì²œ */}
+          <div style={{ 
+            fontSize: isMobile ? '13px' : '14px', 
+            fontWeight: '700', 
+            color: recommendation.color,
+            marginBottom: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            {recommendation.color === '#ef4444' ? 'ðŸ”´' : recommendation.color === '#10b981' ? 'ðŸŸ¢' : 'ðŸŸ¡'}
+            ê¶Œìž¥: {recommendation.text}
+          </div>
+          
+          {/* ì„¤ëª… */}
+          <div style={{ fontSize: '11px', color: '#94a3b8', lineHeight: '1.5' }}>
+            ê¸ˆë¦¬ ê³ ì  ê·¼ì²˜ë¡œ ì£¼ì‹ì‹œìž¥ ê³¼ì—´ ì¡°ì •ì´ ì˜ˆìƒë©ë‹ˆë‹¤. 
+            ì‹ ê·œ ë§¤ìˆ˜ëŠ” ìžì œí•˜ê³  ë³´ìœ  ì¢…ëª© ìµì ˆì„ ê³ ë ¤í•˜ì„¸ìš”.
+          </div>
+        </div>
+      </div>
+      
+      {/* ì§€í‘œ ê·¸ë¦¬ë“œ */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
+        gap: '6px'
+      }}>
+        {[
+          { label: 'í•œì€ê¸ˆë¦¬', value: '3.5%', icon: 'ðŸ¦', trend: 'â–²' },
+          { label: 'KOSPI PER', value: '11.8', icon: 'ðŸ“Š', trend: 'â–¼' },
+          { label: 'êµ­ì±„3Y', value: '3.52%', icon: 'ðŸ“ˆ', trend: 'â–²' },
+          { label: 'Fedê¸ˆë¦¬', value: '4.5%', icon: 'ðŸ‡ºðŸ‡¸', trend: 'âˆ’' },
+        ].map((item, i) => (
+          <div key={i} style={{ 
+            background: 'rgba(0,0,0,0.25)', 
+            borderRadius: '8px', 
+            padding: isMobile ? '10px 6px' : '8px 4px', 
+            textAlign: 'center' 
+          }}>
+            <div style={{ fontSize: isMobile ? '14px' : '16px', marginBottom: '2px' }}>{item.icon}</div>
+            <div style={{ fontSize: '9px', color: '#64748b' }}>{item.label}</div>
+            <div style={{ 
+              fontSize: isMobile ? '12px' : '13px', 
+              fontWeight: '700', 
+              color: '#e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px'
+            }}>
+              {item.value}
+              <span style={{ 
+                fontSize: '9px', 
+                color: item.trend === 'â–²' ? '#ef4444' : item.trend === 'â–¼' ? '#10b981' : '#64748b' 
+              }}>{item.trend}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ì‹¤ì /ë°¸ë¥˜ì—ì´ì…˜ ìœ„ì ¯
+// ============================================
+const EarningsWidget = ({ position, isPremium, onShowAINews, onShowAIReport }) => {
+  const { isMobile } = useResponsive();
+  const earnings = EARNINGS_DATA[position.code];
+  const stockInfo = STOCK_LIST.find(s => s.code === position.code);
+  if (!earnings || !stockInfo) return null;
+  
+  const dDay = calculateDDay(earnings.nextEarningsDate);
+  const naverNewsUrl = 'https://finance.naver.com/item/news.naver?code=' + position.code;
 
   return (
     <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: isMobile ? '8px' : '10px' }}>
@@ -558,11 +1277,11 @@ function EarningsWidget({
         marginBottom: '8px' 
       }}>
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '4px', padding: '6px', textAlign: 'center' }}>
-          <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>실적발표</div>
+          <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>ì‹¤ì ë°œí‘œ</div>
           <div style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '700', color: dDay.startsWith('D-') && parseInt(dDay.slice(2)) <= 14 ? '#f59e0b' : '#e2e8f0' }}>{dDay}</div>
         </div>
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '4px', padding: '6px', textAlign: 'center' }}>
-          <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>서프라이즈</div>
+          <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>ì„œí”„ë¼ì´ì¦ˆ</div>
           <div style={{ fontSize: isMobile ? '12px' : '14px', fontWeight: '700', color: earnings.lastEarnings.surprise > 0 ? '#10b981' : '#ef4444' }}>
             {earnings.lastEarnings.surprise > 0 ? '+' : ''}{earnings.lastEarnings.surprise}%
           </div>
@@ -599,7 +1318,7 @@ function EarningsWidget({
             minHeight: '44px',
           }}
         >
-          📰 뉴스
+          ðŸ“° ë‰´ìŠ¤
         </a>
         <button 
           onClick={e => { e.stopPropagation(); onShowAINews(); }} 
@@ -619,7 +1338,7 @@ function EarningsWidget({
             minHeight: '44px',
           }}
         >
-          🤖 AI뉴스{!isPremium && <span style={{ fontSize: '9px' }}>👑</span>}
+          ðŸ¤– AIë‰´ìŠ¤{!isPremium && <span style={{ fontSize: '9px' }}>ðŸ‘‘</span>}
         </button>
         <button 
           onClick={e => { e.stopPropagation(); onShowAIReport(); }} 
@@ -639,59 +1358,48 @@ function EarningsWidget({
             minHeight: '44px',
           }}
         >
-          📑 리포트{!isPremium && <span style={{ fontSize: '9px' }}>👑</span>}
+          ðŸ“‘ ë¦¬í¬íŠ¸{!isPremium && <span style={{ fontSize: '9px' }}>ðŸ‘‘</span>}
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-// 포지션 카드 컴포넌트
-function PositionCard({ 
-  position, 
-  priceData, 
-  onEdit, 
-  onDelete, 
-  isPremium, 
-  onUpgrade 
-}: {
-  position: Position
-  priceData: PriceData[] | undefined
-  onEdit: (position: Position) => void
-  onDelete: (id: number) => void
-  isPremium: boolean
-  onUpgrade: () => void
-}) {
-  const { isMobile, isTablet } = useResponsive()
-  const [visibleLines, setVisibleLines] = useState({ candle3: true, stopLoss: true, twoThird: true, maSignal: true })
-  const [showAINews, setShowAINews] = useState(false)
-  const [showAIReport, setShowAIReport] = useState(false)
-  const [showChart, setShowChart] = useState(!isMobile)
+// ============================================
+// ë°˜ì‘í˜• í¬ì§€ì…˜ ì¹´ë“œ ì»´í¬ë„ŒíŠ¸
+// ============================================
+const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgrade }) => {
+  const { isMobile, isTablet } = useResponsive();
+  const [visibleLines, setVisibleLines] = useState({ candle3: true, stopLoss: true, twoThird: true, maSignal: true });
+  const [showAINews, setShowAINews] = useState(false);
+  const [showAIReport, setShowAIReport] = useState(false);
+  const [showChart, setShowChart] = useState(!isMobile); // ëª¨ë°”ì¼ì—ì„œëŠ” ì°¨íŠ¸ í† ê¸€
   
-  const currentPrice = priceData?.[priceData.length - 1]?.close || position.buyPrice
-  const profitRate = ((currentPrice - position.buyPrice) / position.buyPrice) * 100
-  const profitAmount = (currentPrice - position.buyPrice) * position.quantity
-  const totalValue = currentPrice * position.quantity
-  const isProfit = profitRate >= 0
-  const sellPrices = calculateSellPrices(position, priceData || [], position.presetSettings)
+  const currentPrice = priceData?.[priceData.length - 1]?.close || position.buyPrice;
+  const profitRate = ((currentPrice - position.buyPrice) / position.buyPrice) * 100;
+  const profitAmount = (currentPrice - position.buyPrice) * position.quantity;
+  const totalValue = currentPrice * position.quantity;
+  const isProfit = profitRate >= 0;
+  const sellPrices = calculateSellPrices(position, priceData, position.presetSettings);
   
   const getStage = () => {
-    if (profitRate < 0) return { ...PROFIT_STAGES.initial, label: '손실 구간', color: '#ef4444' }
-    if (profitRate < 5) return PROFIT_STAGES.initial
-    if (profitRate < 10) return PROFIT_STAGES.profit5
-    return PROFIT_STAGES.profit10
-  }
+    if (profitRate < 0) return { ...PROFIT_STAGES.initial, label: 'ì†ì‹¤ êµ¬ê°„', color: '#ef4444' };
+    if (profitRate < 5) return PROFIT_STAGES.initial;
+    if (profitRate < 10) return PROFIT_STAGES.profit5;
+    return PROFIT_STAGES.profit10;
+  };
   
-  const stage = getStage()
-  const naverStockUrl = 'https://finance.naver.com/item/main.naver?code=' + position.code
-  const naverChartUrl = 'https://finance.naver.com/item/fchart.naver?code=' + position.code
+  const stage = getStage();
+  const naverStockUrl = 'https://finance.naver.com/item/main.naver?code=' + position.code;
+  const naverChartUrl = 'https://finance.naver.com/item/fchart.naver?code=' + position.code;
 
+  // ì°¨íŠ¸ í¬ê¸° ê³„ì‚°
   const getChartSize = () => {
-    if (isMobile) return { width: Math.min(320, typeof window !== 'undefined' ? window.innerWidth - 48 : 320), height: 200 }
-    if (isTablet) return { width: 240, height: 240 }
-    return { width: 270, height: 280 }
-  }
-  const chartSize = getChartSize()
+    if (isMobile) return { width: Math.min(320, window.innerWidth - 48), height: 200 };
+    if (isTablet) return { width: 240, height: 240 };
+    return { width: 270, height: 280 };
+  };
+  const chartSize = getChartSize();
 
   return (
     <>
@@ -702,7 +1410,7 @@ function PositionCard({
         marginBottom: isMobile ? '12px' : '14px', 
         border: '1px solid rgba(255,255,255,0.08)' 
       }}>
-        {/* 헤더 */}
+        {/* í—¤ë” */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -724,7 +1432,7 @@ function PositionCard({
               color: '#fff', 
               textDecoration: 'none' 
             }}>
-              {position.name} ↗
+              {position.name} â†—
             </a>
             <span style={{ 
               background: 'rgba(59,130,246,0.2)', 
@@ -764,7 +1472,7 @@ function PositionCard({
                 cursor: 'pointer',
                 minHeight: '36px'
               }}
-            >수정</button>
+            >ìˆ˜ì •</button>
             <button 
               onClick={() => onDelete(position.id)} 
               style={{ 
@@ -777,11 +1485,11 @@ function PositionCard({
                 cursor: 'pointer',
                 minHeight: '36px'
               }}
-            >삭제</button>
+            >ì‚­ì œ</button>
           </div>
         </div>
         
-        {/* 메인 콘텐츠 */}
+        {/* ë©”ì¸ ì½˜í…ì¸  */}
         <div style={{ 
           display: isMobile ? 'flex' : 'grid', 
           flexDirection: isMobile ? 'column' : undefined,
@@ -790,7 +1498,7 @@ function PositionCard({
           alignItems: 'stretch' 
         }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* 가격 정보 */}
+            {/* ê°€ê²© ì •ë³´ */}
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
@@ -798,10 +1506,10 @@ function PositionCard({
               marginBottom: '10px' 
             }}>
               {[
-                { label: '매수가', value: '₩' + position.buyPrice.toLocaleString() },
-                { label: '현재가', value: '₩' + Math.round(currentPrice).toLocaleString(), color: isProfit ? '#10b981' : '#ef4444' },
-                { label: '수량', value: position.quantity + '주' },
-                { label: '평가금액', value: '₩' + Math.round(totalValue).toLocaleString() }
+                { label: 'ë§¤ìˆ˜ê°€', value: 'â‚©' + position.buyPrice.toLocaleString() },
+                { label: 'í˜„ìž¬ê°€', value: 'â‚©' + Math.round(currentPrice).toLocaleString(), color: isProfit ? '#10b981' : '#ef4444' },
+                { label: 'ìˆ˜ëŸ‰', value: position.quantity + 'ì£¼' },
+                { label: 'í‰ê°€ê¸ˆì•¡', value: 'â‚©' + Math.round(totalValue).toLocaleString() }
               ].map((item, i) => (
                 <div key={i} style={{ 
                   background: 'rgba(0,0,0,0.2)', 
@@ -821,7 +1529,7 @@ function PositionCard({
               ))}
             </div>
             
-            {/* 평가손익 */}
+            {/* í‰ê°€ì†ìµ */}
             <div style={{ 
               background: isProfit ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', 
               borderRadius: '8px', 
@@ -833,9 +1541,9 @@ function PositionCard({
               alignItems: 'center' 
             }}>
               <div>
-                <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#64748b', marginBottom: '2px' }}>평가손익</div>
+                <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#64748b', marginBottom: '2px' }}>í‰ê°€ì†ìµ</div>
                 <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '700', color: isProfit ? '#10b981' : '#ef4444' }}>
-                  {isProfit ? '+' : ''}₩{Math.round(profitAmount).toLocaleString()}
+                  {isProfit ? '+' : ''}â‚©{Math.round(profitAmount).toLocaleString()}
                 </div>
               </div>
               <div style={{ 
@@ -850,7 +1558,7 @@ function PositionCard({
               </div>
             </div>
             
-            {/* 매도 조건 */}
+            {/* ë§¤ë„ ì¡°ê±´ */}
             <div style={{ 
               background: 'rgba(0,0,0,0.2)', 
               borderRadius: '8px', 
@@ -864,7 +1572,7 @@ function PositionCard({
                 alignItems: 'center', 
                 marginBottom: '6px' 
               }}>
-                <span style={{ fontSize: isMobile ? '13px' : '14px', color: '#fff', fontWeight: '600' }}>📊 매도 조건별 기준가격</span>
+                <span style={{ fontSize: isMobile ? '13px' : '14px', color: '#fff', fontWeight: '600' }}>ðŸ“Š ë§¤ë„ ì¡°ê±´ë³„ ê¸°ì¤€ê°€ê²©</span>
                 <button 
                   onClick={() => onEdit(position)} 
                   style={{ 
@@ -877,7 +1585,7 @@ function PositionCard({
                     cursor: 'pointer',
                     minHeight: '32px'
                   }}
-                >✏️ 조건 변경</button>
+                >âœï¸ ì¡°ê±´ ë³€ê²½</button>
               </div>
               <div style={{ 
                 fontSize: '10px', 
@@ -887,31 +1595,30 @@ function PositionCard({
                 padding: '5px 8px', 
                 borderRadius: '4px' 
               }}>
-                ⚠️ 수치는 예시입니다. 본인의 투자 원칙에 따라 수정하세요.
+                âš ï¸ ìˆ˜ì¹˜ëŠ” ì˜ˆì‹œìž…ë‹ˆë‹¤. ë³¸ì¸ì˜ íˆ¬ìž ì›ì¹™ì— ë”°ë¼ ìˆ˜ì •í•˜ì„¸ìš”.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {(position.selectedPresets || []).slice(0, isMobile ? 3 : undefined).map(presetId => {
-                  const preset = SELL_PRESETS[presetId as keyof typeof SELL_PRESETS]
-                  if (!preset) return null
+                  const preset = SELL_PRESETS[presetId];
+                  if (!preset) return null;
                   
-                  let priceText = '-'
-                  let priceColor = '#94a3b8'
-                  const hasChartLine = ['candle3', 'stopLoss', 'twoThird', 'maSignal'].includes(presetId)
+                  let priceText = '-', priceColor = '#94a3b8';
+                  const hasChartLine = ['candle3', 'stopLoss', 'twoThird', 'maSignal'].includes(presetId);
                   
                   if (presetId === 'stopLoss' && sellPrices.stopLoss) { 
-                    priceText = '₩' + sellPrices.stopLoss.toLocaleString()
-                    priceColor = currentPrice <= sellPrices.stopLoss ? '#ef4444' : '#94a3b8'
+                    priceText = 'â‚©' + sellPrices.stopLoss.toLocaleString(); 
+                    priceColor = currentPrice <= sellPrices.stopLoss ? '#ef4444' : '#94a3b8'; 
                   }
                   else if (presetId === 'twoThird' && sellPrices.twoThird) { 
-                    priceText = '₩' + sellPrices.twoThird.toLocaleString()
-                    priceColor = currentPrice <= sellPrices.twoThird ? '#f59e0b' : '#94a3b8'
+                    priceText = 'â‚©' + sellPrices.twoThird.toLocaleString(); 
+                    priceColor = currentPrice <= sellPrices.twoThird ? '#f59e0b' : '#94a3b8'; 
                   }
                   else if (presetId === 'maSignal' && sellPrices.maSignal) { 
-                    priceText = '₩' + sellPrices.maSignal.toLocaleString()
-                    priceColor = currentPrice < sellPrices.maSignal ? '#f59e0b' : '#94a3b8'
+                    priceText = 'â‚©' + sellPrices.maSignal.toLocaleString(); 
+                    priceColor = currentPrice < sellPrices.maSignal ? '#f59e0b' : '#94a3b8'; 
                   }
                   else if (presetId === 'candle3' && sellPrices.candle3_50) { 
-                    priceText = '₩' + sellPrices.candle3_50.toLocaleString()
+                    priceText = 'â‚©' + sellPrices.candle3_50.toLocaleString(); 
                   }
                   
                   return (
@@ -928,26 +1635,26 @@ function PositionCard({
                         {hasChartLine && !isMobile ? (
                           <input 
                             type="checkbox" 
-                            checked={visibleLines[presetId as keyof typeof visibleLines] || false} 
-                            onChange={() => setVisibleLines(prev => ({ ...prev, [presetId]: !prev[presetId as keyof typeof prev] }))} 
+                            checked={visibleLines[presetId] || false} 
+                            onChange={() => setVisibleLines(prev => ({ ...prev, [presetId]: !prev[presetId] }))} 
                             style={{ width: '16px', height: '16px', accentColor: preset.color, cursor: 'pointer' }} 
                           />
                         ) : (
                           <div style={{ width: isMobile ? '0' : '16px' }} />
                         )}
-                        <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#e2e8f0' }}>{preset.icon} {isMobile ? preset.name.replace(' 매도법', '') : preset.name}</span>
+                        <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#e2e8f0' }}>{preset.icon} {isMobile ? preset.name.replace(' ë§¤ë„ë²•', '') : preset.name}</span>
                       </div>
                       <span style={{ fontSize: isMobile ? '13px' : '15px', fontWeight: '700', color: priceColor }}>{priceText}</span>
                     </div>
-                  )
+                  );
                 })}
               </div>
               {!isMobile && (
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>체크박스 선택 시 차트에 가격선 표시</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>ì²´í¬ë°•ìŠ¤ ì„ íƒ ì‹œ ì°¨íŠ¸ì— ê°€ê²©ì„  í‘œì‹œ</div>
               )}
             </div>
             
-            {/* 실적 위젯 */}
+            {/* ì‹¤ì  ìœ„ì ¯ */}
             <EarningsWidget 
               position={position} 
               isPremium={isPremium} 
@@ -956,7 +1663,7 @@ function PositionCard({
             />
           </div>
           
-          {/* 차트 영역 */}
+          {/* ì°¨íŠ¸ ì˜ì—­ */}
           {isMobile ? (
             <div>
               <button
@@ -978,9 +1685,9 @@ function PositionCard({
                   gap: '6px'
                 }}
               >
-                📊 차트 {showChart ? '접기 ▲' : '보기 ▼'}
+                ðŸ“Š ì°¨íŠ¸ {showChart ? 'ì ‘ê¸° â–²' : 'ë³´ê¸° â–¼'}
               </button>
-              {showChart && priceData && (
+              {showChart && (
                 <div 
                   onClick={() => window.open(naverChartUrl, '_blank')} 
                   style={{ cursor: 'pointer' }}
@@ -993,8 +1700,8 @@ function PositionCard({
                     alignItems: 'center', 
                     justifyContent: 'center' 
                   }}>
-                    <CandleChart 
-                      data={priceData.slice(-30)} 
+                    <EnhancedCandleChart 
+                      data={priceData?.slice(-30)} 
                       width={chartSize.width} 
                       height={chartSize.height} 
                       buyPrice={position.buyPrice} 
@@ -1002,11 +1709,11 @@ function PositionCard({
                       visibleLines={visibleLines} 
                     />
                   </div>
-                  <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '11px', color: '#64748b' }}>탭하여 네이버 차트 열기</div>
+                  <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '11px', color: '#64748b' }}>íƒ­í•˜ì—¬ ë„¤ì´ë²„ ì°¨íŠ¸ ì—´ê¸°</div>
                 </div>
               )}
             </div>
-          ) : priceData && (
+          ) : (
             <div 
               onClick={() => window.open(naverChartUrl, '_blank')} 
               style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
@@ -1020,8 +1727,8 @@ function PositionCard({
                 alignItems: 'center', 
                 justifyContent: 'center' 
               }}>
-                <CandleChart 
-                  data={priceData.slice(-40)} 
+                <EnhancedCandleChart 
+                  data={priceData?.slice(-40)} 
                   width={chartSize.width} 
                   height={chartSize.height} 
                   buyPrice={position.buyPrice} 
@@ -1029,38 +1736,186 @@ function PositionCard({
                   visibleLines={visibleLines} 
                 />
               </div>
-              <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '12px', color: '#64748b' }}>클릭 → 네이버 증권 차트</div>
+              <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '12px', color: '#64748b' }}>í´ë¦­ â†’ ë„¤ì´ë²„ ì¦ê¶Œ ì°¨íŠ¸</div>
             </div>
           )}
         </div>
       </div>
       
-      {/* AI 팝업 */}
+      {/* AI íŒì—… */}
       {showAINews && <AINewsPopup position={position} onClose={() => setShowAINews(false)} isPremium={isPremium} onUpgrade={onUpgrade} />}
       {showAIReport && <AIReportPopup position={position} onClose={() => setShowAIReport(false)} isPremium={isPremium} onUpgrade={onUpgrade} />}
     </>
-  )
-}
+  );
+};
 
-// 매도법 가이드
-function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab: string }) {
-  const [expandedStage, setExpandedStage] = useState<string | null>(null)
-  const [showAllMethods, setShowAllMethods] = useState(false)
+// ============================================
+// ì•Œë¦¼ ì¹´ë“œ - ì™„ì „ êµ¬í˜„
+// ============================================
+const AlertCard = ({ alert, onDismiss }) => {
+  const { isMobile } = useResponsive();
+  const severityColors = { 
+    critical: { bg: '#ef4444', label: 'ê¸´ê¸‰' }, 
+    high: { bg: '#f97316', label: 'ë†’ìŒ' }, 
+    medium: { bg: '#eab308', label: 'ë³´í†µ' }, 
+    low: { bg: '#3b82f6', label: 'ì°¸ê³ ' } 
+  };
+  const severity = severityColors[alert?.preset?.severity] || { bg: '#64748b', label: 'ì•Œë¦¼' };
   
-  const methodDescriptions: Record<string, string> = {
-    candle3: '최근 양봉의 50% 이상을 덮는 음봉 발생시 절반 매도, 100% 덮으면 전량 매도',
-    stopLoss: '매수가 대비 설정한 손실률 (-3~-5%)에 도달하면 기계적으로 손절',
-    twoThird: '최고 수익 대비 1/3이 빠지면 남은 2/3 수익이라도 확보하여 익절',
-    maSignal: '이동평균선을 하향 돌파하거나, 이평선이 저항선으로 작용할 때 매도',
-    volumeZone: '상단 매물대(저항대)에서 주가가 하락 반전할 때 매도',
-    trendline: '지지선을 깨고 하락하거나, 저항선 돌파 실패 시 매도',
-    fundamental: '실적 악화, 업황 반전 등 기업 펀더멘털에 변화가 생길 때',
-    cycle: '금리 고점 근처(4-5단계)에서 시장 전체 매도 관점 유지'
-  }
+  // ì•Œë¦¼ ì‹œê°„ í‘œì‹œ
+  const formatTime = (timestamp) => {
+    if (!timestamp) return 'ë°©ê¸ˆ ì „';
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'ë°©ê¸ˆ ì „';
+    if (minutes < 60) return `${minutes}ë¶„ ì „`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}ì‹œê°„ ì „`;
+    return '1ì¼ ì´ìƒ';
+  };
   
-  const toggleStage = (key: string) => {
-    setExpandedStage(expandedStage === key ? null : key)
-  }
+  return (
+    <div style={{ 
+      background: `linear-gradient(135deg, ${severity.bg}15 0%, ${severity.bg}08 100%)`, 
+      border: `1px solid ${severity.bg}30`, 
+      borderRadius: isMobile ? '12px' : '14px', 
+      padding: isMobile ? '14px' : '16px', 
+      marginBottom: '10px',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* ì¢Œì¸¡ ê°•ì¡°ì„  */}
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: '4px',
+        background: severity.bg,
+        borderRadius: '4px 0 0 4px'
+      }} />
+      
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start',
+        paddingLeft: '8px'
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* í—¤ë”: ì•„ì´ì½˜ + ë§¤ë„ë²• ì´ë¦„ + ì‹¬ê°ë„ ë°°ì§€ */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            marginBottom: '8px',
+            flexWrap: 'wrap'
+          }}>
+            <span style={{ fontSize: isMobile ? '18px' : '20px' }}>{alert?.preset?.icon || 'ðŸ””'}</span>
+            <span style={{ 
+              fontSize: isMobile ? '13px' : '14px', 
+              fontWeight: '700', 
+              color: severity.bg 
+            }}>{alert?.preset?.name || 'ì•Œë¦¼'}</span>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: '600',
+              color: '#fff',
+              background: severity.bg,
+              padding: '2px 8px',
+              borderRadius: '4px'
+            }}>{severity.label}</span>
+          </div>
+          
+          {/* ì¢…ëª©ëª… */}
+          <div style={{ 
+            fontSize: isMobile ? '15px' : '16px', 
+            fontWeight: '600', 
+            color: '#fff', 
+            marginBottom: '6px' 
+          }}>{alert?.stockName || 'ì¢…ëª©'}</div>
+          
+          {/* ë©”ì‹œì§€ */}
+          <div style={{ 
+            fontSize: isMobile ? '13px' : '14px', 
+            color: '#e2e8f0',
+            lineHeight: '1.4',
+            marginBottom: '8px'
+          }}>
+            {alert?.message || 'ì„¤ì •í•œ ì¡°ê±´ì— ë„ë‹¬í–ˆìŠµë‹ˆë‹¤'}
+          </div>
+          
+          {/* ê°€ê²© ì •ë³´ (ìžˆëŠ” ê²½ìš°) */}
+          {alert?.currentPrice && (
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              fontSize: '12px',
+              color: '#94a3b8'
+            }}>
+              <span>í˜„ìž¬ê°€: <strong style={{ color: '#fff' }}>â‚©{alert.currentPrice.toLocaleString()}</strong></span>
+              {alert?.targetPrice && (
+                <span>ê¸°ì¤€ê°€: <strong style={{ color: severity.bg }}>â‚©{alert.targetPrice.toLocaleString()}</strong></span>
+              )}
+            </div>
+          )}
+          
+          {/* ì‹œê°„ */}
+          <div style={{ 
+            fontSize: '11px', 
+            color: '#64748b',
+            marginTop: '8px'
+          }}>
+            {formatTime(alert?.timestamp)}
+          </div>
+        </div>
+        
+        {/* í™•ì¸ ë²„íŠ¼ */}
+        <button 
+          onClick={() => onDismiss(alert?.id)} 
+          style={{ 
+            background: 'rgba(255,255,255,0.1)', 
+            border: 'none', 
+            borderRadius: '8px', 
+            padding: isMobile ? '10px 16px' : '8px 14px', 
+            color: '#fff', 
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            minHeight: isMobile ? '44px' : '36px',
+            transition: 'background 0.15s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+        >
+          í™•ì¸
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ë§¤ë„ë²• ê°€ì´ë“œ - ì•„ì½”ë””ì–¸ ìŠ¤íƒ€ì¼
+// ============================================
+const SellMethodGuide = ({ isMobile, activeTab }) => {
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [showAllMethods, setShowAllMethods] = useState(false);
+  
+  // ë§¤ë„ë²• ìƒì„¸ ì„¤ëª…
+  const methodDescriptions = {
+    candle3: 'ìµœê·¼ ì–‘ë´‰ì˜ 50% ì´ìƒì„ ë®ëŠ” ìŒë´‰ ë°œìƒ ì‹œ ì ˆë°˜ ë§¤ë„, 100% ë®ìœ¼ë©´ ì „ëŸ‰ ë§¤ë„',
+    stopLoss: 'ë§¤ìˆ˜ê°€ ëŒ€ë¹„ ì„¤ì •í•œ ì†ì‹¤ë¥ (-3~-5%)ì— ë„ë‹¬í•˜ë©´ ê¸°ê³„ì ìœ¼ë¡œ ì†ì ˆ',
+    twoThird: 'ìµœê³  ìˆ˜ìµ ëŒ€ë¹„ 1/3ì´ ë¹ ì§€ë©´ ë‚¨ì€ 2/3 ìˆ˜ìµì´ë¼ë„ í™•ë³´í•˜ì—¬ ìµì ˆ',
+    maSignal: 'ì´ë™í‰ê· ì„ ì„ í•˜í–¥ ëŒíŒŒí•˜ê±°ë‚˜, ì´í‰ì„ ì´ ì €í•­ì„ ìœ¼ë¡œ ìž‘ìš©í•  ë•Œ ë§¤ë„',
+    volumeZone: 'ìƒë‹¨ ë§¤ë¬¼ëŒ€(ì €í•­ëŒ€)ì—ì„œ ì£¼ê°€ê°€ í•˜ë½ ë°˜ì „í•  ë•Œ ë§¤ë„',
+    trendline: 'ì§€ì§€ì„ ì„ ê¹¨ê³  í•˜ë½í•˜ê±°ë‚˜, ì €í•­ì„  ëŒíŒŒ ì‹¤íŒ¨ ì‹œ ë§¤ë„',
+    fundamental: 'ì‹¤ì  ì•…í™”, ì—…í™© ë°˜ì „ ë“± ê¸°ì—… íŽ€ë”ë©˜í„¸ì— ë³€í™”ê°€ ìƒê¸¸ ë•Œ',
+    cycle: 'ê¸ˆë¦¬ ê³ ì  ê·¼ì²˜(4-5ë‹¨ê³„)ì—ì„œ ì‹œìž¥ ì „ì²´ ë§¤ë„ ê´€ì  ìœ ì§€'
+  };
+  
+  const toggleStage = (key) => {
+    setExpandedStage(expandedStage === key ? null : key);
+  };
   
   return (
     <div style={{ 
@@ -1071,6 +1926,7 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
       border: '1px solid rgba(255,255,255,0.08)', 
       marginBottom: '12px' 
     }}>
+      {/* í—¤ë” */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -1082,7 +1938,7 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
           fontWeight: '600', 
           color: '#fff', 
           margin: 0 
-        }}>📚 수익 단계별 매도법</h3>
+        }}>ðŸ“š ìˆ˜ìµ ë‹¨ê³„ë³„ ë§¤ë„ë²•</h3>
         <button 
           onClick={() => setShowAllMethods(!showAllMethods)}
           style={{
@@ -1095,12 +1951,14 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
             cursor: 'pointer'
           }}
         >
-          {showAllMethods ? '간략히' : '전체보기'}
+          {showAllMethods ? 'ê°„ëžµížˆ' : 'ì „ì²´ë³´ê¸°'}
         </button>
       </div>
       
+      {/* ìˆ˜ìµ ë‹¨ê³„ë³„ ì•„ì½”ë””ì–¸ */}
       {Object.entries(PROFIT_STAGES).map(([key, stage]) => (
         <div key={key} style={{ marginBottom: '8px' }}>
+          {/* ë‹¨ê³„ í—¤ë” (í´ë¦­ ê°€ëŠ¥) */}
           <div 
             onClick={() => toggleStage(key)}
             style={{ 
@@ -1112,6 +1970,7 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              transition: 'background 0.15s'
             }}
           >
             <div>
@@ -1124,15 +1983,17 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
                 fontSize: isMobile ? '11px' : '12px', 
                 color: '#94a3b8',
                 marginTop: '2px'
-              }}>수익률 {stage.range} · {stage.methods.length}개 매도법</div>
+              }}>ìˆ˜ìµë¥  {stage.range} Â· {stage.methods.length}ê°œ ë§¤ë„ë²•</div>
             </div>
             <span style={{ 
               color: '#64748b', 
               fontSize: '14px',
+              transition: 'transform 0.2s',
               transform: expandedStage === key ? 'rotate(180deg)' : 'rotate(0deg)'
-            }}>▼</span>
+            }}>â–¼</span>
           </div>
           
+          {/* í™•ìž¥ëœ ë‚´ìš© */}
           {(expandedStage === key || showAllMethods) && (
             <div style={{ 
               padding: isMobile ? '12px' : '14px', 
@@ -1141,8 +2002,8 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
               borderLeft: '4px solid ' + stage.color + '50'
             }}>
               {stage.methods.map(methodId => { 
-                const method = SELL_PRESETS[methodId as keyof typeof SELL_PRESETS]
-                if (!method) return null
+                const method = SELL_PRESETS[methodId]; 
+                if (!method) return null;
                 return (
                   <div key={methodId} style={{ 
                     marginBottom: '10px',
@@ -1172,13 +2033,14 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
                       {methodDescriptions[methodId] || method.description}
                     </p>
                   </div>
-                )
+                );
               })}
             </div>
           )}
         </div>
       ))}
       
+      {/* ë¹ ë¥¸ ì°¸ì¡° */}
       {!showAllMethods && !expandedStage && (
         <div style={{ 
           marginTop: '12px',
@@ -1188,83 +2050,992 @@ function SellMethodGuide({ isMobile, activeTab }: { isMobile: boolean; activeTab
           fontSize: isMobile ? '11px' : '12px',
           color: '#60a5fa'
         }}>
-          💡 각 단계를 탭하면 상세 매도법을 확인할 수 있습니다
+          ðŸ’¡ ê° ë‹¨ê³„ë¥¼ íƒ­í•˜ë©´ ìƒì„¸ ë§¤ë„ë²•ì„ í™•ì¸í•  ìˆ˜ ìžˆìŠµë‹ˆë‹¤
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-// 메인 앱
-export default function SellSignalApp() {
-  const { isMobile, isTablet } = useResponsive()
+// ============================================
+// ì¢…ëª© ì¶”ê°€/ìˆ˜ì • ëª¨ë‹¬ - ì™„ì „ êµ¬í˜„
+// ============================================
+const StockModal = ({ stock, onSave, onClose }) => {
+  const { isMobile, isTablet } = useResponsive();
   
-  const [user, setUser] = useState({ membership: 'free' as 'free' | 'premium', email: 'demo@test.com' })
-  const [positions, setPositions] = useState<Position[]>(INITIAL_POSITIONS)
-  const [priceDataMap, setPriceDataMap] = useState<Record<number, PriceData[]>>({})
-  const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [editingPosition, setEditingPosition] = useState<Position | null>(null)
-  const [showUpgradePopup, setShowUpgradePopup] = useState(false)
-  const [activeTab, setActiveTab] = useState('positions')
-  
-  const isPremium = user?.membership === 'premium'
+  const [form, setForm] = useState(stock || { 
+    name: '', 
+    code: '', 
+    buyPrice: '', 
+    quantity: '', 
+    selectedPresets: ['candle3', 'stopLoss'], 
+    presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } 
+  });
+  const [stockQuery, setStockQuery] = useState(stock ? stock.name : '');
+  const [searchResults, setSearchResults] = useState<Stock[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [stockFound, setStockFound] = useState(!!stock);
 
-  // 가격 데이터 초기화
+  // ì¢…ëª© ê²€ìƒ‰
+  const handleStockSearch = (query) => {
+    setStockQuery(query);
+    if (query.trim().length > 0) {
+      const results = searchStocks(query);
+      setSearchResults(results);
+      setShowResults(results.length > 0);
+      const exact = findExactStock(query);
+      if (exact) { 
+        setForm({ ...form, name: exact.name, code: exact.code }); 
+        setStockFound(true); 
+      } else {
+        setStockFound(false);
+      }
+    } else { 
+      setSearchResults([]); 
+      setShowResults(false); 
+      setStockFound(false); 
+    }
+  };
+
+  const selectStock = (stockItem) => { 
+    setForm({ ...form, name: stockItem.name, code: stockItem.code }); 
+    setStockQuery(stockItem.name); 
+    setStockFound(true); 
+    setShowResults(false); 
+  };
+  
+  const togglePreset = (id) => { 
+    const current = form.selectedPresets || []; 
+    setForm({ 
+      ...form, 
+      selectedPresets: current.includes(id) ? current.filter(p => p !== id) : [...current, id] 
+    }); 
+  };
+
+  const handleSave = () => {
+    if (!form.name || !form.code || !form.buyPrice || !form.quantity) {
+      alert('ëª¨ë“  í•„ìˆ˜ í•­ëª©ì„ ìž…ë ¥í•´ì£¼ì„¸ìš”.');
+      return;
+    }
+    onSave({ 
+      ...form, 
+      id: stock?.id || Date.now(),
+      buyPrice: Number(form.buyPrice), 
+      quantity: Number(form.quantity), 
+      highestPrice: Number(form.buyPrice) 
+    });
+  };
+
+  return (
+    <div 
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        background: 'rgba(0,0,0,0.85)', 
+        display: 'flex', 
+        alignItems: isMobile ? 'flex-end' : 'center', 
+        justifyContent: 'center', 
+        zIndex: 1000, 
+        padding: isMobile ? '0' : '20px' 
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ 
+        background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+        borderRadius: isMobile ? '20px 20px 0 0' : '20px', 
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '600px', 
+        maxHeight: isMobile ? '95vh' : '90vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        border: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        {/* í—¤ë” */}
+        <div style={{ 
+          padding: isMobile ? '16px 20px' : '20px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h2 style={{ 
+            fontSize: isMobile ? '18px' : '20px', 
+            fontWeight: '700', 
+            color: '#fff', 
+            margin: 0 
+          }}>
+            {stock ? 'ðŸ“ ì¢…ëª© ìˆ˜ì •' : 'âž• ìƒˆ ì¢…ëª© ì¶”ê°€'}
+          </h2>
+          <button 
+            onClick={onClose}
+            style={{ 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              borderRadius: '10px', 
+              padding: '8px 16px', 
+              color: '#fff', 
+              fontSize: '14px',
+              cursor: 'pointer',
+              minHeight: '40px'
+            }}
+          >ë‹«ê¸°</button>
+        </div>
+        
+        {/* ìŠ¤í¬ë¡¤ ì˜ì—­ */}
+        <div style={{ 
+          flex: 1, 
+          overflow: 'auto', 
+          padding: isMobile ? '16px 20px' : '20px 24px' 
+        }}>
+          {/* ì¢…ëª© ê²€ìƒ‰ */}
+          <div style={{ marginBottom: '16px', position: 'relative' }}>
+            <label style={{ 
+              display: 'block', 
+              fontSize: '13px', 
+              color: '#94a3b8', 
+              marginBottom: '8px',
+              fontWeight: '500'
+            }}>ì¢…ëª©ëª… ë˜ëŠ” ì¢…ëª©ì½”ë“œ *</label>
+            <input 
+              type="text" 
+              value={stockQuery} 
+              onChange={e => handleStockSearch(e.target.value)} 
+              onFocus={() => searchResults.length > 0 && setShowResults(true)} 
+              placeholder="ì˜ˆ: ì‚¼ì„±ì „ìž ë˜ëŠ” 005930" 
+              style={{ 
+                width: '100%', 
+                padding: '14px 16px', 
+                background: 'rgba(255,255,255,0.05)', 
+                border: stockFound ? '2px solid rgba(16,185,129,0.5)' : '1px solid rgba(255,255,255,0.15)', 
+                borderRadius: showResults ? '12px 12px 0 0' : '12px', 
+                color: '#fff', 
+                fontSize: '16px', 
+                outline: 'none', 
+                boxSizing: 'border-box' 
+              }} 
+            />
+            {showResults && searchResults.length > 0 && (
+              <div style={{ 
+                position: 'absolute', 
+                top: '100%', 
+                left: 0, 
+                right: 0, 
+                background: '#1e293b', 
+                border: '1px solid rgba(255,255,255,0.15)', 
+                borderTop: 'none', 
+                borderRadius: '0 0 12px 12px', 
+                maxHeight: '200px', 
+                overflowY: 'auto', 
+                zIndex: 100 
+              }}>
+                {searchResults.map((result, idx) => (
+                  <div 
+                    key={result.code} 
+                    onClick={() => selectStock(result)} 
+                    style={{ 
+                      padding: '14px 16px', 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer', 
+                      borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{result.name}</span>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>{result.code} Â· {result.market}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {stockFound && form.name && (
+              <div style={{ 
+                marginTop: '8px', 
+                fontSize: '13px', 
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                âœ“ {form.name} ({form.code}) ì„ íƒë¨
+              </div>
+            )}
+          </div>
+          
+          {/* ë§¤ìˆ˜ê°€, ìˆ˜ëŸ‰ */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+            gap: '12px', 
+            marginBottom: '20px' 
+          }}>
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '13px', 
+                color: '#94a3b8', 
+                marginBottom: '8px',
+                fontWeight: '500'
+              }}>ë§¤ìˆ˜ê°€ (ì›) *</label>
+              <input 
+                type="number" 
+                value={form.buyPrice} 
+                onChange={e => setForm({ ...form, buyPrice: e.target.value })} 
+                placeholder="72000" 
+                style={{ 
+                  width: '100%', 
+                  padding: '14px 16px', 
+                  background: 'rgba(255,255,255,0.05)', 
+                  border: '1px solid rgba(255,255,255,0.15)', 
+                  borderRadius: '12px', 
+                  color: '#fff', 
+                  fontSize: '16px', 
+                  outline: 'none', 
+                  boxSizing: 'border-box' 
+                }} 
+              />
+            </div>
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: '13px', 
+                color: '#94a3b8', 
+                marginBottom: '8px',
+                fontWeight: '500'
+              }}>ìˆ˜ëŸ‰ (ì£¼) *</label>
+              <input 
+                type="number" 
+                value={form.quantity} 
+                onChange={e => setForm({ ...form, quantity: e.target.value })} 
+                placeholder="100" 
+                style={{ 
+                  width: '100%', 
+                  padding: '14px 16px', 
+                  background: 'rgba(255,255,255,0.05)', 
+                  border: '1px solid rgba(255,255,255,0.15)', 
+                  borderRadius: '12px', 
+                  color: '#fff', 
+                  fontSize: '16px', 
+                  outline: 'none', 
+                  boxSizing: 'border-box' 
+                }} 
+              />
+            </div>
+          </div>
+          
+          {/* ë§¤ë„ ì¡°ê±´ ì„ íƒ */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ 
+              fontSize: '15px', 
+              fontWeight: '600', 
+              color: '#fff', 
+              display: 'block', 
+              marginBottom: '12px' 
+            }}>ðŸ“š ë§¤ë„ì˜ ê¸°ìˆ  ì¡°ê±´ ì„ íƒ</label>
+            <div style={{ 
+              fontSize: '12px', 
+              color: '#f59e0b', 
+              marginBottom: '12px', 
+              background: 'rgba(245,158,11,0.1)', 
+              padding: '10px 12px', 
+              borderRadius: '8px',
+              lineHeight: '1.5'
+            }}>
+              âš ï¸ ì•„ëž˜ ê¸°ë³¸ê°’ì€ ì˜ˆì‹œì¼ ë¿ìž…ë‹ˆë‹¤. ë°˜ë“œì‹œ ë³¸ì¸ì˜ íˆ¬ìž ì›ì¹™ì— ë”°ë¼ ìˆ˜ì •í•˜ì‹­ì‹œì˜¤.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {Object.values(SELL_PRESETS).map(preset => {
+                const isSelected = (form.selectedPresets || []).includes(preset.id);
+                return (
+                  <div 
+                    key={preset.id} 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px', 
+                      padding: isMobile ? '14px' : '14px 16px', 
+                      background: isSelected ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.02)', 
+                      border: isSelected ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.05)', 
+                      borderRadius: '12px', 
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }} 
+                    onClick={() => togglePreset(preset.id)}
+                  >
+                    <div style={{ 
+                      width: '24px', 
+                      height: '24px', 
+                      borderRadius: '6px', 
+                      background: isSelected ? '#3b82f6' : 'rgba(255,255,255,0.1)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontSize: '14px', 
+                      color: '#fff',
+                      flexShrink: 0
+                    }}>
+                      {isSelected && 'âœ“'}
+                    </div>
+                    <span style={{ fontSize: '20px', flexShrink: 0 }}>{preset.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff' }}>{preset.name}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{preset.description}</div>
+                    </div>
+                    {preset.hasInput && isSelected && (
+                      <input 
+                        type="number" 
+                        value={form.presetSettings?.[preset.id]?.value ?? preset.inputDefault} 
+                        onChange={e => { 
+                          e.stopPropagation(); 
+                          setForm({ 
+                            ...form, 
+                            presetSettings: { ...form.presetSettings, [preset.id]: { value: Number(e.target.value) } } 
+                          }); 
+                        }} 
+                        onClick={e => e.stopPropagation()} 
+                        style={{ 
+                          width: '70px', 
+                          padding: '8px 10px', 
+                          background: 'rgba(255,255,255,0.1)', 
+                          border: '1px solid rgba(255,255,255,0.2)', 
+                          borderRadius: '8px', 
+                          color: '#fff', 
+                          fontSize: '14px', 
+                          outline: 'none', 
+                          textAlign: 'center',
+                          flexShrink: 0
+                        }} 
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        
+        {/* í•˜ë‹¨ ë²„íŠ¼ */}
+        <div style={{ 
+          padding: isMobile ? '16px 20px' : '16px 24px',
+          paddingBottom: isMobile ? 'max(16px, env(safe-area-inset-bottom))' : '16px',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          background: 'rgba(0,0,0,0.2)'
+        }}>
+          <div style={{ 
+            padding: '10px 12px', 
+            background: 'rgba(234,179,8,0.1)', 
+            borderRadius: '8px', 
+            marginBottom: '12px' 
+          }}>
+            <p style={{ fontSize: '11px', color: '#eab308', margin: 0, lineHeight: '1.5' }}>
+              âš ï¸ ë³¸ ì•ŒëžŒì€ ì‚¬ìš©ìžê°€ ì§ì ‘ ì„ íƒí•œ ê¸°ìˆ ì  ì¡°ê±´ì— ë”°ë¥¸ ë‹¨ìˆœ ì •ë³´ ì œê³µì´ë©°, íˆ¬ìžìžë¬¸ì´ë‚˜ íˆ¬ìžê¶Œìœ ê°€ ì•„ë‹™ë‹ˆë‹¤.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              onClick={onClose} 
+              style={{ 
+                flex: 1, 
+                padding: '16px', 
+                background: 'rgba(255,255,255,0.1)', 
+                border: 'none', 
+                borderRadius: '12px', 
+                color: '#fff', 
+                fontSize: '16px', 
+                cursor: 'pointer',
+                minHeight: '52px'
+              }}
+            >ì·¨ì†Œ</button>
+            <button 
+              onClick={handleSave}
+              disabled={!form.name || !form.code || !form.buyPrice || !form.quantity}
+              style={{ 
+                flex: 1, 
+                padding: '16px', 
+                background: (form.name && form.code && form.buyPrice && form.quantity) 
+                  ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' 
+                  : 'rgba(100,116,139,0.3)', 
+                border: 'none', 
+                borderRadius: '12px', 
+                color: '#fff', 
+                fontSize: '16px', 
+                fontWeight: '600', 
+                cursor: (form.name && form.code && form.buyPrice && form.quantity) ? 'pointer' : 'not-allowed',
+                minHeight: '52px',
+                opacity: (form.name && form.code && form.buyPrice && form.quantity) ? 1 : 0.6
+              }}
+            >
+              {stock ? 'ìˆ˜ì • ì™„ë£Œ' : 'ì•ŒëžŒ ì„¤ì • ì™„ë£Œ'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// AI ë‰´ìŠ¤ íŒì—… - ì™„ì „ êµ¬í˜„
+// ============================================
+const AINewsPopup = ({ position, onClose, isPremium, onUpgrade }) => {
+  const { isMobile } = useResponsive();
+  const [isLoading, setIsLoading] = useState(true);
+  const [newsData, setNewsData] = useState<{
+    sentiment: string
+    sentimentScore: number
+    keyInsight: string
+    positiveNews: { title: string; summary: string }[]
+    negativeNews: { title: string; summary: string }[]
+  } | null>(null);
+
   useEffect(() => {
-    const newData: Record<number, PriceData[]> = {}
+    if (isPremium) {
+      // ì‹¤ì œ êµ¬í˜„ì‹œ ë°±ì—”ë“œ APIë¥¼ í†µí•´ í˜¸ì¶œ
+      const timer = setTimeout(() => {
+        setNewsData({
+          sentiment: 'positive',
+          sentimentScore: 72,
+          keyInsight: `${position.name}ì€(ëŠ”) ìµœê·¼ ì—…í™© ê°œì„ ê³¼ ì‹¤ì  ê¸°ëŒ€ê°ìœ¼ë¡œ ê¸ì •ì ì¸ ì „ë§ì´ ìš°ì„¸í•©ë‹ˆë‹¤.`,
+          positiveNews: [
+            { title: 'ì—…í™© ê°œì„  ê¸°ëŒ€', summary: 'ê´€ë ¨ ì‚°ì—…ì˜ ìˆ˜ìš” ì¦ê°€ë¡œ ì‹¤ì  ê°œì„  ì „ë§' },
+            { title: 'ì‹ ê·œ íˆ¬ìž í™•ëŒ€', summary: 'ì‹ ì„±ìž¥ ì‚¬ì—… íˆ¬ìžë¡œ ì¤‘ìž¥ê¸° ì„±ìž¥ ê¸°ëŒ€' }
+          ],
+          negativeNews: [
+            { title: 'ì›ìžìž¬ ê°€ê²© ìƒìŠ¹', summary: 'ë¹„ìš© ì¦ê°€ ìš°ë ¤ë¡œ ë§ˆì§„ ì••ë°• ê°€ëŠ¥ì„±' }
+          ]
+        });
+        setIsLoading(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsLoading(false);
+    }
+  }, [isPremium, position.name]);
+
+  const getSentimentColor = (s) => s === 'positive' ? '#10b981' : s === 'negative' ? '#ef4444' : '#eab308';
+
+  return (
+    <div 
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        background: 'rgba(0,0,0,0.9)', 
+        display: 'flex', 
+        alignItems: isMobile ? 'flex-end' : 'center', 
+        justifyContent: 'center', 
+        zIndex: 1000, 
+        padding: isMobile ? '0' : '20px' 
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ 
+        width: '100%', 
+        maxWidth: isMobile ? '100%' : '600px', 
+        maxHeight: isMobile ? '90vh' : '85vh', 
+        background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+        borderRadius: isMobile ? '20px 20px 0 0' : '20px', 
+        border: '1px solid rgba(255,255,255,0.1)', 
+        overflow: 'hidden', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
+        {/* í—¤ë” */}
+        <div style={{ 
+          padding: isMobile ? '16px 20px' : '20px', 
+          borderBottom: '1px solid rgba(255,255,255,0.1)', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '28px' }}>ðŸ¤–</span>
+            <div>
+              <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '700', color: '#fff', margin: 0 }}>AI ë‰´ìŠ¤ ë¶„ì„</h2>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>{position.name} ({position.code})</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              borderRadius: '10px', 
+              padding: '10px 16px', 
+              color: '#fff', 
+              fontSize: '14px', 
+              cursor: 'pointer',
+              minHeight: '40px'
+            }}
+          >ë‹«ê¸°</button>
+        </div>
+        
+        {/* ì½˜í…ì¸  */}
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px 20px' : '20px' }}>
+          {!isPremium ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: '64px', marginBottom: '16px' }}>ðŸ‘‘</div>
+              <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', margin: '0 0 12px' }}>í”„ë¦¬ë¯¸ì—„ ì „ìš© ê¸°ëŠ¥</h3>
+              <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: '1.6' }}>
+                AI ë‰´ìŠ¤ ë¶„ì„ì€ í”„ë¦¬ë¯¸ì—„ íšŒì›ë§Œ ì´ìš© ê°€ëŠ¥í•©ë‹ˆë‹¤.<br/>
+                ìµœì‹  ë‰´ìŠ¤ë¥¼ AIê°€ ë¶„ì„í•˜ì—¬ íˆ¬ìž ì¸ì‚¬ì´íŠ¸ë¥¼ ì œê³µí•©ë‹ˆë‹¤.
+              </p>
+              <button 
+                onClick={() => { onClose(); onUpgrade && onUpgrade(); }}
+                style={{ 
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
+                  border: 'none', 
+                  borderRadius: '12px', 
+                  padding: '16px 32px', 
+                  color: '#fff', 
+                  fontSize: '16px', 
+                  fontWeight: '600', 
+                  cursor: 'pointer' 
+                }}
+              >
+                í”„ë¦¬ë¯¸ì—„ ì—…ê·¸ë ˆì´ë“œ (ì›” 5,900ì›)
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>ðŸ¤–</div>
+              <p style={{ fontSize: '16px', color: '#94a3b8' }}>AIê°€ ë‰´ìŠ¤ë¥¼ ë¶„ì„í•˜ê³  ìžˆìŠµë‹ˆë‹¤...</p>
+              <div style={{ 
+                width: '200px', 
+                height: '4px', 
+                background: 'rgba(255,255,255,0.1)', 
+                borderRadius: '2px', 
+                margin: '20px auto',
+                overflow: 'hidden'
+              }}>
+                <div style={{ 
+                  width: '50%', 
+                  height: '100%', 
+                  background: 'linear-gradient(90deg, #8b5cf6, #3b82f6)',
+                  borderRadius: '2px',
+                  animation: 'loading 1s ease-in-out infinite'
+                }} />
+              </div>
+            </div>
+          ) : newsData ? (
+            <>
+              {/* ì¢…í•© ë¶„ì„ */}
+              <div style={{ 
+                background: getSentimentColor(newsData.sentiment) + '15', 
+                border: '1px solid ' + getSentimentColor(newsData.sentiment) + '40', 
+                borderRadius: '12px', 
+                padding: '16px', 
+                marginBottom: '20px' 
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: '600', color: '#fff' }}>ì¢…í•© ë¶„ì„</span>
+                  <span style={{ fontSize: '24px', fontWeight: '800', color: getSentimentColor(newsData.sentiment) }}>{newsData.sentimentScore}ì </span>
+                </div>
+                <p style={{ fontSize: '14px', color: '#e2e8f0', margin: 0, lineHeight: '1.6' }}>{newsData.keyInsight}</p>
+              </div>
+              
+              {/* í˜¸ìž¬ */}
+              {newsData.positiveNews.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#10b981', margin: '0 0 12px' }}>
+                    ðŸŸ¢ í˜¸ìž¬ ({newsData.positiveNews.length}ê±´)
+                  </h4>
+                  {newsData.positiveNews.map((n, i) => (
+                    <div key={i} style={{ 
+                      background: 'rgba(16,185,129,0.1)', 
+                      borderRadius: '10px', 
+                      padding: '12px', 
+                      marginBottom: '8px', 
+                      borderLeft: '3px solid #10b981' 
+                    }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '4px' }}>{n.title}</div>
+                      <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>{n.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* ì•…ìž¬ */}
+              {newsData.negativeNews.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444', margin: '0 0 12px' }}>
+                    ðŸ”´ ì•…ìž¬ ({newsData.negativeNews.length}ê±´)
+                  </h4>
+                  {newsData.negativeNews.map((n, i) => (
+                    <div key={i} style={{ 
+                      background: 'rgba(239,68,68,0.1)', 
+                      borderRadius: '10px', 
+                      padding: '12px', 
+                      marginBottom: '8px', 
+                      borderLeft: '3px solid #ef4444' 
+                    }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '4px' }}>{n.title}</div>
+                      <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>{n.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+        
+        {/* ë©´ì±…ì¡°í•­ */}
+        <div style={{ 
+          padding: isMobile ? '12px 20px' : '16px 20px', 
+          paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : '16px',
+          background: 'rgba(0,0,0,0.2)', 
+          borderTop: '1px solid rgba(255,255,255,0.05)' 
+        }}>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: 0, textAlign: 'center' }}>
+            âš ï¸ AI ë¶„ì„ì€ ì°¸ê³ ìš©ì´ë©°, íˆ¬ìžìžë¬¸ì´ë‚˜ íˆ¬ìžê¶Œìœ ê°€ ì•„ë‹™ë‹ˆë‹¤.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// AI ë¦¬í¬íŠ¸ íŒì—… - ì™„ì „ êµ¬í˜„
+// ============================================
+const AIReportPopup = ({ position, onClose, isPremium, onUpgrade }) => {
+  const { isMobile } = useResponsive();
+  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState(null);
+
+  useEffect(() => {
+    if (isPremium) {
+      // ì‹¤ì œ êµ¬í˜„ì‹œ ë°±ì—”ë“œ APIë¥¼ í†µí•´ í˜¸ì¶œ
+      const timer = setTimeout(() => {
+        setReportData({
+          targetPriceConsensus: { 
+            average: Math.round(position.buyPrice * 1.18), 
+            high: Math.round(position.buyPrice * 1.35), 
+            low: Math.round(position.buyPrice * 0.95), 
+            upside: 18.5 
+          },
+          investmentOpinion: { buy: 15, hold: 5, sell: 2 },
+          keyHighlights: [
+            'ì—…í™© ê°œì„ ì— ë”°ë¥¸ ì‹¤ì  í„´ì–´ë¼ìš´ë“œ ê¸°ëŒ€',
+            'ì‹ ì‚¬ì—… íˆ¬ìžë¡œ ì¤‘ìž¥ê¸° ì„±ìž¥ ë™ë ¥ í™•ë³´',
+            'ì£¼ì£¼í™˜ì› ì •ì±… ê°•í™”ë¡œ ë°°ë‹¹ ë§¤ë ¥ ì¦ê°€'
+          ],
+          analystInsight: `ëŒ€ë¶€ë¶„ì˜ ì¦ê¶Œì‚¬ê°€ ${position.name}ì— ëŒ€í•´ ê¸ì •ì ì¸ ì „ë§ì„ ìœ ì§€í•˜ê³  ìžˆìŠµë‹ˆë‹¤. ì—…í™© ê°œì„ ê³¼ ì‹ ì‚¬ì—… í™•ëŒ€ê°€ ì£¼ìš” ì„±ìž¥ ë™ë ¥ìœ¼ë¡œ ë¶„ì„ë©ë‹ˆë‹¤.`
+        });
+        setIsLoading(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsLoading(false);
+    }
+  }, [isPremium, position]);
+
+  return (
+    <div 
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        background: 'rgba(0,0,0,0.9)', 
+        display: 'flex', 
+        alignItems: isMobile ? 'flex-end' : 'center', 
+        justifyContent: 'center', 
+        zIndex: 1000, 
+        padding: isMobile ? '0' : '20px' 
+      }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ 
+        width: '100%', 
+        maxWidth: isMobile ? '100%' : '650px', 
+        maxHeight: isMobile ? '90vh' : '85vh', 
+        background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+        borderRadius: isMobile ? '20px 20px 0 0' : '20px', 
+        border: '1px solid rgba(255,255,255,0.1)', 
+        overflow: 'hidden', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
+        {/* í—¤ë” */}
+        <div style={{ 
+          padding: isMobile ? '16px 20px' : '20px', 
+          borderBottom: '1px solid rgba(255,255,255,0.1)', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '28px' }}>ðŸ“‘</span>
+            <div>
+              <h2 style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: '700', color: '#fff', margin: 0 }}>AI ë¦¬í¬íŠ¸ ë¶„ì„</h2>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>{position.name} ({position.code})</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              borderRadius: '10px', 
+              padding: '10px 16px', 
+              color: '#fff', 
+              fontSize: '14px', 
+              cursor: 'pointer',
+              minHeight: '40px'
+            }}
+          >ë‹«ê¸°</button>
+        </div>
+        
+        {/* ì½˜í…ì¸  */}
+        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px 20px' : '20px' }}>
+          {!isPremium ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: '64px', marginBottom: '16px' }}>ðŸ‘‘</div>
+              <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', margin: '0 0 12px' }}>í”„ë¦¬ë¯¸ì—„ ì „ìš© ê¸°ëŠ¥</h3>
+              <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: '1.6' }}>
+                AI ë¦¬í¬íŠ¸ ë¶„ì„ì€ í”„ë¦¬ë¯¸ì—„ íšŒì›ë§Œ ì´ìš© ê°€ëŠ¥í•©ë‹ˆë‹¤.<br/>
+                ì¦ê¶Œì‚¬ ë¦¬í¬íŠ¸ë¥¼ AIê°€ ìš”ì•½í•˜ì—¬ í•µì‹¬ ì¸ì‚¬ì´íŠ¸ë¥¼ ì œê³µí•©ë‹ˆë‹¤.
+              </p>
+              <button 
+                onClick={() => { onClose(); onUpgrade && onUpgrade(); }}
+                style={{ 
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
+                  border: 'none', 
+                  borderRadius: '12px', 
+                  padding: '16px 32px', 
+                  color: '#fff', 
+                  fontSize: '16px', 
+                  fontWeight: '600', 
+                  cursor: 'pointer' 
+                }}
+              >
+                í”„ë¦¬ë¯¸ì—„ ì—…ê·¸ë ˆì´ë“œ (ì›” 5,900ì›)
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>ðŸ“‘</div>
+              <p style={{ fontSize: '16px', color: '#94a3b8' }}>AIê°€ ë¦¬í¬íŠ¸ë¥¼ ë¶„ì„í•˜ê³  ìžˆìŠµë‹ˆë‹¤...</p>
+            </div>
+          ) : reportData ? (
+            <>
+              {/* ëª©í‘œê°€ ì»¨ì„¼ì„œìŠ¤ */}
+              <div style={{ 
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(139,92,246,0.15) 100%)', 
+                border: '1px solid rgba(59,130,246,0.3)', 
+                borderRadius: '12px', 
+                padding: '16px', 
+                marginBottom: '20px' 
+              }}>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: '0 0 16px' }}>ðŸ“Š ëª©í‘œê°€ ì»¨ì„¼ì„œìŠ¤</h4>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
+                  gap: '12px' 
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>í‰ê· </div>
+                    <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#3b82f6' }}>
+                      â‚©{reportData.targetPriceConsensus.average.toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>ìµœê³ </div>
+                    <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: '600', color: '#10b981' }}>
+                      â‚©{reportData.targetPriceConsensus.high.toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>ìµœì €</div>
+                    <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: '600', color: '#ef4444' }}>
+                      â‚©{reportData.targetPriceConsensus.low.toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>ìƒìŠ¹ì—¬ë ¥</div>
+                    <div style={{ 
+                      fontSize: isMobile ? '16px' : '18px', 
+                      fontWeight: '700', 
+                      color: reportData.targetPriceConsensus.upside > 0 ? '#10b981' : '#ef4444' 
+                    }}>
+                      {reportData.targetPriceConsensus.upside > 0 ? '+' : ''}{reportData.targetPriceConsensus.upside}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* íˆ¬ìžì˜ê²¬ ë¶„í¬ */}
+              <div style={{ 
+                background: 'rgba(0,0,0,0.2)', 
+                borderRadius: '12px', 
+                padding: '16px', 
+                marginBottom: '20px' 
+              }}>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: '0 0 12px' }}>ðŸ“‹ íˆ¬ìžì˜ê²¬ ë¶„í¬</h4>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, background: 'rgba(16,185,129,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>{reportData.investmentOpinion.buy}</div>
+                    <div style={{ fontSize: '12px', color: '#10b981' }}>ë§¤ìˆ˜</div>
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(234,179,8,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#eab308' }}>{reportData.investmentOpinion.hold}</div>
+                    <div style={{ fontSize: '12px', color: '#eab308' }}>ë³´ìœ </div>
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.15)', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444' }}>{reportData.investmentOpinion.sell}</div>
+                    <div style={{ fontSize: '12px', color: '#ef4444' }}>ë§¤ë„</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* í•µì‹¬ í¬ì¸íŠ¸ */}
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: '0 0 12px' }}>ðŸ’¡ í•µì‹¬ í¬ì¸íŠ¸</h4>
+                {reportData.keyHighlights.map((point, i) => (
+                  <div key={i} style={{ 
+                    background: 'rgba(255,255,255,0.03)', 
+                    borderRadius: '8px', 
+                    padding: '12px', 
+                    marginBottom: '8px', 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '10px' 
+                  }}>
+                    <span style={{ color: '#3b82f6', fontWeight: '700' }}>{i + 1}.</span>
+                    <span style={{ fontSize: '14px', color: '#e2e8f0' }}>{point}</span>
+                  </div>
+                ))}
+              </div>
+              
+              {/* AI ì¢…í•© ì¸ì‚¬ì´íŠ¸ */}
+              <div style={{ 
+                background: 'rgba(139,92,246,0.1)', 
+                border: '1px solid rgba(139,92,246,0.3)', 
+                borderRadius: '12px', 
+                padding: '16px' 
+              }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#a78bfa', margin: '0 0 8px' }}>ðŸ¤– AI ì¢…í•© ì¸ì‚¬ì´íŠ¸</h4>
+                <p style={{ fontSize: '14px', color: '#e2e8f0', margin: 0, lineHeight: '1.6' }}>{reportData.analystInsight}</p>
+              </div>
+            </>
+          ) : null}
+        </div>
+        
+        {/* ë©´ì±…ì¡°í•­ */}
+        <div style={{ 
+          padding: isMobile ? '12px 20px' : '16px 20px', 
+          paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : '16px',
+          background: 'rgba(0,0,0,0.2)', 
+          borderTop: '1px solid rgba(255,255,255,0.05)' 
+        }}>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: 0, textAlign: 'center' }}>
+            âš ï¸ AI ë¶„ì„ì€ ì°¸ê³ ìš©ì´ë©°, íˆ¬ìžìžë¬¸ì´ë‚˜ íˆ¬ìžê¶Œìœ ê°€ ì•„ë‹™ë‹ˆë‹¤.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// ë©”ì¸ ì•± (ë°˜ì‘í˜• ì ìš©)
+// ============================================
+export default function SellSignalApp() {
+  const { isMobile, isTablet, isDesktop } = useResponsive();
+  
+  const [user, setUser] = useState({ membership: 'free', email: 'demo@test.com' });
+  const [positions, setPositions] = useState<Position[]>([
+    { id: 1, name: 'ì‚¼ì„±ì „ìž', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78200, selectedPresets: ['candle3', 'stopLoss', 'twoThird', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
+    { id: 2, name: 'í˜„ëŒ€ì°¨', code: '005380', buyPrice: 215000, quantity: 20, highestPrice: 228000, selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } } },
+    { id: 3, name: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤', code: '012450', buyPrice: 285000, quantity: 15, highestPrice: 412000, selectedPresets: ['twoThird', 'maSignal', 'volumeZone', 'fundamental'], presetSettings: { maSignal: { value: 60 } } },
+  ]);
+  const [priceDataMap, setPriceDataMap] = useState<Record<number, PriceData[]>>({});
+  const [alerts, setAlerts] = useState<Alert[]>([
+    // ë°ëª¨ìš© ìƒ˜í”Œ ì•Œë¦¼
+    {
+      id: 1,
+      stockName: 'ì‚¼ì„±ì „ìž',
+      code: '005930',
+      preset: SELL_PRESETS.stopLoss,
+      message: 'ì†ì ˆ ê¸°ì¤€ê°€(-5%) ê·¼ì ‘! í˜„ìž¬ -4.2%',
+      currentPrice: 68500,
+      targetPrice: 67925,
+      timestamp: Date.now() - 300000 // 5ë¶„ ì „
+    },
+    {
+      id: 2,
+      stockName: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤',
+      code: '012450',
+      preset: SELL_PRESETS.twoThird,
+      message: 'ìµœê³ ì  ëŒ€ë¹„ 1/3 í•˜ë½ ê·¼ì ‘',
+      currentPrice: 365000,
+      targetPrice: 369600,
+      timestamp: Date.now() - 1800000 // 30ë¶„ ì „
+    }
+  ]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [showUpgradePopup, setShowUpgradePopup] = useState(false);
+  const [activeTab, setActiveTab] = useState('positions'); // ëª¨ë°”ì¼ íƒ­ ìƒíƒœ
+  
+  const isPremium = user?.membership === 'premium';
+
+  // ê°€ê²© ë°ì´í„° ì´ˆê¸°í™”
+  useEffect(() => {
+    const newData = {};
     positions.forEach(pos => { 
       if (!priceDataMap[pos.id]) {
-        newData[pos.id] = generateMockPriceData(pos.buyPrice, 60)
+        newData[pos.id] = generateMockPriceData(pos.buyPrice, 60); 
       }
-    })
+    });
     if (Object.keys(newData).length > 0) {
-      setPriceDataMap(prev => ({ ...prev, ...newData }))
+      setPriceDataMap(prev => ({ ...prev, ...newData }));
     }
-  }, [positions])
+  }, [positions]);
 
-  // 실시간 가격 업데이트
+  // ì‹¤ì‹œê°„ ê°€ê²© ì—…ë°ì´íŠ¸
   useEffect(() => {
     const interval = setInterval(() => {
       setPriceDataMap(prev => {
-        const updated = { ...prev }
-        Object.keys(updated).forEach(idStr => {
-          const id = Number(idStr)
-          const data = [...updated[id]]
-          const last = data[data.length - 1]
-          const change = (Math.random() - 0.48) * last.close * 0.008
-          const newClose = Math.max(last.close + change, last.close * 0.95)
+        const updated = { ...prev };
+        Object.keys(updated).forEach(id => {
+          const data = [...updated[id]];
+          const last = data[data.length - 1];
+          const change = (Math.random() - 0.48) * last.close * 0.008;
+          const newClose = Math.max(last.close + change, last.close * 0.95);
           data[data.length - 1] = { 
             ...last, 
             close: newClose, 
             high: Math.max(last.high, newClose), 
             low: Math.min(last.low, newClose) 
-          }
-          updated[id] = data
-        })
-        return updated
-      })
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [])
+          };
+          updated[id] = data;
+        });
+        return updated;
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // 총계 계산
-  const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0)
+  // ì´ê³„ ê³„ì‚°
+  const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((sum, p) => { 
-    const price = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice
-    return sum + price * p.quantity
-  }, 0)
-  const totalProfit = totalValue - totalCost
-  const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+    const price = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice; 
+    return sum + price * p.quantity; 
+  }, 0);
+  const totalProfit = totalValue - totalCost;
+  const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 
+  // ë©”ì¸ ë ˆì´ì•„ì›ƒ ìŠ¤íƒ€ì¼ ê³„ì‚°
   const getMainLayoutStyle = () => {
     if (isMobile) {
       return {
         display: 'flex',
-        flexDirection: 'column' as const,
+        flexDirection: 'column',
         gap: '16px',
         padding: '0',
-      }
+      };
     }
     if (isTablet) {
       return {
@@ -1272,14 +3043,15 @@ export default function SellSignalApp() {
         gridTemplateColumns: '1fr 320px',
         gap: '16px',
         padding: '0 20px',
-      }
+      };
     }
+    // ë°ìŠ¤í¬í†±
     return {
       display: 'grid',
       gridTemplateColumns: isPremium ? '1fr 380px' : '140px 1fr 380px',
       gap: '20px',
-    }
-  }
+    };
+  };
 
   return (
     <div style={{ 
@@ -1288,17 +3060,24 @@ export default function SellSignalApp() {
       color: '#fff', 
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', 
       fontSize: '14px',
-      paddingBottom: isMobile ? '70px' : '0',
+      paddingBottom: isMobile ? '70px' : '0', // ëª¨ë°”ì¼ í•˜ë‹¨ ë„¤ë¹„ê²Œì´ì…˜ ê³µê°„
     }}>
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        /* ìŠ¤í¬ë¡¤ë°” ìŠ¤íƒ€ì¼ */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        
+        /* í„°ì¹˜ í•˜ì´ë¼ì´íŠ¸ ì œê±° */
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
+      {/* ë°˜ì‘í˜• í—¤ë” */}
       <ResponsiveHeader 
         alerts={alerts}
         isPremium={isPremium}
@@ -1306,11 +3085,13 @@ export default function SellSignalApp() {
         onShowAddModal={() => setShowAddModal(true)}
       />
 
+      {/* ë©”ì¸ */}
       <main style={{ 
         maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px', 
         margin: '0 auto', 
         padding: isMobile ? '16px 0' : '24px' 
       }}>
+        {/* ë°˜ì‘í˜• ìš”ì•½ ì¹´ë“œ */}
         <ResponsiveSummaryCards 
           totalCost={totalCost}
           totalValue={totalValue}
@@ -1318,7 +3099,7 @@ export default function SellSignalApp() {
           totalProfitRate={totalProfitRate}
         />
 
-        {/* 모바일 탭 네비게이션 */}
+        {/* ëª¨ë°”ì¼ íƒ­ ë„¤ë¹„ê²Œì´ì…˜ */}
         {isMobile && (
           <div style={{ 
             display: 'flex', 
@@ -1328,10 +3109,10 @@ export default function SellSignalApp() {
             overflowX: 'auto',
           }}>
             {[
-              { id: 'positions', label: '📊 포지션', count: positions.length },
-              { id: 'alerts', label: '🔔 알림', count: alerts.length },
-              { id: 'market', label: '🥚 시장분석' },
-              { id: 'guide', label: '📚 가이드' },
+              { id: 'positions', label: 'ðŸ“Š í¬ì§€ì…˜', count: positions.length },
+              { id: 'alerts', label: 'ðŸ”” ì•Œë¦¼', count: alerts.length },
+              { id: 'market', label: 'ðŸ¥š ì‹œìž¥ë¶„ì„' },
+              { id: 'guide', label: 'ðŸ“š ê°€ì´ë“œ' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1352,7 +3133,7 @@ export default function SellSignalApp() {
                 }}
               >
                 {tab.label}
-                {tab.count !== undefined && tab.count > 0 && (
+                {tab.count > 0 && (
                   <span style={{
                     background: activeTab === tab.id ? '#3b82f6' : 'rgba(255,255,255,0.2)',
                     color: '#fff',
@@ -1366,8 +3147,9 @@ export default function SellSignalApp() {
           </div>
         )}
 
+        {/* ë©”ì¸ ë ˆì´ì•„ì›ƒ */}
         <div style={getMainLayoutStyle()}>
-          {/* 광고 영역 (데스크톱, 무료회원) */}
+          {/* ê´‘ê³  ì˜ì—­ (ë°ìŠ¤í¬í†±, ë¬´ë£ŒíšŒì›) */}
           {!isMobile && !isTablet && !isPremium && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[1, 2].map(i => (
@@ -1384,8 +3166,8 @@ export default function SellSignalApp() {
                   alignItems: 'center', 
                   justifyContent: 'center' 
                 }}>
-                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>광고</div>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📢</div>
+                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>ê´‘ê³ </div>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>ðŸ“¢</div>
                   <div style={{ fontSize: '11px', color: '#374151' }}>Google AdMob</div>
                 </div>
               ))}
@@ -1400,18 +3182,19 @@ export default function SellSignalApp() {
                   cursor: 'pointer' 
                 }}
               >
-                <div style={{ fontSize: '22px', marginBottom: '6px' }}>👑</div>
-                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>광고 제거</div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>프리미엄</div>
+                <div style={{ fontSize: '22px', marginBottom: '6px' }}>ðŸ‘‘</div>
+                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>ê´‘ê³  ì œê±°</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>í”„ë¦¬ë¯¸ì—„</div>
               </div>
             </div>
           )}
 
-          {/* 포지션 목록 */}
+          {/* í¬ì§€ì…˜ ëª©ë¡ */}
           <div style={{ 
             display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
             padding: isMobile ? '0 16px' : '0',
           }}>
+            {/* ëª¨ë°”ì¼: í¬ì§€ì…˜ íƒ­ì—ì„œë„ ì‹œìž¥ ë¶„ì„ ë¯¸ë‹ˆ ìš”ì•½ í‘œì‹œ */}
             {isMobile && activeTab === 'positions' && (
               <div 
                 onClick={() => setActiveTab('market')}
@@ -1428,13 +3211,13 @@ export default function SellSignalApp() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '24px' }}>🥚</span>
+                  <span style={{ fontSize: '24px' }}>ðŸ¥š</span>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>4단계: 금리고점 (팔 때)</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>매도 관망 권장 · 탭하여 상세보기</div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>4ë‹¨ê³„: ê¸ˆë¦¬ê³ ì  (íŒ” ë•Œ)</div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>ë§¤ë„ ê´€ë§ ê¶Œìž¥ Â· íƒ­í•˜ì—¬ ìƒì„¸ë³´ê¸°</div>
                   </div>
                 </div>
-                <span style={{ color: '#64748b', fontSize: '18px' }}>›</span>
+                <span style={{ color: '#64748b', fontSize: '18px' }}>â€º</span>
               </div>
             )}
             
@@ -1449,11 +3232,11 @@ export default function SellSignalApp() {
                 fontWeight: '600', 
                 color: '#fff', 
                 margin: 0 
-              }}>📊 모니터링 중인 종목</h2>
+              }}>ðŸ“Š ëª¨ë‹ˆí„°ë§ ì¤‘ì¸ ì¢…ëª©</h2>
               <span style={{ 
                 fontSize: isMobile ? '11px' : '13px', 
                 color: '#64748b' 
-              }}>실시간 조건 감시 중</span>
+              }}>ì‹¤ì‹œê°„ ì¡°ê±´ ê°ì‹œ ì¤‘</span>
             </div>
             {positions.map(pos => (
               <PositionCard 
@@ -1462,8 +3245,8 @@ export default function SellSignalApp() {
                 priceData={priceDataMap[pos.id]} 
                 onEdit={setEditingPosition} 
                 onDelete={(id) => { 
-                  setPositions(prev => prev.filter(p => p.id !== id))
-                  setPriceDataMap(prev => { const u = { ...prev }; delete u[id]; return u })
+                  setPositions(prev => prev.filter(p => p.id !== id)); 
+                  setPriceDataMap(prev => { const u = { ...prev }; delete u[id]; return u; }); 
                 }} 
                 isPremium={isPremium}
                 onUpgrade={() => setShowUpgradePopup(true)}
@@ -1471,17 +3254,18 @@ export default function SellSignalApp() {
             ))}
           </div>
 
-          {/* 우측 사이드바 */}
+          {/* ìš°ì¸¡ ì‚¬ì´ë“œë°” / ëª¨ë°”ì¼ì—ì„œëŠ” íƒ­ìœ¼ë¡œ í‘œì‹œ */}
           {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
           <div style={{ 
             display: 'block',
             padding: isMobile ? '0 16px' : '0',
           }}>
+            {/* ì‹œìž¥ ë¶„ì„ (ëª¨ë°”ì¼ì—ì„œëŠ” íƒ­ìœ¼ë¡œ) */}
             <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
               <MarketCycleWidget isPremium={isPremium} />
             </div>
             
-            {/* 알림 영역 */}
+            {/* ì•Œë¦¼ ì˜ì—­ */}
             <div style={{ 
               display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
               background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
@@ -1507,7 +3291,7 @@ export default function SellSignalApp() {
                   alignItems: 'center', 
                   gap: '8px' 
                 }}>
-                  🔔 조건 도달 알림
+                  ðŸ”” ì¡°ê±´ ë„ë‹¬ ì•Œë¦¼
                   {alerts.length > 0 && (
                     <span style={{ 
                       background: '#ef4444', 
@@ -1531,13 +3315,13 @@ export default function SellSignalApp() {
                       fontSize: '12px', 
                       cursor: 'pointer' 
                     }}
-                  >모두 지우기</button>
+                  >ëª¨ë‘ ì§€ìš°ê¸°</button>
                 )}
               </div>
               {alerts.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: isMobile ? '20px 16px' : '30px 16px' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '10px' }}>✨</div>
-                  <div style={{ fontSize: '14px', color: '#94a3b8' }}>현재 도달한 조건이 없습니다</div>
+                  <div style={{ fontSize: '32px', marginBottom: '10px' }}>âœ¨</div>
+                  <div style={{ fontSize: '14px', color: '#94a3b8' }}>í˜„ìž¬ ë„ë‹¬í•œ ì¡°ê±´ì´ ì—†ìŠµë‹ˆë‹¤</div>
                 </div>
               ) : (
                 alerts.slice(0, 5).map(alert => (
@@ -1550,8 +3334,10 @@ export default function SellSignalApp() {
               )}
             </div>
             
+            {/* ë§¤ë„ë²• ê°€ì´ë“œ - ì•„ì½”ë””ì–¸ ìŠ¤íƒ€ì¼ */}
             <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
             
+            {/* ë©´ì±…ì¡°í•­ */}
             {(!isMobile || activeTab === 'guide') && (
               <div style={{ 
                 padding: isMobile ? '12px' : '14px', 
@@ -1565,7 +3351,7 @@ export default function SellSignalApp() {
                   margin: 0, 
                   lineHeight: '1.6' 
                 }}>
-                  ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티 도구입니다. 제공되는 알람은 투자자문이나 투자권유가 아니며, 모든 투자 판단의 책임은 사용자에게 있습니다.
+                  âš ï¸ ë³¸ ì•±ì€ ì‚¬ìš©ìžê°€ ì„ íƒí•œ ì¡°ê±´ì„ ëª¨ë‹ˆí„°ë§í•˜ëŠ” ìœ í‹¸ë¦¬í‹° ë„êµ¬ìž…ë‹ˆë‹¤. ì œê³µë˜ëŠ” ì•ŒëžŒì€ íˆ¬ìžìžë¬¸ì´ë‚˜ íˆ¬ìžê¶Œìœ ê°€ ì•„ë‹ˆë©°, ëª¨ë“  íˆ¬ìž íŒë‹¨ì˜ ì±…ìž„ì€ ì‚¬ìš©ìžì—ê²Œ ìžˆìŠµë‹ˆë‹¤.
                 </p>
               </div>
             )}
@@ -1574,7 +3360,7 @@ export default function SellSignalApp() {
         </div>
       </main>
 
-      {/* 모바일 하단 네비게이션 */}
+      {/* ëª¨ë°”ì¼ í•˜ë‹¨ ë„¤ë¹„ê²Œì´ì…˜ ë°” */}
       {isMobile && (
         <nav style={{
           position: 'fixed',
@@ -1591,10 +3377,10 @@ export default function SellSignalApp() {
           zIndex: 100,
         }}>
           {[
-            { id: 'positions', icon: '📊', label: '포지션' },
-            { id: 'alerts', icon: '🔔', label: '알림', badge: alerts.length },
-            { id: 'market', icon: '🥚', label: '시장' },
-            { id: 'guide', icon: '📚', label: '가이드' },
+            { id: 'positions', icon: 'ðŸ“Š', label: 'í¬ì§€ì…˜' },
+            { id: 'alerts', icon: 'ðŸ””', label: 'ì•Œë¦¼', badge: alerts.length },
+            { id: 'market', icon: 'ðŸ¥š', label: 'ì‹œìž¥' },
+            { id: 'guide', icon: 'ðŸ“š', label: 'ê°€ì´ë“œ' },
           ].map(item => (
             <button
               key={item.id}
@@ -1617,7 +3403,7 @@ export default function SellSignalApp() {
                 color: activeTab === item.id ? '#60a5fa' : '#64748b',
                 fontWeight: activeTab === item.id ? '600' : '400',
               }}>{item.label}</span>
-              {item.badge !== undefined && item.badge > 0 && (
+              {item.badge > 0 && (
                 <span style={{
                   position: 'absolute',
                   top: '2px',
@@ -1637,12 +3423,12 @@ export default function SellSignalApp() {
         </nav>
       )}
 
-      {/* 모달들 */}
+      {/* ëª¨ë‹¬ë“¤ */}
       {showAddModal && (
         <StockModal 
           onSave={(stock) => { 
-            setPositions(prev => [...prev, stock])
-            setShowAddModal(false)
+            setPositions(prev => [...prev, { ...stock, id: Date.now() }]); 
+            setShowAddModal(false); 
           }} 
           onClose={() => setShowAddModal(false)} 
         />
@@ -1651,19 +3437,164 @@ export default function SellSignalApp() {
         <StockModal 
           stock={editingPosition} 
           onSave={(stock) => { 
-            setPositions(prev => prev.map(p => p.id === stock.id ? stock : p))
-            setEditingPosition(null)
+            setPositions(prev => prev.map(p => p.id === stock.id ? stock : p)); 
+            setEditingPosition(null); 
           }} 
           onClose={() => setEditingPosition(null)} 
         />
       )}
 
+      {/* ì—…ê·¸ë ˆì´ë“œ íŒì—… - ì™„ì „ êµ¬í˜„ */}
       {showUpgradePopup && (
-        <UpgradeModal 
-          onUpgrade={() => { setUser({ ...user, membership: 'premium' }); setShowUpgradePopup(false); }}
-          onClose={() => setShowUpgradePopup(false)}
-        />
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.9)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          zIndex: 1000,
+          padding: isMobile ? '16px' : '40px',
+        }}>
+          <div style={{ 
+            background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
+            borderRadius: '20px', 
+            padding: isMobile ? '20px' : '32px', 
+            maxWidth: '420px', 
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            border: '1px solid rgba(139,92,246,0.3)',
+            boxShadow: '0 0 60px rgba(139,92,246,0.2)'
+          }}>
+            {/* í—¤ë” */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ fontSize: '56px', marginBottom: '12px' }}>ðŸ‘‘</div>
+              <h2 style={{ 
+                fontSize: isMobile ? '22px' : '26px', 
+                fontWeight: '700', 
+                color: '#fff', 
+                margin: '0 0 8px' 
+              }}>í”„ë¦¬ë¯¸ì—„ ë©¤ë²„ì‹­</h2>
+              <p style={{ 
+                fontSize: '14px', 
+                color: '#94a3b8', 
+                margin: 0
+              }}>ë” ê°•ë ¥í•œ ë§¤ë„ ì‹œê·¸ë„ ë„êµ¬ë¥¼ ê²½í—˜í•˜ì„¸ìš”</p>
+            </div>
+            
+            {/* ê°€ê²© */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.15) 100%)',
+              borderRadius: '12px',
+              padding: '16px',
+              textAlign: 'center',
+              marginBottom: '20px',
+              border: '1px solid rgba(139,92,246,0.3)'
+            }}>
+              <div style={{ fontSize: '14px', color: '#a78bfa', marginBottom: '4px' }}>ì›” êµ¬ë…ë£Œ</div>
+              <div style={{ 
+                fontSize: isMobile ? '32px' : '36px', 
+                fontWeight: '800', 
+                color: '#fff'
+              }}>
+                â‚©5,900
+                <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>/ì›”</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
+                ðŸŽ ì²« 7ì¼ ë¬´ë£Œ ì²´í—˜
+              </div>
+            </div>
+            
+            {/* ê¸°ëŠ¥ ë¹„êµ */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '12px' }}>
+                âœ¨ í”„ë¦¬ë¯¸ì—„ í˜œíƒ
+              </div>
+              {[
+                { icon: 'ðŸš«', text: 'ê´‘ê³  ì™„ì „ ì œê±°', free: 'âŒ', premium: 'âœ…' },
+                { icon: 'ðŸ“Š', text: 'ëª¨ë‹ˆí„°ë§ ì¢…ëª© ìˆ˜', free: '5ê°œ', premium: '20ê°œ' },
+                { icon: 'ðŸ¤–', text: 'AI ë‰´ìŠ¤ ë¶„ì„', free: 'âŒ', premium: 'âœ…' },
+                { icon: 'ðŸ“‘', text: 'AI ë¦¬í¬íŠ¸ ë¶„ì„', free: 'âŒ', premium: 'âœ…' },
+                { icon: 'ðŸ’¬', text: 'ì¹´ì¹´ì˜¤í†¡ ì•Œë¦¼', free: 'âŒ', premium: 'âœ…' },
+                { icon: 'ðŸ“§', text: 'ì´ë©”ì¼ ë¦¬í¬íŠ¸', free: 'âŒ', premium: 'âœ…' },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '8px',
+                  marginBottom: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>{item.icon}</span>
+                    <span style={{ fontSize: '13px', color: '#e2e8f0' }}>{item.text}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', minWidth: '32px', textAlign: 'center' }}>{item.free}</span>
+                    <span style={{ fontSize: '12px', color: '#10b981', minWidth: '32px', textAlign: 'center' }}>{item.premium}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '4px', paddingRight: '12px' }}>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>ë¬´ë£Œ</span>
+                <span style={{ fontSize: '10px', color: '#10b981' }}>í”„ë¦¬ë¯¸ì—„</span>
+              </div>
+            </div>
+            
+            {/* ë²„íŠ¼ */}
+            <button 
+              onClick={() => { setUser({ ...user, membership: 'premium' }); setShowUpgradePopup(false); }} 
+              style={{ 
+                width: '100%', 
+                padding: isMobile ? '16px' : '18px', 
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
+                border: 'none', 
+                borderRadius: '12px', 
+                color: '#fff', 
+                fontSize: '16px', 
+                fontWeight: '700', 
+                cursor: 'pointer', 
+                marginBottom: '10px',
+                boxShadow: '0 4px 20px rgba(139,92,246,0.4)'
+              }}
+            >
+              ðŸŽ‰ 7ì¼ ë¬´ë£Œë¡œ ì‹œìž‘í•˜ê¸°
+            </button>
+            <button 
+              onClick={() => setShowUpgradePopup(false)} 
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                background: 'transparent', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '10px',
+                color: '#64748b', 
+                fontSize: '14px', 
+                cursor: 'pointer' 
+              }}
+            >
+              ë‚˜ì¤‘ì— í• ê²Œìš”
+            </button>
+            
+            {/* í•˜ë‹¨ ì•ˆë‚´ */}
+            <p style={{ 
+              fontSize: '11px', 
+              color: '#64748b', 
+              textAlign: 'center', 
+              margin: '16px 0 0',
+              lineHeight: '1.5'
+            }}>
+              ì–¸ì œë“ ì§€ í•´ì§€ ê°€ëŠ¥ Â· ìžë™ ê²°ì œ Â· ë¶€ê°€ì„¸ í¬í•¨
+            </p>
+          </div>
+        </div>
       )}
     </div>
-  )
+  );
 }
