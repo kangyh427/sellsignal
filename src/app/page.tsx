@@ -149,9 +149,9 @@ export default function SellSignalApp() {
   const handleDeletePosition = (id: string | number) => {
     setPositions(prev => prev.filter(p => p.id !== id))
     setPriceDataMap(prev => {
-      const updated = { ...prev }
-      delete updated[id]
-      return updated
+  const updated = { ...prev }
+  delete updated[id as number]
+  return updated
     })
   }
 
