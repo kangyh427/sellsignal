@@ -1,6 +1,7 @@
+
 export const metadata = {
-  title: '매도의 기술 - 주식 매도 시그널 앱',
-  description: '수익 단계별 8가지 매도법을 활용한 스마트 매도 알람 도구',
+  title: '매도의 기술 - 주식 매도 시그널 도구',
+  description: '수익 단계별 맞춤형 매도 조건 알림 도구',
 };
 
 export const viewport = {
@@ -11,7 +12,11 @@ export const viewport = {
   themeColor: '#0a0a0f',
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ko">
       <head>
