@@ -1,7 +1,33 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { ResponsiveHeaderProps, Alert } from '../types';
+
+// ============================================
+// 타입 정의 (파일 내부)
+// ============================================
+export interface Alert {
+  id: number;
+  stockName: string;
+  code: string;
+  preset: {
+    id: string;
+    name: string;
+    icon: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+  };
+  message: string;
+  currentPrice?: number;
+  targetPrice?: number;
+  timestamp?: number;
+  read?: boolean;
+}
+
+export interface ResponsiveHeaderProps {
+  alerts: Alert[];
+  isPremium: boolean;
+  isMobile: boolean;
+  onUpgrade: () => void;
+}
 
 // ============================================
 // 크레스트 로고 SVG 컴포넌트
