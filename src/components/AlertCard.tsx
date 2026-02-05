@@ -1,24 +1,7 @@
 'use client'
 
 import { useResponsive } from '@/hooks'
-import { SELL_PRESETS } from '@/lib/constants'
-
-// Alert 타입 - id를 number로 통일
-export interface Alert {
-  id: number
-  stockName: string
-  code: string
-  preset: {
-    id: string
-    name: string
-    icon: string
-    severity: 'critical' | 'high' | 'medium' | 'low'
-  }
-  message: string
-  currentPrice?: number
-  targetPrice?: number
-  timestamp: number
-}
+import type { Alert } from '@/types'
 
 interface AlertCardProps {
   alert: Alert
@@ -57,7 +40,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* 좌측 강조선 */}
       <div style={{
         position: 'absolute',
         left: 0,
@@ -75,7 +57,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
         paddingLeft: '8px'
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* 헤더: 아이콘 + 매도법 이름 + 심각도 배지 */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -99,7 +80,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             }}>{severity.label}</span>
           </div>
           
-          {/* 종목명 */}
           <div style={{ 
             fontSize: isMobile ? '15px' : '16px', 
             fontWeight: '600', 
@@ -107,7 +87,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             marginBottom: '6px' 
           }}>{alert?.stockName || '종목'}</div>
           
-          {/* 메시지 */}
           <div style={{ 
             fontSize: isMobile ? '13px' : '14px', 
             color: '#e2e8f0',
@@ -117,7 +96,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             {alert?.message || '설정한 조건에 도달했습니다'}
           </div>
           
-          {/* 가격 정보 (있는 경우) */}
           {alert?.currentPrice && (
             <div style={{
               display: 'flex',
@@ -132,7 +110,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             </div>
           )}
           
-          {/* 시간 */}
           <div style={{ 
             fontSize: '11px', 
             color: '#64748b',
@@ -142,7 +119,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
           </div>
         </div>
         
-        {/* 확인 버튼 */}
         <button 
           onClick={() => onDismiss(alert?.id)} 
           style={{ 
@@ -155,7 +131,6 @@ export default function AlertCard({ alert, onDismiss }: AlertCardProps) {
             fontWeight: '500',
             cursor: 'pointer',
             minHeight: isMobile ? '44px' : '36px',
-            transition: 'background 0.15s'
           }}
         >
           확인
