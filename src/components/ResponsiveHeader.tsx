@@ -1,24 +1,22 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
-import { useResponsive } from '@/hooks/useResponsive'
-import { AlertItem } from '@/types'
+import React, { useState } from 'react';
+import { useResponsive } from '../hooks/useResponsive';
 
 interface ResponsiveHeaderProps {
-  alerts: AlertItem[]
-  isPremium: boolean
-  onShowUpgrade: () => void
-  onShowAddModal: () => void
+  alertCount: number;
+  isPremium: boolean;
+  onShowUpgrade: () => void;
+  onShowAddModal: () => void;
 }
 
 export const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
-  alerts,
+  alertCount,
   isPremium,
   onShowUpgrade,
-  onShowAddModal
+  onShowAddModal,
 }) => {
-  const { isMobile, isTablet } = useResponsive()
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const { isMobile, isTablet } = useResponsive();
 
   // 모바일 헤더
   if (isMobile) {
@@ -30,260 +28,110 @@ export const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
         top: 0,
         zIndex: 100,
         backdropFilter: 'blur(10px)',
+        width: '100%',
       }}>
         <div style={{
           padding: '12px 16px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          maxWidth: '100%',
         }}>
-          {/* 로고 영역 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* 좌측: 알림 */}
+          <div style={{ flex: '0 0 auto', minWidth: '60px' }}>
+            {alertCount > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 10px',
+                background: 'rgba(239,68,68,0.2)',
+                borderRadius: '8px',
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+                <span style={{ fontSize: '11px', fontWeight: '600', color: '#ef4444' }}>{alertCount}개</span>
+              </div>
+            )}
+          </div>
+
+          {/* 중앙: 로고 */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flex: '0 1 auto',
+          }}>
             <div style={{
-              width: '40px',
-              height: '40px',
+              width: '32px',
+              height: '32px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              borderRadius: '12px',
+              borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '20px'
+              fontSize: '16px',
+              flexShrink: 0,
             }}>📈</div>
             <div>
-              <h1 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>매도의 기술</h1>
-              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+              <h1 style={{ fontSize: '14px', fontWeight: '700', margin: 0, whiteSpace: 'nowrap' }}>매도의 기술</h1>
+              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>
                 {isPremium ? '👑 프리미엄' : '무료회원'}
               </p>
             </div>
           </div>
 
-          {/* 우측 버튼들 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* 알림 배지 */}
-            {alerts.length > 0 && (
-              <div style={{
-                position: 'relative',
-                width: '36px',
-                height: '36px',
-                background: 'rgba(239,68,68,0.15)',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: '18px' }}>🔔</span>
-                <span style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  background: '#ef4444',
-                  color: '#fff',
-                  fontSize: '10px',
-                  fontWeight: '700',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  minWidth: '18px',
-                  textAlign: 'center',
-                }}>{alerts.length}</span>
-              </div>
-            )}
-
-            {/* 종목 추가 버튼 */}
-            <button
-              onClick={onShowAddModal}
-              style={{
-                width: '36px',
-                height: '36px',
-                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '20px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >+</button>
-
-            {/* 햄버거 메뉴 */}
-            <button
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
-              style={{
-                width: '36px',
-                height: '36px',
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '18px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >☰</button>
-          </div>
-        </div>
-
-        {/* 모바일 드롭다운 메뉴 */}
-        {showMobileMenu && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            background: 'rgba(15, 23, 42, 0.98)',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            padding: '12px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            backdropFilter: 'blur(10px)',
-          }}>
+          {/* 우측: 버튼 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '0 0 auto' }}>
             {!isPremium && (
-              <button
-                onClick={() => { onShowUpgrade(); setShowMobileMenu(false) }}
-                style={{
-                  padding: '12px 16px',
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#fff',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                }}
-              >👑 프리미엄 업그레이드</button>
-            )}
-            <button
-              onClick={() => { onShowAddModal(); setShowMobileMenu(false) }}
-              style={{
-                padding: '12px 16px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '10px',
-                color: '#60a5fa',
-                fontSize: '14px',
+              <button onClick={onShowUpgrade} style={{
+                padding: '6px 10px',
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                border: 'none',
+                borderRadius: '6px',
+                color: '#fff',
+                fontSize: '10px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >+ 종목 추가</button>
-          </div>
-        )}
-      </header>
-    )
-  }
-
-  // 태블릿 헤더
-  if (isTablet) {
-    return (
-      <header style={{
-        background: 'rgba(15, 23, 42, 0.95)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100
-      }}>
-        <div style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: '14px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          {/* 로고 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '44px',
-              height: '44px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              borderRadius: '14px',
+              }}>업그레이드</button>
+            )}
+            <button onClick={onShowAddModal} style={{
+              width: '32px',
+              height: '32px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#fff',
+              fontSize: '16px',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '24px'
-            }}>📈</div>
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>매도의 기술</h1>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                {isPremium ? '👑 프리미엄' : '무료회원'} · 조건 알람 도구
-              </p>
-            </div>
-          </div>
-
-          {/* 알림 + 버튼들 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {alerts.length > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                background: 'rgba(239,68,68,0.2)',
-                borderRadius: '10px',
-                animation: 'pulse 2s infinite'
-              }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}개 알림</span>
-              </div>
-            )}
-            {!isPremium && (
-              <button
-                onClick={onShowUpgrade}
-                style={{
-                  padding: '10px 14px',
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >👑 업그레이드</button>
-            )}
-            <button
-              onClick={onShowAddModal}
-              style={{
-                padding: '10px 16px',
-                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >+ 종목 추가</button>
+            }}>+</button>
           </div>
         </div>
       </header>
-    )
+    );
   }
 
-  // 데스크톱 헤더
+  // 태블릿/데스크톱 헤더
   return (
     <header style={{
       background: 'rgba(15, 23, 42, 0.95)',
       borderBottom: '1px solid rgba(255,255,255,0.05)',
       position: 'sticky',
       top: 0,
-      zIndex: 100
+      zIndex: 100,
     }}>
       <div style={{
-        maxWidth: '1600px',
+        maxWidth: isTablet ? '1200px' : '1600px',
         margin: '0 auto',
-        padding: '16px 24px',
+        padding: isTablet ? '14px 20px' : '16px 24px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
       }}>
-        <div style={{ minWidth: '200px' }}>
-          {alerts.length > 0 && (
+        <div style={{ minWidth: '150px' }}>
+          {alertCount > 0 && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -291,22 +139,14 @@ export const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
               padding: '10px 16px',
               background: 'rgba(239,68,68,0.2)',
               borderRadius: '10px',
-              animation: 'pulse 2s infinite'
             }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
-              <span style={{ fontSize: '14px', fontWeight: '600', color: '#ef4444' }}>{alerts.length}개 알림</span>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: '#ef4444' }}>{alertCount}개 알림</span>
             </div>
           )}
         </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{
             width: '52px',
             height: '52px',
@@ -315,7 +155,7 @@ export const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '28px'
+            fontSize: '28px',
           }}>📈</div>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: '700', margin: 0 }}>매도의 기술</h1>
@@ -325,43 +165,33 @@ export const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
           </div>
         </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          minWidth: '200px',
-          justifyContent: 'flex-end'
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '150px', justifyContent: 'flex-end' }}>
           {!isPremium && (
-            <button
-              onClick={onShowUpgrade}
-              style={{
-                padding: '12px 18px',
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >👑 업그레이드</button>
-          )}
-          <button
-            onClick={onShowAddModal}
-            style={{
-              padding: '12px 20px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            <button onClick={onShowUpgrade} style={{
+              padding: '12px 18px',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
               border: 'none',
               borderRadius: '10px',
               color: '#fff',
               fontSize: '14px',
               fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >+ 종목 추가</button>
+              cursor: 'pointer',
+            }}>👑 업그레이드</button>
+          )}
+          <button onClick={onShowAddModal} style={{
+            padding: '12px 20px',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            border: 'none',
+            borderRadius: '10px',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}>+ 종목 추가</button>
         </div>
       </div>
     </header>
-  )
-}
+  );
+};
+
+export default ResponsiveHeader;
