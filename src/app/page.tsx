@@ -27,7 +27,7 @@ interface Position {
   code: string
   buyPrice: number
   quantity: number
-  highestPrice: number
+  highestPrice?: number
   selectedPresets: string[]
   presetSettings: Record<string, { value: number }>
 }
