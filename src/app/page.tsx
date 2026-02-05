@@ -344,7 +344,15 @@ export default function SellSignalApp() {
                 priceData={priceDataMap[pos.id]}
                 onEdit={setEditingPosition}
                 onDelete={handleDeletePosition}
+                isPremium={isPremium}
+                onUpgrade={() => setShowUpgradePopup(true)}
               />
+```
+
+**추가할 부분은 딱 2줄입니다:**
+```
+isPremium={isPremium}
+onUpgrade={() => setShowUpgradePopup(true)}
             ))}
           </div>
 
