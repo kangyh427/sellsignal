@@ -2,18 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useResponsive } from '@/hooks'
-
-// Position 타입 - StockModal과 동일하게 id: number
-interface Position {
-  id: number
-  name: string
-  code: string
-  buyPrice: number
-  quantity: number
-  highestPrice?: number
-  selectedPresets: string[]
-  presetSettings: Record<string, { value: number }>
-}
+import type { Position } from '@/types'
 
 interface AIPopupProps {
   position: Position
@@ -84,7 +73,6 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
         display: 'flex', 
         flexDirection: 'column' 
       }}>
-        {/* 헤더 */}
         <div style={{ 
           padding: isMobile ? '16px 20px' : '20px', 
           borderBottom: '1px solid rgba(255,255,255,0.1)', 
@@ -114,15 +102,13 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
           >닫기</button>
         </div>
         
-        {/* 콘텐츠 */}
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px 20px' : '20px' }}>
           {!isPremium ? (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontSize: '64px', marginBottom: '16px' }}>👑</div>
               <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', margin: '0 0 12px' }}>프리미엄 전용 기능</h3>
               <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: '1.6' }}>
-                AI 뉴스 분석은 프리미엄 회원만 이용 가능합니다.<br/>
-                최신 뉴스를 AI가 분석하여 투자 인사이트를 제공합니다.
+                AI 뉴스 분석은 프리미엄 회원만 이용 가능합니다.
               </p>
               <button 
                 onClick={() => { onClose(); onUpgrade(); }}
@@ -137,33 +123,16 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
                   cursor: 'pointer' 
                 }}
               >
-                프리미엄 업그레이드 (월 5,900원)
+                프리미엄 업그레이드
               </button>
             </div>
           ) : isLoading ? (
             <div style={{ textAlign: 'center', padding: '60px 20px' }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
               <p style={{ fontSize: '16px', color: '#94a3b8' }}>AI가 뉴스를 분석하고 있습니다...</p>
-              <div style={{ 
-                width: '200px', 
-                height: '4px', 
-                background: 'rgba(255,255,255,0.1)', 
-                borderRadius: '2px', 
-                margin: '20px auto',
-                overflow: 'hidden'
-              }}>
-                <div style={{ 
-                  width: '50%', 
-                  height: '100%', 
-                  background: 'linear-gradient(90deg, #8b5cf6, #3b82f6)',
-                  borderRadius: '2px',
-                  animation: 'loading 1s ease-in-out infinite'
-                }} />
-              </div>
             </div>
           ) : newsData ? (
             <>
-              {/* 종합 분석 */}
               <div style={{ 
                 background: getSentimentColor(newsData.sentiment) + '15', 
                 border: '1px solid ' + getSentimentColor(newsData.sentiment) + '40', 
@@ -178,7 +147,6 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
                 <p style={{ fontSize: '14px', color: '#e2e8f0', margin: 0, lineHeight: '1.6' }}>{newsData.keyInsight}</p>
               </div>
               
-              {/* 호재 */}
               {newsData.positiveNews.length > 0 && (
                 <div style={{ marginBottom: '20px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#10b981', margin: '0 0 12px' }}>
@@ -199,7 +167,6 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
                 </div>
               )}
               
-              {/* 악재 */}
               {newsData.negativeNews.length > 0 && (
                 <div>
                   <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444', margin: '0 0 12px' }}>
@@ -223,7 +190,6 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopup
           ) : null}
         </div>
         
-        {/* 면책조항 */}
         <div style={{ 
           padding: isMobile ? '12px 20px' : '16px 20px', 
           paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : '16px',
@@ -266,7 +232,7 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
             '신사업 투자로 중장기 성장 동력 확보',
             '주주환원 정책 강화로 배당 매력 증가'
           ],
-          analystInsight: `대부분의 증권사가 ${position.name}에 대해 긍정적인 전망을 유지하고 있습니다. 업황 개선과 신사업 확대가 주요 성장 동력으로 분석됩니다.`
+          analystInsight: `대부분의 증권사가 ${position.name}에 대해 긍정적인 전망을 유지하고 있습니다.`
         })
         setIsLoading(false)
       }, 1500)
@@ -301,7 +267,6 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
         display: 'flex', 
         flexDirection: 'column' 
       }}>
-        {/* 헤더 */}
         <div style={{ 
           padding: isMobile ? '16px 20px' : '20px', 
           borderBottom: '1px solid rgba(255,255,255,0.1)', 
@@ -331,15 +296,13 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
           >닫기</button>
         </div>
         
-        {/* 콘텐츠 */}
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px 20px' : '20px' }}>
           {!isPremium ? (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <div style={{ fontSize: '64px', marginBottom: '16px' }}>👑</div>
               <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#fff', margin: '0 0 12px' }}>프리미엄 전용 기능</h3>
               <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 24px', lineHeight: '1.6' }}>
-                AI 리포트 분석은 프리미엄 회원만 이용 가능합니다.<br/>
-                증권사 리포트를 AI가 요약하여 핵심 인사이트를 제공합니다.
+                AI 리포트 분석은 프리미엄 회원만 이용 가능합니다.
               </p>
               <button 
                 onClick={() => { onClose(); onUpgrade(); }}
@@ -354,7 +317,7 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
                   cursor: 'pointer' 
                 }}
               >
-                프리미엄 업그레이드 (월 5,900원)
+                프리미엄 업그레이드
               </button>
             </div>
           ) : isLoading ? (
@@ -364,7 +327,6 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
             </div>
           ) : reportData ? (
             <>
-              {/* 목표가 컨센서스 */}
               <div style={{ 
                 background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(139,92,246,0.15) 100%)', 
                 border: '1px solid rgba(59,130,246,0.3)', 
@@ -403,13 +365,12 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
                       fontWeight: '700', 
                       color: reportData.targetPriceConsensus.upside > 0 ? '#10b981' : '#ef4444' 
                     }}>
-                      {reportData.targetPriceConsensus.upside > 0 ? '+' : ''}{reportData.targetPriceConsensus.upside}%
+                      +{reportData.targetPriceConsensus.upside}%
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* 투자의견 분포 */}
               <div style={{ 
                 background: 'rgba(0,0,0,0.2)', 
                 borderRadius: '12px', 
@@ -433,7 +394,6 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
                 </div>
               </div>
               
-              {/* 핵심 포인트 */}
               <div style={{ marginBottom: '20px' }}>
                 <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: '0 0 12px' }}>💡 핵심 포인트</h4>
                 {reportData.keyHighlights.map((point, i) => (
@@ -452,7 +412,6 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
                 ))}
               </div>
               
-              {/* AI 종합 인사이트 */}
               <div style={{ 
                 background: 'rgba(139,92,246,0.1)', 
                 border: '1px solid rgba(139,92,246,0.3)', 
@@ -466,7 +425,6 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPop
           ) : null}
         </div>
         
-        {/* 면책조항 */}
         <div style={{ 
           padding: isMobile ? '12px 20px' : '16px 20px', 
           paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : '16px',
