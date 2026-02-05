@@ -3,25 +3,36 @@
 import { useState, useEffect } from 'react'
 import { useResponsive } from '@/hooks'
 
+// Position 타입 - StockModal과 동일하게 id: number
 interface Position {
-  id: string
+  id: number
   name: string
   code: string
   buyPrice: number
+  quantity: number
+  highestPrice?: number
+  selectedPresets: string[]
+  presetSettings: Record<string, { value: number }>
 }
 
-interface AINewsPopupProps {
+interface AIPopupProps {
   position: Position
   isPremium: boolean
   onClose: () => void
-  onUpgrade?: () => void
+  onUpgrade: () => void
 }
 
 // AI 뉴스 팝업
-export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AINewsPopupProps) {
+export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AIPopupProps) {
   const { isMobile } = useResponsive()
   const [isLoading, setIsLoading] = useState(true)
-  const [newsData, setNewsData] = useState<any>(null)
+  const [newsData, setNewsData] = useState<{
+    sentiment: string
+    sentimentScore: number
+    keyInsight: string
+    positiveNews: Array<{ title: string; summary: string }>
+    negativeNews: Array<{ title: string; summary: string }>
+  } | null>(null)
 
   useEffect(() => {
     if (isPremium) {
@@ -114,7 +125,7 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AINewsP
                 최신 뉴스를 AI가 분석하여 투자 인사이트를 제공합니다.
               </p>
               <button 
-                onClick={() => { onClose(); onUpgrade?.(); }}
+                onClick={() => { onClose(); onUpgrade(); }}
                 style={{ 
                   background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
                   border: 'none', 
@@ -173,7 +184,7 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AINewsP
                   <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#10b981', margin: '0 0 12px' }}>
                     🟢 호재 ({newsData.positiveNews.length}건)
                   </h4>
-                  {newsData.positiveNews.map((n: any, i: number) => (
+                  {newsData.positiveNews.map((n, i) => (
                     <div key={i} style={{ 
                       background: 'rgba(16,185,129,0.1)', 
                       borderRadius: '10px', 
@@ -194,7 +205,7 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AINewsP
                   <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444', margin: '0 0 12px' }}>
                     🔴 악재 ({newsData.negativeNews.length}건)
                   </h4>
-                  {newsData.negativeNews.map((n: any, i: number) => (
+                  {newsData.negativeNews.map((n, i) => (
                     <div key={i} style={{ 
                       background: 'rgba(239,68,68,0.1)', 
                       borderRadius: '10px', 
@@ -229,10 +240,15 @@ export function AINewsPopup({ position, isPremium, onClose, onUpgrade }: AINewsP
 }
 
 // AI 리포트 팝업
-export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AINewsPopupProps) {
+export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AIPopupProps) {
   const { isMobile } = useResponsive()
   const [isLoading, setIsLoading] = useState(true)
-  const [reportData, setReportData] = useState<any>(null)
+  const [reportData, setReportData] = useState<{
+    targetPriceConsensus: { average: number; high: number; low: number; upside: number }
+    investmentOpinion: { buy: number; hold: number; sell: number }
+    keyHighlights: string[]
+    analystInsight: string
+  } | null>(null)
 
   useEffect(() => {
     if (isPremium) {
@@ -326,7 +342,7 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AINew
                 증권사 리포트를 AI가 요약하여 핵심 인사이트를 제공합니다.
               </p>
               <button 
-                onClick={() => { onClose(); onUpgrade?.(); }}
+                onClick={() => { onClose(); onUpgrade(); }}
                 style={{ 
                   background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
                   border: 'none', 
@@ -420,7 +436,7 @@ export function AIReportPopup({ position, isPremium, onClose, onUpgrade }: AINew
               {/* 핵심 포인트 */}
               <div style={{ marginBottom: '20px' }}>
                 <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#fff', margin: '0 0 12px' }}>💡 핵심 포인트</h4>
-                {reportData.keyHighlights.map((point: string, i: number) => (
+                {reportData.keyHighlights.map((point, i) => (
                   <div key={i} style={{ 
                     background: 'rgba(255,255,255,0.03)', 
                     borderRadius: '8px', 
