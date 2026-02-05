@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useResponsive } from '@/hooks'
 import { SELL_PRESETS, searchStocks, findExactStock } from '@/lib/constants'
 
-// Position 타입 정의 (id를 number로 변경)
+// Position 타입 정의 - id는 number로 통일
 export interface Position {
   id: number
   name: string
@@ -18,36 +18,31 @@ export interface Position {
 
 interface StockModalProps {
   stock?: Position | null
-  onSave: (position: Position) => void
+  onSave: (stock: Position) => void
   onClose: () => void
 }
 
 export default function StockModal({ stock, onSave, onClose }: StockModalProps) {
   const { isMobile } = useResponsive()
   
-  const [form, setForm] = useState<Partial<Position>>({
-    name: stock?.name || '',
-    code: stock?.code || '',
-    buyPrice: stock?.buyPrice || undefined,
-    quantity: stock?.quantity || undefined,
-    selectedPresets: stock?.selectedPresets || ['candle3', 'stopLoss'],
-    presetSettings: stock?.presetSettings || { 
-      stopLoss: { value: -5 }, 
-      maSignal: { value: 20 } 
-    }
+  const [form, setForm] = useState<Partial<Position>>(stock || { 
+    name: '', 
+    code: '', 
+    buyPrice: undefined, 
+    quantity: undefined, 
+    selectedPresets: ['candle3', 'stopLoss'], 
+    presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } 
   })
-  
-  const [stockQuery, setStockQuery] = useState(stock?.name || '')
-  const [searchResults, setSearchResults] = useState<typeof import('@/lib/constants').STOCK_LIST>([])
+  const [stockQuery, setStockQuery] = useState(stock ? stock.name : '')
+  const [searchResults, setSearchResults] = useState<Array<{name: string, code: string, market: string}>>([])
   const [showResults, setShowResults] = useState(false)
   const [stockFound, setStockFound] = useState(!!stock)
 
-  // 종목 검색
   const handleStockSearch = (query: string) => {
     setStockQuery(query)
     if (query.trim().length > 0) {
       const results = searchStocks(query)
-      setSearchResults(results as typeof import('@/lib/constants').STOCK_LIST)
+      setSearchResults(results)
       setShowResults(results.length > 0)
       const exact = findExactStock(query)
       if (exact) { 
@@ -63,7 +58,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
     }
   }
 
-  const selectStock = (stockItem: { name: string; code: string }) => { 
+  const selectStock = (stockItem: {name: string, code: string}) => { 
     setForm({ ...form, name: stockItem.name, code: stockItem.code })
     setStockQuery(stockItem.name)
     setStockFound(true)
@@ -74,9 +69,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
     const current = form.selectedPresets || []
     setForm({ 
       ...form, 
-      selectedPresets: current.includes(id) 
-        ? current.filter(p => p !== id) 
-        : [...current, id] 
+      selectedPresets: current.includes(id) ? current.filter(p => p !== id) : [...current, id] 
     })
   }
 
@@ -85,22 +78,17 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
       alert('모든 필수 항목을 입력해주세요.')
       return
     }
-    
-    const position: Position = {
+    onSave({ 
       id: stock?.id || Date.now(),
       name: form.name,
       code: form.code,
-      buyPrice: Number(form.buyPrice),
-      quantity: Number(form.quantity),
-      highestPrice: stock?.highestPrice || Number(form.buyPrice),
-      selectedPresets: form.selectedPresets || ['candle3', 'stopLoss'],
-      presetSettings: form.presetSettings || { stopLoss: { value: -5 }, maSignal: { value: 20 } }
-    }
-    
-    onSave(position)
+      buyPrice: Number(form.buyPrice), 
+      quantity: Number(form.quantity), 
+      highestPrice: Number(form.buyPrice),
+      selectedPresets: form.selectedPresets || [],
+      presetSettings: form.presetSettings || {}
+    })
   }
-
-  const isValid = form.name && form.code && form.buyPrice && form.quantity
 
   return (
     <div 
@@ -127,7 +115,6 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
         flexDirection: 'column',
         border: '1px solid rgba(255,255,255,0.1)'
       }}>
-        {/* 헤더 */}
         <div style={{ 
           padding: isMobile ? '16px 20px' : '20px 24px',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -158,13 +145,11 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
           >닫기</button>
         </div>
         
-        {/* 스크롤 영역 */}
         <div style={{ 
           flex: 1, 
           overflow: 'auto', 
           padding: isMobile ? '16px 20px' : '20px 24px' 
         }}>
-          {/* 종목 검색 */}
           <div style={{ marginBottom: '16px', position: 'relative' }}>
             <label style={{ 
               display: 'block', 
@@ -218,8 +203,8 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
                       transition: 'background 0.15s'
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
                   >
                     <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{result.name}</span>
                     <span style={{ color: '#64748b', fontSize: '13px' }}>{result.code} · {result.market}</span>
@@ -241,7 +226,6 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
             )}
           </div>
           
-          {/* 매수가, 수량 */}
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
@@ -302,7 +286,6 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
             </div>
           </div>
           
-          {/* 매도 조건 선택 */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ 
               fontSize: '15px', 
@@ -368,10 +351,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                           e.stopPropagation()
                           setForm({ 
                             ...form, 
-                            presetSettings: { 
-                              ...form.presetSettings, 
-                              [preset.id]: { value: Number(e.target.value) } 
-                            } 
+                            presetSettings: { ...form.presetSettings, [preset.id]: { value: Number(e.target.value) } } 
                           })
                         }} 
                         onClick={e => e.stopPropagation()} 
@@ -396,7 +376,6 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
           </div>
         </div>
         
-        {/* 하단 버튼 */}
         <div style={{ 
           padding: isMobile ? '16px 20px' : '16px 24px',
           paddingBottom: isMobile ? 'max(16px, env(safe-area-inset-bottom))' : '16px',
@@ -430,11 +409,11 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
             >취소</button>
             <button 
               onClick={handleSave}
-              disabled={!isValid}
+              disabled={!form.name || !form.code || !form.buyPrice || !form.quantity}
               style={{ 
                 flex: 1, 
                 padding: '16px', 
-                background: isValid
+                background: (form.name && form.code && form.buyPrice && form.quantity) 
                   ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' 
                   : 'rgba(100,116,139,0.3)', 
                 border: 'none', 
@@ -442,9 +421,9 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                 color: '#fff', 
                 fontSize: '16px', 
                 fontWeight: '600', 
-                cursor: isValid ? 'pointer' : 'not-allowed',
+                cursor: (form.name && form.code && form.buyPrice && form.quantity) ? 'pointer' : 'not-allowed',
                 minHeight: '52px',
-                opacity: isValid ? 1 : 0.6
+                opacity: (form.name && form.code && form.buyPrice && form.quantity) ? 1 : 0.6
               }}
             >
               {stock ? '수정 완료' : '알람 설정 완료'}
