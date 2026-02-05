@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { useResponsive } from '@/hooks'
 import { SELL_PRESETS, searchStocks, findExactStock } from '@/lib/constants'
 
-interface Position {
-  id: string
+// Position 타입 정의 (id를 number로 변경)
+export interface Position {
+  id: number
   name: string
   code: string
   buyPrice: number
   quantity: number
-  highestPrice: number
+  highestPrice?: number
   selectedPresets: string[]
   presetSettings: Record<string, { value: number }>
 }
@@ -24,13 +25,11 @@ interface StockModalProps {
 export default function StockModal({ stock, onSave, onClose }: StockModalProps) {
   const { isMobile } = useResponsive()
   
-  const [form, setForm] = useState({
-    id: stock?.id || '',
+  const [form, setForm] = useState<Partial<Position>>({
     name: stock?.name || '',
     code: stock?.code || '',
-    buyPrice: stock?.buyPrice?.toString() || '',
-    quantity: stock?.quantity?.toString() || '',
-    highestPrice: stock?.highestPrice || 0,
+    buyPrice: stock?.buyPrice || undefined,
+    quantity: stock?.quantity || undefined,
     selectedPresets: stock?.selectedPresets || ['candle3', 'stopLoss'],
     presetSettings: stock?.presetSettings || { 
       stopLoss: { value: -5 }, 
@@ -39,7 +38,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
   })
   
   const [stockQuery, setStockQuery] = useState(stock?.name || '')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<typeof import('@/lib/constants').STOCK_LIST>([])
   const [showResults, setShowResults] = useState(false)
   const [stockFound, setStockFound] = useState(!!stock)
 
@@ -48,60 +47,57 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
     setStockQuery(query)
     if (query.trim().length > 0) {
       const results = searchStocks(query)
-      setSearchResults(results)
+      setSearchResults(results as typeof import('@/lib/constants').STOCK_LIST)
       setShowResults(results.length > 0)
       const exact = findExactStock(query)
-      if (exact) {
-        setForm(prev => ({ ...prev, name: exact.name, code: exact.code }))
+      if (exact) { 
+        setForm({ ...form, name: exact.name, code: exact.code })
         setStockFound(true)
       } else {
         setStockFound(false)
       }
-    } else {
+    } else { 
       setSearchResults([])
       setShowResults(false)
       setStockFound(false)
     }
   }
 
-  // 종목 선택
-  const selectStock = (stockItem: any) => {
-    setForm(prev => ({ ...prev, name: stockItem.name, code: stockItem.code }))
+  const selectStock = (stockItem: { name: string; code: string }) => { 
+    setForm({ ...form, name: stockItem.name, code: stockItem.code })
     setStockQuery(stockItem.name)
     setStockFound(true)
     setShowResults(false)
   }
-
-  // 프리셋 토글
-  const togglePreset = (presetId: string) => {
-    setForm(prev => ({
-      ...prev,
-      selectedPresets: prev.selectedPresets.includes(presetId)
-        ? prev.selectedPresets.filter(p => p !== presetId)
-        : [...prev.selectedPresets, presetId]
-    }))
+  
+  const togglePreset = (id: string) => { 
+    const current = form.selectedPresets || []
+    setForm({ 
+      ...form, 
+      selectedPresets: current.includes(id) 
+        ? current.filter(p => p !== id) 
+        : [...current, id] 
+    })
   }
 
-  // 저장
   const handleSave = () => {
     if (!form.name || !form.code || !form.buyPrice || !form.quantity) {
       alert('모든 필수 항목을 입력해주세요.')
       return
     }
     
-    const buyPrice = Number(form.buyPrice)
-    const quantity = Number(form.quantity)
-    
-    onSave({
-      id: form.id || Date.now().toString(),
+    const position: Position = {
+      id: stock?.id || Date.now(),
       name: form.name,
       code: form.code,
-      buyPrice,
-      quantity,
-      highestPrice: form.highestPrice || buyPrice,
-      selectedPresets: form.selectedPresets,
-      presetSettings: form.presetSettings
-    })
+      buyPrice: Number(form.buyPrice),
+      quantity: Number(form.quantity),
+      highestPrice: stock?.highestPrice || Number(form.buyPrice),
+      selectedPresets: form.selectedPresets || ['candle3', 'stopLoss'],
+      presetSettings: form.presetSettings || { stopLoss: { value: -5 }, maSignal: { value: 20 } }
+    }
+    
+    onSave(position)
   }
 
   const isValid = form.name && form.code && form.buyPrice && form.quantity
@@ -220,6 +216,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       alignItems: 'center',
                       cursor: 'pointer', 
                       borderBottom: idx < searchResults.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      transition: 'background 0.15s'
                     }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -261,8 +258,8 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
               }}>매수가 (원) *</label>
               <input 
                 type="number" 
-                value={form.buyPrice} 
-                onChange={e => setForm(prev => ({ ...prev, buyPrice: e.target.value }))} 
+                value={form.buyPrice || ''} 
+                onChange={e => setForm({ ...form, buyPrice: e.target.value ? Number(e.target.value) : undefined })} 
                 placeholder="72000" 
                 style={{ 
                   width: '100%', 
@@ -287,8 +284,8 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
               }}>수량 (주) *</label>
               <input 
                 type="number" 
-                value={form.quantity} 
-                onChange={e => setForm(prev => ({ ...prev, quantity: e.target.value }))} 
+                value={form.quantity || ''} 
+                onChange={e => setForm({ ...form, quantity: e.target.value ? Number(e.target.value) : undefined })} 
                 placeholder="100" 
                 style={{ 
                   width: '100%', 
@@ -327,7 +324,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {Object.values(SELL_PRESETS).map(preset => {
-                const isSelected = form.selectedPresets.includes(preset.id)
+                const isSelected = (form.selectedPresets || []).includes(preset.id)
                 return (
                   <div 
                     key={preset.id} 
@@ -340,6 +337,7 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                       border: isSelected ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.05)', 
                       borderRadius: '12px', 
                       cursor: 'pointer',
+                      transition: 'all 0.15s'
                     }} 
                     onClick={() => togglePreset(preset.id)}
                   >
@@ -365,16 +363,16 @@ export default function StockModal({ stock, onSave, onClose }: StockModalProps) 
                     {preset.hasInput && isSelected && (
                       <input 
                         type="number" 
-                        value={form.presetSettings[preset.id]?.value ?? preset.inputDefault} 
+                        value={form.presetSettings?.[preset.id]?.value ?? preset.inputDefault} 
                         onChange={e => { 
                           e.stopPropagation()
-                          setForm(prev => ({ 
-                            ...prev, 
+                          setForm({ 
+                            ...form, 
                             presetSettings: { 
-                              ...prev.presetSettings, 
+                              ...form.presetSettings, 
                               [preset.id]: { value: Number(e.target.value) } 
                             } 
-                          }))
+                          })
                         }} 
                         onClick={e => e.stopPropagation()} 
                         style={{ 
