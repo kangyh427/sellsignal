@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useResponsive } from '@/hooks'
+import { useResponsive } from '../hooks/useResponsive';
 
 interface MarketCycleWidgetProps {
   isPremium?: boolean
