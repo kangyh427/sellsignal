@@ -1,100 +1,76 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useResponsive } from '@/hooks/useResponsive';
-import ResponsiveHeader from '@/components/ResponsiveHeader';
-import SummaryCards from '@/components/SummaryCards';
-import { MarketCycleWidget } from '@/components/MarketCycleWidget';
-import { PositionCard } from '@/components/PositionCard';
-import { AlertCard } from '@/components/AlertCard';
-import { StockModal } from '@/components/StockModal';
-import MobileNav from '@/components/MobileNav';
-import { UpgradeModal } from '@/components/UpgradeModal';
-import { SellMethodGuide } from '@/components/SellMethodGuide';
-import { 
-  Position, 
-  Alert, 
-  User, 
-  ChartDataPoint 
-} from '@/types';
-import { 
-  SELL_PRESETS, 
-  MARKET_CYCLE 
-} from '@/constants/presets';
-
 // ============================================
-// 모의 가격 데이터 생성
+// src/app/SellSignalApp.tsx
+// 메인 앱 컴포넌트 — 원본 JSX 2890~3548줄 기반 TypeScript 재구축
+// 세션 10: 전체 교체
 // ============================================
-const generateMockPriceData = (basePrice: number, count: number): ChartDataPoint[] => {
-  const data: ChartDataPoint[] = [];
-  let price = basePrice * 0.95;
-  for (let i = 0; i < count; i++) {
-    const change = (Math.random() - 0.48) * price * 0.03;
-    const open = price;
-    const close = price + change;
-    const high = Math.max(open, close) + Math.random() * price * 0.01;
-    const low = Math.min(open, close) - Math.random() * price * 0.01;
-    const volume = Math.floor(Math.random() * 1000000) + 100000;
-    data.push({ date: `D-${count - i}`, open, high, low, close, volume });
-    price = close;
-  }
-  return data;
-};
 
-// (SummaryCards는 별도 파일에서 import — src/components/SummaryCards.tsx)
-
-// ============================================
-// 인라인 포지션 카드 (빈 상태 / 추가 유도)
-// ============================================
-interface PositionCardInlineProps {
-  onAdd: () => void;
-  isPremium: boolean;
-  positionCount: number;
-}
-
-const PositionCardInline: React.FC<PositionCardInlineProps> = ({ onAdd, isPremium, positionCount }) => {
-  const maxPositions = isPremium ? 20 : 5;
-  const canAdd = positionCount < maxPositions;
-  
-  return (
-    <div 
-      onClick={canAdd ? onAdd : undefined}
-      style={{
-        background: 'linear-gradient(145deg, rgba(59,130,246,0.08) 0%, rgba(139,92,246,0.08) 100%)',
-        border: '2px dashed rgba(59,130,246,0.3)',
-        borderRadius: '14px',
-        padding: '24px',
-        textAlign: 'center',
-        cursor: canAdd ? 'pointer' : 'default',
-        transition: 'border-color 0.2s',
-        marginBottom: '12px',
-      }}
-    >
-      <div style={{ fontSize: '32px', marginBottom: '8px' }}>{canAdd ? '➕' : '🔒'}</div>
-      <div style={{ fontSize: '14px', fontWeight: '600', color: canAdd ? '#60a5fa' : '#64748b' }}>
-        {canAdd ? '종목 추가하기' : `최대 ${maxPositions}종목 (프리미엄 필요)`}
-      </div>
-      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-        {positionCount}/{maxPositions} 종목 사용 중
-      </div>
-    </div>
-  );
-};
+import { useState, useEffect } from 'react';
+import { useResponsive } from '../hooks/useResponsive';
+import { generateMockPriceData } from '../utils';
+import { SELL_PRESETS } from '../constants';
+import ResponsiveHeader from '../components/ResponsiveHeader';
+import SummaryCards from '../components/SummaryCards';
+import MobileNav from '../components/MobileNav';
+import MarketCycleWidget from '../components/MarketCycleWidget';
+import PositionCard from '../components/PositionCard';
+import EnhancedCandleChart from '../components/EnhancedCandleChart';
+import EarningsWidget from '../components/EarningsWidget';
+import StockModal from '../components/StockModal';
+import UpgradeModal from '../components/UpgradeModal';
+import AlertCard from '../components/AlertCard';
+import SellMethodGuide from '../components/SellMethodGuide';
+import type { Position, PriceData, Alert } from '../types';
+import React from 'react';
 
 // ============================================
 // 메인 앱 컴포넌트
 // ============================================
 export default function SellSignalApp() {
-  const { isMobile, isTablet, isDesktop } = useResponsive();
-  
-  // 상태 관리
-  const [user, setUser] = useState<User>({ name: '투자자', email: 'user@test.com', membership: 'free' });
+  const { isMobile, isTablet, isDesktop, width } = useResponsive();
+
+  // ----- 상태 관리 -----
+  const [user, setUser] = useState({ membership: 'free', email: 'demo@test.com' });
+
+  // 데모 포지션 데이터 (삼성전자, 현대차, 한화에어로스페이스)
   const [positions, setPositions] = useState<Position[]>([
-    { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 10, buyDate: '2025-01-15', selectedPresets: ['candle3', 'stopLoss'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } }, memo: '' },
-    { id: 2, name: '한화에어로스페이스', code: '012450', buyPrice: 385000, quantity: 3, buyDate: '2025-01-20', selectedPresets: ['twoThird', 'maSignal', 'volumeZone'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } }, memo: '' },
-    { id: 3, name: 'SK하이닉스', code: '000660', buyPrice: 178000, quantity: 5, buyDate: '2025-02-01', selectedPresets: ['candle3', 'stopLoss', 'twoThird'], presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } }, memo: '' },
+    {
+      id: 1,
+      name: '삼성전자',
+      code: '005930',
+      buyPrice: 50000,
+      quantity: 400,
+      highestPrice: 55000,
+      selectedPresets: ['candle3', 'stopLoss', 'twoThird', 'maSignal'],
+      presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } },
+    },
+    {
+      id: 2,
+      name: '현대차',
+      code: '005380',
+      buyPrice: 215000,
+      quantity: 20,
+      highestPrice: 228000,
+      selectedPresets: ['candle3', 'stopLoss', 'maSignal'],
+      presetSettings: { stopLoss: { value: -3 }, maSignal: { value: 20 } },
+    },
+    {
+      id: 3,
+      name: '한화에어로스페이스',
+      code: '012450',
+      buyPrice: 285000,
+      quantity: 15,
+      highestPrice: 412000,
+      selectedPresets: ['twoThird', 'maSignal', 'volumeZone', 'fundamental'],
+      presetSettings: { maSignal: { value: 60 } },
+    },
   ]);
-  const [priceDataMap, setPriceDataMap] = useState<Record<number, ChartDataPoint[]>>({});
+
+  // 가격 데이터 맵 (포지션ID → PriceData[])
+  const [priceDataMap, setPriceDataMap] = useState<Record<number, PriceData[]>>({});
+
+  // 알림 데이터
   const [alerts, setAlerts] = useState<Alert[]>([
     {
       id: 1,
@@ -115,30 +91,32 @@ export default function SellSignalApp() {
       currentPrice: 365000,
       targetPrice: 369600,
       timestamp: Date.now() - 1800000,
-    }
+    },
   ]);
+
+  // UI 상태
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [showUpgradePopup, setShowUpgradePopup] = useState(false);
   const [activeTab, setActiveTab] = useState('positions');
-  
-  const isPremium = user?.membership === 'premium';
-  const unreadAlertCount = alerts.length;
 
-  // ── 가격 데이터 초기화 ──
+  const isPremium = user?.membership === 'premium';
+
+  // ----- 가격 데이터 초기화 -----
   useEffect(() => {
-    const newData: Record<number, ChartDataPoint[]> = {};
-    positions.forEach(pos => { 
+    const newData: Record<number, PriceData[]> = {};
+    positions.forEach(pos => {
       if (!priceDataMap[pos.id]) {
-        newData[pos.id] = generateMockPriceData(pos.buyPrice, 60); 
+        newData[pos.id] = generateMockPriceData(pos.buyPrice, 60);
       }
     });
     if (Object.keys(newData).length > 0) {
       setPriceDataMap(prev => ({ ...prev, ...newData }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positions]);
 
-  // ── 실시간 가격 업데이트 ──
+  // ----- 실시간 가격 업데이트 (3초마다) -----
   useEffect(() => {
     const interval = setInterval(() => {
       setPriceDataMap(prev => {
@@ -146,14 +124,15 @@ export default function SellSignalApp() {
         Object.keys(updated).forEach(idStr => {
           const id = Number(idStr);
           const data = [...updated[id]];
+          if (data.length === 0) return;
           const last = data[data.length - 1];
           const change = (Math.random() - 0.48) * last.close * 0.008;
           const newClose = Math.max(last.close + change, last.close * 0.95);
-          data[data.length - 1] = { 
-            ...last, 
-            close: newClose, 
-            high: Math.max(last.high, newClose), 
-            low: Math.min(last.low, newClose) 
+          data[data.length - 1] = {
+            ...last,
+            close: newClose,
+            high: Math.max(last.high, newClose),
+            low: Math.min(last.low, newClose),
           };
           updated[id] = data;
         });
@@ -163,20 +142,34 @@ export default function SellSignalApp() {
     return () => clearInterval(interval);
   }, []);
 
-  // ── 이벤트 핸들러 ──
+  // ----- 총계 계산 -----
+  const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0);
+  const totalValue = positions.reduce((sum, p) => {
+    const priceArr = priceDataMap[p.id];
+    const price = priceArr?.[priceArr.length - 1]?.close || p.buyPrice;
+    return sum + price * p.quantity;
+  }, 0);
+  const totalProfit = totalValue - totalCost;
+  const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+  // ----- 이벤트 핸들러 -----
   const handleAddPosition = (stock: Position) => {
     setPositions(prev => [...prev, { ...stock, id: Date.now() }]);
     setShowAddModal(false);
   };
 
   const handleEditPosition = (stock: Position) => {
-    setPositions(prev => prev.map(p => p.id === stock.id ? stock : p));
+    setPositions(prev => prev.map(p => (p.id === stock.id ? stock : p)));
     setEditingPosition(null);
   };
 
   const handleDeletePosition = (id: number) => {
     setPositions(prev => prev.filter(p => p.id !== id));
-    setPriceDataMap(prev => { const u = { ...prev }; delete u[id]; return u; });
+    setPriceDataMap(prev => {
+      const u = { ...prev };
+      delete u[id];
+      return u;
+    });
   };
 
   const handleUpgrade = () => {
@@ -184,36 +177,11 @@ export default function SellSignalApp() {
     setShowUpgradePopup(false);
   };
 
-  // D-1: 알림 관련 핸들러
-  const handleDismissAlert = (id: string | number) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
-  };
-
-  const handleMarkAllRead = () => {
-    setAlerts([]);
-  };
-
-  // D-1: 탭 변경 핸들러 (알림 탭 진입 시 자동 읽음 처리)
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
   };
 
-  // ── 이계 계산 ──
-  const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0);
-  const totalValue = positions.reduce((sum, p) => { 
-    const price = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice; 
-    return sum + price * p.quantity; 
-  }, 0);
-  const totalProfit = totalValue - totalCost;
-  const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
-
-  // ============================================
-  // D-3: 메인 레이아웃 스타일 계산
-  // 모바일: 단일 컬럼 (탭 전환)
-  // 태블릿: 2컬럼 (1fr + 320px 사이드바)
-  // 데스크탑 프리미엄: 2컬럼 (1fr + 380px 사이드바)
-  // 데스크탑 무료: 3컬럼 (140px 광고 + 1fr + 380px 사이드바)
-  // ============================================
+  // ----- 레이아웃 스타일 계산 -----
   const getMainLayoutStyle = (): React.CSSProperties => {
     if (isMobile) {
       return {
@@ -231,7 +199,7 @@ export default function SellSignalApp() {
         padding: '0 20px',
       };
     }
-    // 데스크탑
+    // 데스크탑: 프리미엄은 2컬럼, 무료는 3컬럼(광고 포함)
     return {
       display: 'grid',
       gridTemplateColumns: isPremium ? '1fr 380px' : '140px 1fr 380px',
@@ -243,14 +211,17 @@ export default function SellSignalApp() {
   // 렌더링
   // ============================================
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)', 
-      color: '#fff', 
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', 
-      fontSize: '14px',
-      paddingBottom: isMobile ? '80px' : '0',
-    }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
+        color: '#fff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '14px',
+        paddingBottom: isMobile ? '80px' : '0',
+      }}
+    >
+      {/* 전역 스타일 */}
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
@@ -263,256 +234,431 @@ export default function SellSignalApp() {
       `}</style>
 
       {/* ── 반응형 헤더 ── */}
-      <ResponsiveHeader 
+      <ResponsiveHeader
         alerts={alerts}
         isPremium={isPremium}
         onShowUpgrade={() => setShowUpgradePopup(true)}
         onShowAddModal={() => setShowAddModal(true)}
       />
 
-      {/* ── 메인 컨텐츠 ── */}
-      <main style={{ 
-        maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px', 
-        margin: '0 auto', 
-        padding: isMobile ? '16px 0' : '24px' 
-      }}>
-        {/* 반응형 요약 카드 */}
-        <SummaryCards 
+      {/* ── 메인 콘텐츠 ── */}
+      <main
+        style={{
+          maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
+          margin: '0 auto',
+          padding: isMobile ? '16px 0' : '24px',
+        }}
+      >
+        {/* 반응형 요약 카드 — totalCost 등 계산값 전달 */}
+        <SummaryCards
           totalCost={totalCost}
           totalValue={totalValue}
           totalProfit={totalProfit}
           totalProfitRate={totalProfitRate}
         />
 
-        {/* ============================================ */}
-        {/* D-3: 메인 2컬럼 레이아웃 (Grid) */}
-        {/* ============================================ */}
+        {/* ── 모바일 인라인 탭 네비게이션 (스크롤 가능) ── */}
+        {isMobile && (
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              padding: '0 16px',
+              marginBottom: '16px',
+              overflowX: 'auto',
+            }}
+          >
+            {[
+              { id: 'positions', label: '📊 포지션', count: positions.length },
+              { id: 'alerts', label: '🔔 알림', count: alerts.length },
+              { id: 'market', label: '🥚 시장분석', count: 0 },
+              { id: 'guide', label: '📚 가이드', count: 0 },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '10px 16px',
+                  background:
+                    activeTab === tab.id
+                      ? 'rgba(59,130,246,0.2)'
+                      : 'rgba(255,255,255,0.05)',
+                  border:
+                    activeTab === tab.id
+                      ? '1px solid rgba(59,130,246,0.4)'
+                      : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '10px',
+                  color: activeTab === tab.id ? '#60a5fa' : '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {tab.label}
+                {tab.count > 0 && (
+                  <span
+                    style={{
+                      background:
+                        activeTab === tab.id ? '#3b82f6' : 'rgba(255,255,255,0.2)',
+                      color: '#fff',
+                      padding: '2px 6px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── 메인 레이아웃 (2~3컬럼) ── */}
         <div style={getMainLayoutStyle()}>
-          
-          {/* ── 광고 영역 (데스크탑, 무료회원만) ── */}
+          {/* 광고 영역 (데스크탑, 무료회원만) */}
           {!isMobile && !isTablet && !isPremium && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[1, 2].map(i => (
-                <div key={i} style={{ 
-                  background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)', 
-                  borderRadius: '12px', 
-                  padding: '16px', 
-                  border: '1px solid rgba(255,255,255,0.05)', 
-                  textAlign: 'center', 
-                  flex: 1, 
-                  minHeight: '180px', 
-                  display: 'flex', flexDirection: 'column', 
-                  alignItems: 'center', justifyContent: 'center' 
-                }}>
-                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>광고</div>
+                <div
+                  key={i}
+                  style={{
+                    background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    textAlign: 'center',
+                    flex: 1,
+                    minHeight: '180px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>
+                    광고
+                  </div>
                   <div style={{ fontSize: '24px', marginBottom: '8px' }}>📢</div>
                   <div style={{ fontSize: '11px', color: '#374151' }}>Google AdMob</div>
                 </div>
               ))}
-              <div 
-                onClick={() => setShowUpgradePopup(true)} 
-                style={{ 
-                  background: 'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(59,130,246,0.2) 100%)', 
-                  borderRadius: '12px', padding: '16px', 
-                  border: '1px solid rgba(139,92,246,0.3)', 
-                  textAlign: 'center', cursor: 'pointer' 
+              <div
+                onClick={() => setShowUpgradePopup(true)}
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(59,130,246,0.2) 100%)',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  border: '1px solid rgba(139,92,246,0.3)',
+                  textAlign: 'center',
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ fontSize: '22px', marginBottom: '6px' }}>👑</div>
-                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>광고 제거</div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>프리미엄</div>
+                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>
+                  광고 제거
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                  프리미엄
+                </div>
               </div>
             </div>
           )}
 
-          {/* ============================================ */}
-          {/* 좌측 컬럼: 포지션 목록 */}
-          {/* 모바일에서는 activeTab === 'positions'일 때만 표시 */}
-          {/* ============================================ */}
-          <div style={{ 
-            display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
-            padding: isMobile ? '0 16px' : '0',
-          }}>
-            {/* 모바일: 포지션 탭에서 시장분석 미니 요약 배너 */}
+          {/* ── 포지션 목록 (메인 컬럼) ── */}
+          <div
+            style={{
+              display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
+              padding: isMobile ? '0 16px' : '0',
+            }}
+          >
+            {/* 모바일 포지션 탭: 시장분석 미니 요약 배너 */}
             {isMobile && activeTab === 'positions' && (
-              <div 
+              <div
                 onClick={() => setActiveTab('market')}
-                style={{ 
-                  background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(249,115,22,0.1) 100%)',
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(249,115,22,0.1) 100%)',
                   border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: '10px', 
-                  padding: '12px', 
+                  borderRadius: '10px',
+                  padding: '12px',
                   marginBottom: '14px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '24px' }}>🥚</span>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>
-                      {MARKET_CYCLE.phaseName} (매도 관망)
+                    <div
+                      style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}
+                    >
+                      4단계: 금리고점 (팔 때)
                     </div>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                      {MARKET_CYCLE.recommendation} · 탭하여 상세보기
+                      매도 관망 권장 · 탭하여 상세보기
                     </div>
                   </div>
                 </div>
                 <span style={{ color: '#64748b', fontSize: '18px' }}>›</span>
               </div>
             )}
-            
-            {/* 포지션 헤더 */}
-            <div style={{ 
-              display: 'flex', alignItems: 'center', 
-              justifyContent: 'space-between', marginBottom: '16px' 
-            }}>
-              <h2 style={{ 
-                fontSize: isMobile ? '16px' : '18px', 
-                fontWeight: '600', color: '#fff', margin: 0 
-              }}>📊 모니터링 중인 종목</h2>
-              <span style={{ 
-                fontSize: isMobile ? '11px' : '13px', color: '#64748b' 
-              }}>실시간 조건 감시 중</span>
+
+            {/* 보유 종목 헤더 */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: isMobile ? '16px' : '18px',
+                  fontWeight: '600',
+                  color: '#fff',
+                  margin: 0,
+                }}
+              >
+                보유 종목 ({positions.length})
+              </h2>
+              <button
+                onClick={() => setShowAddModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                + 추가
+              </button>
             </div>
 
             {/* 포지션 카드 목록 */}
             {positions.map(pos => (
-              <PositionCard 
-                key={pos.id} 
-                position={pos} 
-                priceData={priceDataMap[pos.id]} 
-                onEdit={setEditingPosition} 
+              <PositionCard
+                key={pos.id}
+                position={pos}
+                priceData={priceDataMap[pos.id]}
+                onEdit={setEditingPosition}
                 onDelete={handleDeletePosition}
                 isPremium={isPremium}
                 onUpgrade={() => setShowUpgradePopup(true)}
               />
             ))}
 
-            {/* 종목 추가 카드 */}
-            <PositionCardInline 
-              onAdd={() => setShowAddModal(true)}
-              isPremium={isPremium}
-              positionCount={positions.length}
-            />
-          </div>
-
-          {/* ============================================ */}
-          {/* 우측 사이드바 (데스크탑/태블릿) */}
-          {/* 모바일에서는 각 탭에 해당하는 콘텐츠만 표시 */}
-          {/* ============================================ */}
-          {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
-          <div style={{ 
-            display: 'block',
-            padding: isMobile ? '0 16px' : '0',
-          }}>
-            {/* ── 시장 분석 (MarketCycleWidget) ── */}
-            <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
-              <MarketCycleWidget isPremium={isPremium} />
-            </div>
-            
-            {/* ── 알림 영역 ── */}
-            <div style={{ 
-              display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
-              background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
-              borderRadius: '14px', 
-              padding: isMobile ? '14px' : '16px', 
-              border: '1px solid rgba(255,255,255,0.08)', 
-              marginBottom: '12px', 
-              maxHeight: isMobile ? 'none' : '300px', 
-              overflow: 'auto' 
-            }}>
-              {/* 알림 헤더 */}
-              <div style={{ 
-                display: 'flex', alignItems: 'center', 
-                justifyContent: 'space-between', marginBottom: '12px' 
-              }}>
-                <h2 style={{ 
-                  fontSize: isMobile ? '15px' : '16px', fontWeight: '600', 
-                  color: '#fff', margin: 0, 
-                  display: 'flex', alignItems: 'center', gap: '8px' 
-                }}>
-                  🔔 조건 도달 알림
-                  {alerts.length > 0 && (
-                    <span style={{ 
-                      background: '#ef4444', color: '#fff', 
-                      padding: '2px 10px', borderRadius: '10px', 
-                      fontSize: '12px', fontWeight: '700' 
-                    }}>{alerts.length}</span>
-                  )}
-                </h2>
-                {alerts.length > 0 && (
-                  <button 
-                    onClick={handleMarkAllRead}
-                    style={{ 
-                      background: 'rgba(255,255,255,0.1)', border: 'none', 
-                      borderRadius: '6px', padding: '6px 10px', 
-                      color: '#94a3b8', fontSize: '12px', cursor: 'pointer' 
-                    }}
-                  >모두 삭제</button>
-                )}
-              </div>
-
-              {/* 알림 목록 */}
-              {alerts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: isMobile ? '20px 16px' : '30px 16px' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '10px' }}>✅</div>
-                  <div style={{ fontSize: '14px', color: '#94a3b8' }}>현재 도달한 조건이 없습니다</div>
-                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
-                    설정한 매도 조건에 근접하면 알림이 표시됩니다
-                  </div>
+            {/* 포지션이 없을 때 */}
+            {positions.length === 0 && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                  borderRadius: '14px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📊</div>
+                <div style={{ fontSize: '16px', color: '#94a3b8', marginBottom: '8px' }}>
+                  모니터링 중인 종목이 없습니다
                 </div>
-              ) : (
-                alerts.map(alert => (
-                  <AlertCard 
-                    key={alert.id} 
-                    alert={alert} 
-                    onDismiss={handleDismissAlert}
-                  />
-                ))
-              )}
-            </div>
-            
-            {/* ── 매도법 가이드 (SellMethodGuide) ── */}
-            <SellMethodGuide activeTab={activeTab} />
-            
-            {/* ── 면책조항 ── */}
-            {(!isMobile || activeTab === 'guide') && (
-              <div style={{ 
-                padding: isMobile ? '12px' : '14px', 
-                background: 'rgba(255,255,255,0.02)', 
-                borderRadius: '12px', 
-                borderLeft: '4px solid #64748b' 
-              }}>
-                <p style={{ 
-                  fontSize: isMobile ? '11px' : '12px', 
-                  color: '#64748b', margin: 0, lineHeight: '1.6' 
-                }}>
-                  ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티 도구입니다. 
-                  제공되는 알람은 투자자문이나 투자권유가 아니며, 
-                  모든 투자 판단의 책임은 사용자에게 있습니다.
-                </p>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 20px',
+                    color: '#fff',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  + 종목 추가하기
+                </button>
               </div>
             )}
           </div>
+
+          {/* ── 우측 사이드바 / 모바일에서는 탭으로 표시 ── */}
+          {(!isMobile ||
+            activeTab === 'market' ||
+            activeTab === 'alerts' ||
+            activeTab === 'guide') && (
+            <div
+              style={{
+                display: 'block',
+                padding: isMobile ? '0 16px' : '0',
+              }}
+            >
+              {/* 시장 분석 (코스톨라니 달걀) */}
+              <div
+                style={{
+                  display:
+                    isMobile && activeTab !== 'market' ? 'none' : 'block',
+                }}
+              >
+                <MarketCycleWidget isPremium={isPremium} />
+              </div>
+
+              {/* 알림 영역 */}
+              <div
+                style={{
+                  display:
+                    isMobile && activeTab !== 'alerts' ? 'none' : 'block',
+                  background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                  borderRadius: '14px',
+                  padding: isMobile ? '14px' : '16px',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  marginBottom: '12px',
+                  maxHeight: isMobile ? 'none' : '300px',
+                  overflow: 'auto',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: isMobile ? '15px' : '16px',
+                      fontWeight: '600',
+                      color: '#fff',
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    🔔 조건 도달 알림
+                    {alerts.length > 0 && (
+                      <span
+                        style={{
+                          background: '#ef4444',
+                          color: '#fff',
+                          padding: '2px 10px',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                        }}
+                      >
+                        {alerts.length}
+                      </span>
+                    )}
+                  </h2>
+                  {alerts.length > 0 && (
+                    <button
+                      onClick={() => setAlerts([])}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        color: '#94a3b8',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      모두 지우기
+                    </button>
+                  )}
+                </div>
+
+                {alerts.length === 0 ? (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: isMobile ? '20px 16px' : '30px 16px',
+                    }}
+                  >
+                    <div style={{ fontSize: '32px', marginBottom: '10px' }}>✨</div>
+                    <div style={{ fontSize: '14px', color: '#94a3b8' }}>
+                      현재 도달한 조건이 없습니다
+                    </div>
+                  </div>
+                ) : (
+                  alerts.slice(0, 5).map(alert => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      onDismiss={(id: number) =>
+                        setAlerts(prev => prev.filter(a => a.id !== id))
+                      }
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* 매도법 가이드 */}
+              <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
+
+              {/* 면책조항 */}
+              {(!isMobile || activeTab === 'guide') && (
+                <div
+                  style={{
+                    padding: isMobile ? '12px' : '14px',
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: '12px',
+                    borderLeft: '4px solid #64748b',
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: isMobile ? '11px' : '12px',
+                      color: '#64748b',
+                      margin: 0,
+                      lineHeight: '1.6',
+                    }}
+                  >
+                    ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티
+                    도구입니다. 제공되는 알람은 투자자문이나 투자권유가 아니며, 모든
+                    투자 판단의 책임은 사용자에게 있습니다.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* ── 설정 탭 (준비 중) ── */}
+        {/* 설정 탭 (준비 중) */}
         {activeTab === 'settings' && (
-          <div style={{
-            background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
-            padding: '40px 20px', textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚙️</div>
-            <div style={{ fontSize: '15px', color: '#94a3b8' }}>설정 기능 준비 중입니다</div>
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '12px',
+              padding: '40px 20px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚙</div>
+            <div style={{ fontSize: '15px', color: '#94a3b8' }}>
+              설정 기능 준비 중입니다
+            </div>
           </div>
         )}
       </main>
 
-      {/* ── 모바일 하단 네비게이션 ── */}
+      {/* ── 모바일 하단 네비게이션 바 ── */}
       {isMobile && (
         <MobileNav
           activeTab={activeTab}
