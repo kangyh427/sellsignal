@@ -7,20 +7,6 @@ import { SELL_PRESETS, STOCK_LIST } from '../constants';
 // ============================================
 // StockModal 컴포넌트
 // ============================================
-
-            </span>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-};
-
-// 메인 앱 컴포넌트
-
-// ============================================
-// StockModal 컴포넌트 (독립 컴포넌트)
-// ============================================
 const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobile }) => {
   // Form 초기값 안정화 - 모든 필드에 기본값 설정
   const [form, setForm] = useState<FormState>({
@@ -66,7 +52,6 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
   };
 
   const handleSave = () => {
-    // 디버깅용 로그
     console.log('Form State:', form);
     console.log('Stock Input:', stockInput);
     
@@ -74,16 +59,13 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
     
     // 리스트에 없는 종목이면 직접 입력된 것으로 처리
     if (!selectedStock && stockInput.trim() !== '') {
-      // 종목명에서 코드 추출 시도 (예: "테슬라 (TSLA)" -> TSLA)
       const codeMatch = stockInput.match(/\(([^)]+)\)/);
       const extractedCode = codeMatch ? codeMatch[1] : '';
       
-      // 추출된 코드로 다시 한번 STOCK_LIST에서 찾기
       if (extractedCode) {
         selectedStock = STOCK_LIST.find((s: Stock) => s.code === extractedCode);
       }
       
-      // 그래도 없으면 직접 입력 종목으로 처리
       if (!selectedStock) {
         const stockName = stockInput.replace(/\s*\([^)]*\)\s*/, '').trim() || stockInput;
         selectedStock = {
@@ -136,7 +118,6 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
       selectedPresets: prev.selectedPresets.includes(presetId)
         ? prev.selectedPresets.filter((id: string) => id !== presetId)
         : [...prev.selectedPresets, presetId],
-      // 프리셋 설정 초기화 (undefined 방지)
       presetSettings: {
         ...prev.presetSettings,
         [presetId]: prev.presetSettings[presetId] || { value: SELL_PRESETS[presetId].inputDefault || 0 }
@@ -200,6 +181,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
               borderRadius: '8px',
               color: '#fff',
               fontSize: '14px',
+              boxSizing: 'border-box',
             }}
           />
           
@@ -275,6 +257,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
                 borderRadius: '8px',
                 color: '#fff',
                 fontSize: '14px',
+                boxSizing: 'border-box',
               }}
             />
           </div>
@@ -295,6 +278,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
                 borderRadius: '8px',
                 color: '#fff',
                 fontSize: '14px',
+                boxSizing: 'border-box',
               }}
             />
           </div>
@@ -316,6 +300,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
               borderRadius: '8px',
               color: '#fff',
               fontSize: '14px',
+              boxSizing: 'border-box',
             }}
           />
         </div>
@@ -326,7 +311,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
             매도 전략 선택
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            {Object.values(SELL_PRESETS).map((preset: SellPreset) => (
+            {Object.values(SELL_PRESETS).map((preset: any) => (
               <button
                 key={preset.id}
                 onClick={() => togglePreset(preset.id)}
@@ -366,6 +351,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
                       borderRadius: '4px',
                       color: '#fff',
                       fontSize: '11px',
+                      boxSizing: 'border-box',
                     }}
                   />
                 )}
@@ -393,6 +379,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
               color: '#fff',
               fontSize: '14px',
               resize: 'vertical',
+              boxSizing: 'border-box',
             }}
           />
         </div>
@@ -402,5 +389,40 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose, isMobil
           <button
             onClick={handleSave}
             style={{
+              flex: 1,
+              padding: '14px',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#fff',
+              fontSize: '15px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(139,92,246,0.3)',
+            }}
+          >
+            {stock ? '수정 완료' : '종목 추가'}
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '14px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '10px',
+              color: '#94a3b8',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default StockModal;
