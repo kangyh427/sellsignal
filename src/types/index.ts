@@ -99,9 +99,9 @@ export interface Alert {
   timestamp: string;
   read: boolean;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  stockName?: string;   // ← 추가
-  code?: string;        // ← 추가
-  preset?: string;      // ← 추가
+  stockName: string;
+  code: string;
+  preset: string;
 }
 
 // 반응형 훅 반환 타입
