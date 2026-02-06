@@ -145,12 +145,12 @@ export interface FormState {
   memo: string;
 }
 
-// 헤더 Props 타입
+// 헤더 Props 타입 (ResponsiveHeader.tsx와 일치)
 export interface ResponsiveHeaderProps {
   alerts: Alert[];
   isPremium: boolean;
-  isMobile: boolean;
-  onUpgrade: () => void;
+  onShowUpgrade: () => void;
+  onShowAddModal: () => void;
 }
 
 // 모달 Props 타입
