@@ -12,8 +12,6 @@ import type {
   PositionWithProfit,
   ChartDataPoint,
   PricePoint,
-  SellPreset,
-  Stock
 } from '../types';
 
 // ============================================
@@ -27,7 +25,6 @@ import { useResponsive } from '../hooks/useResponsive';
 import { 
   calculateSellPrices, 
   generateMockPriceData,
-  calculateDDay,
   formatKoreanNumber,
   formatPercent 
 } from '../utils/calculations';
@@ -37,10 +34,7 @@ import {
 // ============================================
 import { 
   SELL_PRESETS, 
-  STOCK_LIST, 
-  MARKET_CYCLE,
   PROFIT_STAGES,
-  EARNINGS_DATA
 } from '../constants';
 
 // ============================================
@@ -50,16 +44,57 @@ import EnhancedCandleChart from '../components/EnhancedCandleChart';
 import StockModal from '../components/StockModal';
 import ResponsiveHeader from '../components/ResponsiveHeader';
 import MarketCycleWidget from '../components/MarketCycleWidget';
-// NOTE: SummaryCards.tsx에서 export 이름이 다를 수 있습니다.
-// 만약 빌드 에러가 나면 아래 import를 확인해주세요:
-//   - default export인 경우: import SummaryCards from '../components/SummaryCards';
-//   - named export인 경우: import { SummaryCards } from '../components/SummaryCards';
 import SummaryCards from '../components/SummaryCards';
+import MobileNav from '../components/MobileNav';
+import UpgradeModal from '../components/UpgradeModal';
+
+// ============================================
+// 헬퍼: 차트 반응형 크기 계산
+// ============================================
+const getChartDimensions = (isMobile: boolean, isTablet: boolean) => {
+  if (typeof window === 'undefined') {
+    return { width: 500, height: 280 };
+  }
+  
+  if (isMobile) {
+    // 모바일: 좌우 패딩(16px * 2) + 카드 패딩(16px * 2) 차감
+    const width = Math.min(window.innerWidth - 64, 500);
+    return { width, height: 240 };
+  }
+  
+  if (isTablet) {
+    const width = Math.min(window.innerWidth - 120, 600);
+    return { width, height: 260 };
+  }
+  
+  // 데스크탑
+  return { width: 500, height: 280 };
+};
+
+// ============================================
+// 헬퍼: Position에서 종목명/코드 안전 접근
+// ※ Position 타입이 stock 중첩 구조와 name/code 평탄 구조를 병행하므로
+//   두 경우 모두 안전하게 처리합니다.
+// ============================================
+const getStockName = (pos: Position): string => {
+  return pos.stock?.name ?? pos.name ?? '종목명 없음';
+};
+
+const getStockCode = (pos: Position): string => {
+  return pos.stock?.code ?? pos.code ?? '';
+};
+
+// ============================================
+// 헬퍼: 수익 단계 판별
+// ============================================
+const getProfitStage = (profitRate: number): string => {
+  if (profitRate < 5) return 'initial';
+  if (profitRate < 10) return 'profit5';
+  return 'profit10';
+};
 
 // ============================================
 // ResponsiveSummaryCards 래퍼
-// SummaryCards.tsx의 props 인터페이스와 맞추기 위한 래퍼입니다.
-// 만약 SummaryCards가 동일한 props를 받는다면 직접 사용하셔도 됩니다.
 // ============================================
 const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfitRate }: {
   totalCost: number;
@@ -67,7 +102,6 @@ const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfi
   totalProfit: number;
   totalProfitRate: number;
 }) => {
-  // SummaryCards 컴포넌트가 동일한 props를 받으면 직접 전달
   return (
     <SummaryCards
       totalCost={totalCost}
@@ -79,12 +113,235 @@ const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfi
 };
 
 // ============================================
+// 포지션 카드 서브 컴포넌트 (인라인 → 분리)
+// ============================================
+interface PositionCardInlineProps {
+  pos: PositionWithProfit;
+  isMobile: boolean;
+  isTablet: boolean;
+  onEdit: (pos: Position) => void;
+  onDelete: (id: string | number) => void;
+}
+
+const PositionCardInline: React.FC<PositionCardInlineProps> = ({
+  pos,
+  isMobile,
+  isTablet,
+  onEdit,
+  onDelete,
+}) => {
+  // 차트 데이터 준비
+  const chartData = useMemo(() => {
+    if (pos.priceHistory && pos.priceHistory.length > 0) {
+      return pos.priceHistory.map((p: PricePoint) => ({
+        date: new Date(p.date),
+        open: p.price,
+        high: p.price * 1.01,
+        low: p.price * 0.99,
+        close: p.price,
+        volume: p.volume || 0,
+      }));
+    }
+    return generateMockPriceData(pos.buyPrice, 30);
+  }, [pos.priceHistory, pos.buyPrice]);
+
+  // 매도가격 계산
+  const sellPrices = useMemo(() => {
+    return calculateSellPrices(pos, chartData, pos.presetSettings);
+  }, [pos, chartData]);
+
+  // 수익 단계
+  const stage = getProfitStage(pos.profitRate);
+  const stageInfo = PROFIT_STAGES[stage];
+
+  // 차트 크기
+  const chartDim = getChartDimensions(isMobile, isTablet);
+
+  // 종목명/코드 안전 접근
+  const stockName = getStockName(pos);
+  const stockCode = getStockCode(pos);
+
+  return (
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        borderRadius: '16px',
+        padding: isMobile ? '16px' : '20px',
+        border: '1px solid rgba(255,255,255,0.1)',
+      }}
+    >
+      {/* 종목 헤더 */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        marginBottom: '16px',
+        alignItems: 'flex-start',
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <h3 style={{ 
+              fontSize: isMobile ? '17px' : '19px', 
+              fontWeight: '700', 
+              color: '#fff', 
+              margin: 0,
+            }}>
+              {stockName}
+            </h3>
+            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
+              {stockCode}
+            </span>
+          </div>
+          <div style={{ 
+            display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#94a3b8' 
+          }}>
+            <span>{pos.quantity}주</span>
+            <span>·</span>
+            <span>매수가 {formatKoreanNumber(pos.buyPrice)}원</span>
+          </div>
+        </div>
+        
+        {/* 수익률 */}
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ 
+            fontSize: isMobile ? '19px' : '21px', 
+            fontWeight: '800',
+            color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', 
+            marginBottom: '4px',
+          }}>
+            {formatPercent(pos.profitRate)}
+          </div>
+          <div style={{ 
+            fontSize: '14px', 
+            color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', 
+            fontWeight: '600',
+          }}>
+            {formatKoreanNumber(pos.profitAmount)}원
+          </div>
+        </div>
+      </div>
+
+      {/* 수익 단계 뱃지 */}
+      {stageInfo && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          background: `${stageInfo.color}20`, color: stageInfo.color,
+          padding: '6px 12px', borderRadius: '8px', fontSize: '12px',
+          fontWeight: '600', marginBottom: '16px',
+        }}>
+          <span>{stageInfo.label}</span>
+          <span style={{ opacity: 0.7 }}>({stageInfo.range})</span>
+        </div>
+      )}
+
+      {/* 캔들 차트 */}
+      {chartData && chartData.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <EnhancedCandleChart
+            data={chartData}
+            width={chartDim.width}
+            height={chartDim.height}
+            buyPrice={pos.buyPrice}
+            sellPrices={sellPrices}
+            visibleLines={{
+              stopLoss: pos.selectedPresets.includes('stopLoss'),
+              twoThird: pos.selectedPresets.includes('twoThird'),
+              maSignal: pos.selectedPresets.includes('maSignal'),
+            }}
+          />
+        </div>
+      )}
+
+      {/* 선택된 매도 전략 */}
+      {pos.selectedPresets.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>
+            설정된 매도 전략
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {pos.selectedPresets.map((presetId: string) => {
+              const preset = SELL_PRESETS[presetId];
+              if (!preset) return null;
+              const price = sellPrices[presetId as keyof typeof sellPrices];
+              return (
+                <div
+                  key={presetId}
+                  style={{
+                    fontSize: '12px', padding: '6px 10px',
+                    background: `${preset.color}20`, color: preset.color,
+                    borderRadius: '6px', border: `1px solid ${preset.color}40`,
+                    fontWeight: '600',
+                  }}
+                >
+                  {preset.icon} {preset.name}
+                  {price && ` (${formatKoreanNumber(price as number)})`}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 메모 */}
+      {pos.memo && (
+        <div style={{
+          fontSize: '13px', color: '#94a3b8',
+          background: 'rgba(255,255,255,0.03)',
+          padding: '10px 12px', borderRadius: '8px',
+          marginBottom: '12px', lineHeight: '1.5',
+        }}>
+          {pos.memo}
+        </div>
+      )}
+
+      {/* 액션 버튼 */}
+      <div style={{ 
+        display: 'flex', gap: '8px',
+        borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px',
+      }}>
+        <button
+          onClick={() => onEdit(pos)}
+          style={{
+            flex: 1, padding: '10px',
+            background: 'rgba(59,130,246,0.1)',
+            border: '1px solid rgba(59,130,246,0.3)',
+            borderRadius: '8px', color: '#60a5fa',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+            minHeight: '44px',  // 터치 타겟
+          }}
+        >
+          수정
+        </button>
+        <button
+          onClick={() => {
+            if (confirm(`${stockName} 종목을 삭제하시겠습니까?`)) {
+              onDelete(pos.id);
+            }
+          }}
+          style={{
+            flex: 1, padding: '10px',
+            background: 'rgba(239,68,68,0.1)',
+            border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: '8px', color: '#ef4444',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+            minHeight: '44px',  // 터치 타겟
+          }}
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // Main App Component
 // ============================================
 export default function SellSignalApp() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
   
+  // ────────────────────────────────────────
   // 상태 관리
+  // ────────────────────────────────────────
   const [user, setUser] = useState<User>({ name: '투자자', email: 'user@example.com', membership: 'free' });
   const [positions, setPositions] = useState<Position[]>([]);
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -92,47 +349,56 @@ export default function SellSignalApp() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [showUpgradePopup, setShowUpgradePopup] = useState<boolean>(false);
   const [alerts, setAlerts] = useState<Alert[]>([
-  { id: 1, stockName: '삼성전자', code: '005930', preset: { id: 'stopLoss', name: '손실제한 매도법', icon: '🛑', severity: 'high' }, message: '삼성전자가 손절 라인에 근접했습니다', timestamp: Date.now(), read: false, type: 'warning' },
-  { id: 2, stockName: 'SK하이닉스', code: '000660', preset: { id: 'earnings', name: '실적 발표', icon: '📊', severity: 'medium' }, message: 'SK하이닉스 실적 발표일이 3일 남았습니다', timestamp: Date.now(), read: false, type: 'info' },
-]);
+    { 
+      id: 1, stockName: '삼성전자', code: '005930', 
+      preset: { id: 'stopLoss', name: '손실제한 매도법', icon: '🛑', severity: 'high' }, 
+      message: '삼성전자가 손절 라인에 근접했습니다', timestamp: Date.now(), read: false, type: 'warning' 
+    },
+    { 
+      id: 2, stockName: 'SK하이닉스', code: '000660', 
+      preset: { id: 'earnings', name: '실적 발표', icon: '📊', severity: 'medium' }, 
+      message: 'SK하이닉스 실적 발표일이 3일 남았습니다', timestamp: Date.now(), read: false, type: 'info' 
+    },
+  ]);
 
   const isPremium = user.membership === 'premium';
+  const unreadAlertCount = alerts.filter((a: Alert) => !a.read).length;
 
-  // 차트 데이터 초기화 추적
+  // ────────────────────────────────────────
+  // 차트 데이터 초기화 (한 번만 수행)
+  // ────────────────────────────────────────
   const priceHistoryInitialized = React.useRef<Set<string>>(new Set());
 
-  // 차트 데이터 최적화 - 초기화 한 번만 수행
   useEffect(() => {
     if (positions.length === 0) return;
     
     const updatedPositions = positions.map((pos: Position) => {
-      if (priceHistoryInitialized.current.has(pos.id) || (pos.priceHistory && pos.priceHistory.length > 0)) {
+      if (priceHistoryInitialized.current.has(String(pos.id)) || (pos.priceHistory && pos.priceHistory.length > 0)) {
         return pos;
       }
       
       const history = generateMockPriceData(pos.buyPrice, 60);
-      priceHistoryInitialized.current.add(pos.id);
+      priceHistoryInitialized.current.add(String(pos.id));
       
       return {
         ...pos,
         priceHistory: history.map((d: ChartDataPoint) => ({
           date: d.date.toISOString(),
           price: d.close,
-          volume: d.volume
-        }))
+          volume: d.volume,
+        })),
       };
     });
     
-    const hasChanges = updatedPositions.some((pos: Position, idx: number) => 
-      pos !== positions[idx]
-    );
-    
+    const hasChanges = updatedPositions.some((pos: Position, idx: number) => pos !== positions[idx]);
     if (hasChanges) {
       setPositions(updatedPositions);
     }
   }, [positions]);
 
+  // ────────────────────────────────────────
   // highestPriceRecorded 자동 업데이트
+  // ────────────────────────────────────────
   useEffect(() => {
     if (positions.length === 0) return;
     
@@ -159,7 +425,9 @@ export default function SellSignalApp() {
     }
   }, [positions]);
 
-  // 포지션별 수익률 계산 (메모이제이션)
+  // ────────────────────────────────────────
+  // 파생 데이터 (메모이제이션)
+  // ────────────────────────────────────────
   const positionsWithProfitRate = useMemo<PositionWithProfit[]>(() => {
     return positions.map((pos: Position): PositionWithProfit => {
       const profitRate = ((pos.currentPrice - pos.buyPrice) / pos.buyPrice) * 100;
@@ -169,7 +437,6 @@ export default function SellSignalApp() {
     });
   }, [positions]);
 
-  // 포트폴리오 통계
   const portfolioStats = useMemo(() => {
     const totalInvestment = positions.reduce((sum: number, p: Position) => sum + (p.buyPrice * p.quantity), 0);
     const totalValue = positions.reduce((sum: number, p: Position) => sum + (p.currentPrice * p.quantity), 0);
@@ -178,6 +445,42 @@ export default function SellSignalApp() {
     return { totalInvestment, totalValue, totalProfit, profitRate };
   }, [positions]);
 
+  // ────────────────────────────────────────
+  // 이벤트 핸들러
+  // ────────────────────────────────────────
+  const handleAddPosition = (stock: Position) => {
+    const history = generateMockPriceData(stock.buyPrice, 60);
+    const newPosition: Position = {
+      ...stock,
+      id: Date.now().toString(),
+      priceHistory: history.map((d: ChartDataPoint) => ({
+        date: d.date.toISOString(),
+        price: d.close,
+        volume: d.volume,
+      })),
+      highestPriceRecorded: Math.max(stock.buyPrice, stock.currentPrice),
+    };
+    setPositions(prev => [...prev, newPosition]);
+    setShowAddModal(false);
+  };
+
+  const handleEditPosition = (stock: Position) => {
+    setPositions(prev => prev.map(p => p.id === stock.id ? stock : p));
+    setEditingPosition(null);
+  };
+
+  const handleDeletePosition = (id: string | number) => {
+    setPositions(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleUpgrade = () => {
+    setUser({ ...user, membership: 'premium' });
+    setShowUpgradePopup(false);
+  };
+
+  // ────────────────────────────────────────
+  // 렌더링
+  // ────────────────────────────────────────
   return (
     <div style={{
       minHeight: '100vh',
@@ -185,7 +488,7 @@ export default function SellSignalApp() {
       color: '#fff',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     }}>
-      {/* 헤더 */}
+      {/* ─── 헤더 ─── */}
       <ResponsiveHeader 
         alerts={alerts} 
         isPremium={isPremium} 
@@ -193,14 +496,15 @@ export default function SellSignalApp() {
         onUpgrade={() => setShowUpgradePopup(true)}
       />
 
-      {/* 메인 컨텐츠 */}
+      {/* ─── 메인 컨텐츠 ─── */}
       <main style={{ 
         padding: isMobile ? '16px' : '24px',
-        paddingBottom: isMobile ? '80px' : '24px',
+        paddingBottom: isMobile ? '80px' : '24px',  // 모바일: 하단 네비 공간 확보
       }}>
+        {/* ── 홈 탭 ── */}
         {activeTab === 'home' && (
           <>
-            {/* 포트폴리오 요약 카드 */}
+            {/* 포트폴리오 요약 */}
             <ResponsiveSummaryCards
               totalCost={portfolioStats.totalInvestment}
               totalValue={portfolioStats.totalValue}
@@ -233,6 +537,7 @@ export default function SellSignalApp() {
                     fontSize: '13px',
                     fontWeight: '600',
                     cursor: 'pointer',
+                    minHeight: '36px',
                   }}
                 >
                   + 추가
@@ -240,6 +545,7 @@ export default function SellSignalApp() {
               </div>
 
               {positions.length === 0 ? (
+                /* 빈 상태 */
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
                   borderRadius: '12px',
@@ -268,200 +574,25 @@ export default function SellSignalApp() {
                   </button>
                 </div>
               ) : (
+                /* 포지션 카드 목록 */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {positionsWithProfitRate.map((pos: PositionWithProfit) => {
-                    const chartData = pos.priceHistory && pos.priceHistory.length > 0
-                      ? pos.priceHistory.map((p: PricePoint) => ({
-                          date: new Date(p.date),
-                          open: p.price,
-                          high: p.price * 1.01,
-                          low: p.price * 0.99,
-                          close: p.price,
-                          volume: p.volume || 0
-                        }))
-                      : generateMockPriceData(pos.buyPrice, 30);
-                    
-                    const sellPrices = calculateSellPrices(pos, chartData, pos.presetSettings);
-                    
-                    const getStage = () => {
-                      if (pos.profitRate < 5) return 'initial';
-                      if (pos.profitRate < 10) return 'profit5';
-                      return 'profit10';
-                    };
-                    
-                    const stage = getStage();
-                    const stageInfo = PROFIT_STAGES[stage];
-
-                    return (
-                      <div
-                        key={pos.id}
-                        style={{
-                          background: 'rgba(255,255,255,0.03)',
-                          borderRadius: '16px',
-                          padding: isMobile ? '16px' : '20px',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                        }}
-                      >
-                        {/* 종목 헤더 */}
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          marginBottom: '16px',
-                          alignItems: 'flex-start' 
-                        }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ 
-                              display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' 
-                            }}>
-                              <h3 style={{ 
-                                fontSize: isMobile ? '17px' : '19px', fontWeight: '700', color: '#fff', margin: 0 
-                              }}>
-                                {pos.stock.name}
-                              </h3>
-                              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
-                                {pos.stock.code}
-                              </span>
-                            </div>
-                            <div style={{ 
-                              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#94a3b8' 
-                            }}>
-                              <span>{pos.quantity}주</span>
-                              <span>·</span>
-                              <span>매수가 {formatKoreanNumber(pos.buyPrice)}원</span>
-                            </div>
-                          </div>
-                          
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ 
-                              fontSize: isMobile ? '19px' : '21px', fontWeight: '800',
-                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', marginBottom: '4px'
-                            }}>
-                              {formatPercent(pos.profitRate)}
-                            </div>
-                            <div style={{ 
-                              fontSize: '14px', color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'
-                            }}>
-                              {formatKoreanNumber(pos.profitAmount)}원
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 수익 단계 뱃지 */}
-                        <div style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '6px',
-                          background: `${stageInfo.color}20`, color: stageInfo.color,
-                          padding: '6px 12px', borderRadius: '8px', fontSize: '12px',
-                          fontWeight: '600', marginBottom: '16px'
-                        }}>
-                          <span>{stageInfo.label}</span>
-                          <span style={{ opacity: 0.7 }}>({stageInfo.range})</span>
-                        </div>
-
-                        {/* 캔들 차트 */}
-                        {chartData && chartData.length > 0 && (
-                          <div style={{ marginBottom: '16px' }}>
-                            <EnhancedCandleChart
-                              data={chartData}
-                              width={isMobile ? Math.min(typeof window !== 'undefined' ? window.innerWidth - 64 : 350, 500) : 500}
-                              height={isMobile ? 240 : 280}
-                              buyPrice={pos.buyPrice}
-                              sellPrices={sellPrices}
-                              visibleLines={{
-                                stopLoss: pos.selectedPresets.includes('stopLoss'),
-                                twoThird: pos.selectedPresets.includes('twoThird'),
-                                maSignal: pos.selectedPresets.includes('maSignal'),
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {/* 선택된 매도 전략 */}
-                        {pos.selectedPresets.length > 0 && (
-                          <div style={{ marginBottom: '12px' }}>
-                            <div style={{ 
-                              fontSize: '13px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' 
-                            }}>
-                              설정된 매도 전략
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                              {pos.selectedPresets.map((presetId: string) => {
-                                const preset = SELL_PRESETS[presetId];
-                                if (!preset) return null;
-                                const price = sellPrices[presetId as keyof typeof sellPrices];
-                                return (
-                                  <div
-                                    key={presetId}
-                                    style={{
-                                      fontSize: '12px', padding: '6px 10px',
-                                      background: `${preset.color}20`, color: preset.color,
-                                      borderRadius: '6px', border: `1px solid ${preset.color}40`,
-                                      fontWeight: '600'
-                                    }}
-                                  >
-                                    {preset.icon} {preset.name}
-                                    {price && ` (${formatKoreanNumber(price as number)})`}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 메모 */}
-                        {pos.memo && (
-                          <div style={{
-                            fontSize: '13px', color: '#94a3b8',
-                            background: 'rgba(255,255,255,0.03)',
-                            padding: '10px 12px', borderRadius: '8px',
-                            marginBottom: '12px', lineHeight: '1.5'
-                          }}>
-                            {pos.memo}
-                          </div>
-                        )}
-
-                        {/* 액션 버튼 */}
-                        <div style={{ 
-                          display: 'flex', gap: '8px',
-                          borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px'
-                        }}>
-                          <button
-                            onClick={() => setEditingPosition(pos)}
-                            style={{
-                              flex: 1, padding: '10px',
-                              background: 'rgba(59,130,246,0.1)',
-                              border: '1px solid rgba(59,130,246,0.3)',
-                              borderRadius: '8px', color: '#60a5fa',
-                              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-                            }}
-                          >
-                            수정
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`${pos.stock.name} 종목을 삭제하시겠습니까?`)) {
-                                setPositions(prev => prev.filter(p => p.id !== pos.id));
-                              }
-                            }}
-                            style={{
-                              flex: 1, padding: '10px',
-                              background: 'rgba(239,68,68,0.1)',
-                              border: '1px solid rgba(239,68,68,0.3)',
-                              borderRadius: '8px', color: '#ef4444',
-                              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-                            }}
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {positionsWithProfitRate.map((pos: PositionWithProfit) => (
+                    <PositionCardInline
+                      key={pos.id}
+                      pos={pos}
+                      isMobile={isMobile}
+                      isTablet={isTablet}
+                      onEdit={setEditingPosition}
+                      onDelete={handleDeletePosition}
+                    />
+                  ))}
                 </div>
               )}
             </div>
           </>
         )}
 
+        {/* ── 분석 탭 (준비 중) ── */}
         {activeTab === 'analysis' && (
           <div style={{ 
             background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
@@ -472,6 +603,23 @@ export default function SellSignalApp() {
           </div>
         )}
 
+        {/* ── 알림 탭 (과업 D에서 연결) ── */}
+        {activeTab === 'alerts' && (
+          <div style={{ 
+            background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
+            padding: '40px 20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔔</div>
+            <div style={{ fontSize: '15px', color: '#94a3b8' }}>
+              {alerts.length > 0 
+                ? `${alerts.length}개의 알림이 있습니다` 
+                : '새로운 알림이 없습니다'
+              }
+            </div>
+          </div>
+        )}
+
+        {/* ── 설정 탭 (준비 중) ── */}
         {activeTab === 'settings' && (
           <div style={{ 
             background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
@@ -483,182 +631,40 @@ export default function SellSignalApp() {
         )}
       </main>
 
-      {/* 모바일 하단 네비게이션 */}
+      {/* ─── 모바일 하단 네비게이션 ─── */}
       {isMobile && (
-        <nav style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: 'rgba(15,23,42,0.95)',
-          backdropFilter: 'blur(10px)',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex', justifyContent: 'space-around',
-          padding: '8px 0 calc(8px + env(safe-area-inset-bottom))',
-          zIndex: 100,
-        }}>
-          {[
-            { id: 'home', icon: '🏠', label: '홈', badge: 0 },
-            { id: 'analysis', icon: '📊', label: '분석', badge: 0 },
-            { id: 'alerts', icon: '🔔', label: '알림', badge: alerts.filter((a: Alert) => !a.read).length },
-            { id: 'settings', icon: '⚙️', label: '설정', badge: 0 },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              style={{
-                background: 'none', border: 'none',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: '4px', cursor: 'pointer',
-                position: 'relative',
-              }}
-            >
-              <span style={{ fontSize: '20px' }}>{item.icon}</span>
-              <span style={{ 
-                fontSize: '10px', 
-                color: activeTab === item.id ? '#60a5fa' : '#64748b',
-                fontWeight: activeTab === item.id ? '600' : '400',
-              }}>{item.label}</span>
-              {item.badge > 0 && (
-                <span style={{
-                  position: 'absolute', top: '2px', right: '6px',
-                  background: '#ef4444', color: '#fff', fontSize: '9px',
-                  fontWeight: '700', padding: '1px 5px', borderRadius: '6px',
-                  minWidth: '16px', textAlign: 'center',
-                }}>{item.badge}</span>
-              )}
-            </button>
-          ))}
-        </nav>
+        <MobileNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          unreadAlertCount={unreadAlertCount}
+        />
       )}
 
-      {/* 종목 추가 모달 */}
+      {/* ─── 모달: 종목 추가 ─── */}
       {showAddModal && (
         <StockModal 
-          onSave={(stock: Position) => { 
-            const history = generateMockPriceData(stock.buyPrice, 60);
-            const newPosition: Position = {
-              ...stock,
-              id: Date.now().toString(),
-              priceHistory: history.map((d: ChartDataPoint) => ({
-                date: d.date.toISOString(),
-                price: d.close,
-                volume: d.volume
-              })),
-              highestPriceRecorded: Math.max(stock.buyPrice, stock.currentPrice)
-            };
-            setPositions(prev => [...prev, newPosition]); 
-            setShowAddModal(false); 
-          }} 
+          onSave={handleAddPosition}
           onClose={() => setShowAddModal(false)} 
           isMobile={isMobile}
         />
       )}
 
-      {/* 종목 수정 모달 */}
+      {/* ─── 모달: 종목 수정 ─── */}
       {editingPosition && (
         <StockModal 
           stock={editingPosition} 
-          onSave={(stock: Position) => { 
-            setPositions(prev => prev.map(p => p.id === stock.id ? stock : p)); 
-            setEditingPosition(null); 
-          }} 
+          onSave={handleEditPosition}
           onClose={() => setEditingPosition(null)} 
           isMobile={isMobile}
         />
       )}
 
-      {/* 업그레이드 팝업 */}
+      {/* ─── 모달: 업그레이드 팝업 ─── */}
       {showUpgradePopup && (
-        <div style={{ 
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.9)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 1000, padding: isMobile ? '16px' : '40px',
-        }}>
-          <div style={{ 
-            background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
-            borderRadius: '20px', 
-            padding: isMobile ? '20px' : '32px', 
-            maxWidth: '420px', width: '100%', maxHeight: '90vh', overflow: 'auto',
-            border: '1px solid rgba(139,92,246,0.3)',
-            boxShadow: '0 0 60px rgba(139,92,246,0.2)'
-          }}>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <div style={{ fontSize: '56px', marginBottom: '12px' }}>👑</div>
-              <h2 style={{ 
-                fontSize: isMobile ? '22px' : '26px', fontWeight: '700', color: '#fff', margin: '0 0 8px' 
-              }}>프리미엄 멤버십</h2>
-              <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
-                더 강력한 매도 시그널 도구를 경험하세요
-              </p>
-            </div>
-            
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.15) 100%)',
-              borderRadius: '12px', padding: '16px', textAlign: 'center',
-              marginBottom: '20px', border: '1px solid rgba(139,92,246,0.3)'
-            }}>
-              <div style={{ fontSize: '14px', color: '#a78bfa', marginBottom: '4px' }}>월 구독료</div>
-              <div style={{ fontSize: isMobile ? '32px' : '36px', fontWeight: '800', color: '#fff' }}>
-                ₩5,900<span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>/월</span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>🎁 첫 7일 무료 체험</div>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '12px' }}>
-                ✨ 프리미엄 혜택
-              </div>
-              {[
-                { icon: '🚫', text: '광고 완전 제거', free: '❌', premium: '✅' },
-                { icon: '📊', text: '모니터링 종목 수', free: '5개', premium: '20개' },
-                { icon: '🤖', text: 'AI 뉴스 분석', free: '❌', premium: '✅' },
-                { icon: '📑', text: 'AI 리포트 분석', free: '❌', premium: '✅' },
-                { icon: '💬', text: '카카오톡 알림', free: '❌', premium: '✅' },
-                { icon: '📧', text: '이메일 리포트', free: '❌', premium: '✅' },
-              ].map((item, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 12px', background: 'rgba(255,255,255,0.03)',
-                  borderRadius: '8px', marginBottom: '6px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>{item.icon}</span>
-                    <span style={{ fontSize: '13px', color: '#e2e8f0' }}>{item.text}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span style={{ fontSize: '12px', color: '#64748b', minWidth: '32px', textAlign: 'center' }}>{item.free}</span>
-                    <span style={{ fontSize: '12px', color: '#10b981', minWidth: '32px', textAlign: 'center' }}>{item.premium}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <button 
-              onClick={() => { setUser({ ...user, membership: 'premium' }); setShowUpgradePopup(false); }} 
-              style={{ 
-                width: '100%', padding: isMobile ? '16px' : '18px', 
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
-                border: 'none', borderRadius: '12px', color: '#fff', 
-                fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px',
-                boxShadow: '0 4px 20px rgba(139,92,246,0.4)'
-              }}
-            >
-              🎉 7일 무료로 시작하기
-            </button>
-            <button 
-              onClick={() => setShowUpgradePopup(false)} 
-              style={{ 
-                width: '100%', padding: '12px', background: 'transparent', 
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px',
-                color: '#64748b', fontSize: '14px', cursor: 'pointer' 
-              }}
-            >
-              나중에 할게요
-            </button>
-            <p style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', margin: '16px 0 0', lineHeight: '1.5' }}>
-              언제든지 해지 가능 · 자동 결제 · 부가세 포함
-            </p>
-          </div>
-        </div>
+        <UpgradeModal
+          onUpgrade={handleUpgrade}
+          onClose={() => setShowUpgradePopup(false)}
+        />
       )}
     </div>
   );
