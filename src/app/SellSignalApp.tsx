@@ -92,9 +92,9 @@ export default function SellSignalApp() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [showUpgradePopup, setShowUpgradePopup] = useState<boolean>(false);
   const [alerts, setAlerts] = useState<Alert[]>([
-    { id: 1, type: 'warning', message: '삼성전자가 손절 라인에 근접했습니다', timestamp: '5분 전', read: false, severity: 'high', stockName: '삼성전자', code: '005930', preset: 'stopLoss' },
-    { id: 2, type: 'info', message: 'SK하이닉스 실적 발표일이 3일 남았습니다', timestamp: '1시간 전', read: false, severity: 'medium', stockName: 'SK하이닉스', code: '000660', preset: 'earnings' },
-  ]);
+  { id: 1, stockName: '삼성전자', code: '005930', preset: { id: 'stopLoss', name: '손실제한 매도법', icon: '🛑', severity: 'high' }, message: '삼성전자가 손절 라인에 근접했습니다', timestamp: Date.now(), read: false, type: 'warning' },
+  { id: 2, stockName: 'SK하이닉스', code: '000660', preset: { id: 'earnings', name: '실적 발표', icon: '📊', severity: 'medium' }, message: 'SK하이닉스 실적 발표일이 3일 남았습니다', timestamp: Date.now(), read: false, type: 'info' },
+]);
 
   const isPremium = user.membership === 'premium';
 
