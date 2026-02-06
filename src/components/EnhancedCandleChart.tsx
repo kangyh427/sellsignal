@@ -1,13 +1,13 @@
 'use client';
 
 import React from 'react';
-import type { CandleChartProps, ChartDataPoint } from '../types';
+import type { ChartDataPoint, SellPrices, VisibleLines } from '../types';
 
 // ============================================
 // 캔들차트 컴포넌트
 // ============================================
 
-interface CandleChartProps {
+interface EnhancedCandleChartProps {
   data: ChartDataPoint[];
   width?: number;
   height?: number;
@@ -16,7 +16,7 @@ interface CandleChartProps {
   visibleLines?: VisibleLines;
 }
 
-const EnhancedCandleChart: React.FC<CandleChartProps> = ({ 
+const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({ 
   data, 
   width = 270, 
   height = 280, 
@@ -47,7 +47,7 @@ const EnhancedCandleChart: React.FC<CandleChartProps> = ({
   
   const scaleY = (p: number) => {
     if (typeof p !== 'number' || isNaN(p) || !isFinite(p)) {
-      return padding.top + chartH / 2; // 중앙값 반환
+      return padding.top + chartH / 2;
     }
     return padding.top + chartH - ((p - minP) / range) * chartH;
   };
@@ -227,11 +227,5 @@ const EnhancedCandleChart: React.FC<CandleChartProps> = ({
     </svg>
   );
 };
-
-// ============================================
-// 요약 카드 컴포넌트
-// ============================================
-
-interface SummaryCardsProps {
 
 export default EnhancedCandleChart;
