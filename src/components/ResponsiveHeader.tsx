@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import useResponsive from '../hooks/useResponsive';
+import { useResponsive } from '../hooks/useResponsive';
 
 // ============================================
 // 반응형 헤더 — 모바일/데스크탑 분리 렌더링
