@@ -47,6 +47,8 @@ import MarketCycleWidget from '../components/MarketCycleWidget';
 import SummaryCards from '../components/SummaryCards';
 import MobileNav from '../components/MobileNav';
 import UpgradeModal from '../components/UpgradeModal';
+import AlertCard from '../components/AlertCard';
+import SellMethodGuide from '../components/SellMethodGuide';
 
 // ============================================
 // 헬퍼: 차트 반응형 크기 계산
@@ -478,6 +480,25 @@ export default function SellSignalApp() {
     setShowUpgradePopup(false);
   };
 
+  // 알림 삭제 (dismiss)
+  const handleDismissAlert = (id: string | number) => {
+    setAlerts(prev => prev.filter(a => a.id !== id));
+  };
+
+  // 알림 모두 읽음 처리
+  const handleMarkAllRead = () => {
+    setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+  };
+
+  // 알림 탭 진입 시 읽음 처리
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'alerts') {
+      // 알림 탭 진입 시 모든 알림을 읽음으로 표시
+      handleMarkAllRead();
+    }
+  };
+
   // ────────────────────────────────────────
   // 렌더링
   // ────────────────────────────────────────
@@ -492,8 +513,8 @@ export default function SellSignalApp() {
       <ResponsiveHeader 
         alerts={alerts} 
         isPremium={isPremium} 
-        isMobile={isMobile}
-        onUpgrade={() => setShowUpgradePopup(true)}
+        onShowUpgrade={() => setShowUpgradePopup(true)}
+        onShowAddModal={() => setShowAddModal(true)}
       />
 
       {/* ─── 메인 컨텐츠 ─── */}
@@ -592,30 +613,83 @@ export default function SellSignalApp() {
           </>
         )}
 
-        {/* ── 분석 탭 (준비 중) ── */}
+        {/* ── 분석 탭 (매도법 가이드) ── */}
         {activeTab === 'analysis' && (
-          <div style={{ 
-            background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
-            padding: '40px 20px', textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📈</div>
-            <div style={{ fontSize: '15px', color: '#94a3b8' }}>상세 분석 기능 준비 중입니다</div>
+          <div>
+            <h2 style={{ 
+              fontSize: '18px', fontWeight: '700', margin: '0 0 16px 0' 
+            }}>
+              📊 매도 전략 가이드
+            </h2>
+            <SellMethodGuide 
+              isMobile={isMobile} 
+              activeTab="guide"  
+            />
           </div>
         )}
 
-        {/* ── 알림 탭 (과업 D에서 연결) ── */}
+        {/* ── 알림 탭 ── */}
         {activeTab === 'alerts' && (
-          <div style={{ 
-            background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
-            padding: '40px 20px', textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔔</div>
-            <div style={{ fontSize: '15px', color: '#94a3b8' }}>
-              {alerts.length > 0 
-                ? `${alerts.length}개의 알림이 있습니다` 
-                : '새로운 알림이 없습니다'
-              }
+          <div>
+            {/* 알림 헤더 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+            }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
+                🔔 알림 ({alerts.length})
+              </h2>
+              {alerts.length > 0 && (
+                <button
+                  onClick={() => setAlerts([])}
+                  style={{
+                    padding: '6px 12px',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    borderRadius: '8px',
+                    color: '#ef4444',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    minHeight: '36px',
+                  }}
+                >
+                  모두 삭제
+                </button>
+              )}
             </div>
+
+            {/* 알림 카드 목록 */}
+            {alerts.length > 0 ? (
+              <div>
+                {alerts.map((alert: Alert) => (
+                  <AlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onDismiss={handleDismissAlert}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* 빈 알림 상태 */
+              <div style={{
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: '12px',
+                padding: '60px 20px',
+                textAlign: 'center',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#fff', marginBottom: '8px' }}>
+                  알림이 없습니다
+                </div>
+                <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5' }}>
+                  매도 조건에 도달하면 여기에 알림이 표시됩니다
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -635,7 +709,7 @@ export default function SellSignalApp() {
       {isMobile && (
         <MobileNav
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           unreadAlertCount={unreadAlertCount}
         />
       )}
