@@ -1,110 +1,74 @@
 'use client';
 
 import React from 'react';
-import type { Alert } from '../types';
 
 // ============================================
-// Props 인터페이스
+// 모바일 하단 네비게이션 바
+// 위치: src/components/MobileNav.tsx
+// 
+// 원본 디자인: 포지션 / 알림(배지) / 시장 / 가이드
 // ============================================
+
 interface MobileNavProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  unreadAlertCount: number;  // 읽지 않은 알림 수
+  alertCount?: number;
 }
 
-// ============================================
-// 네비게이션 탭 정의 (데이터 분리)
-// ============================================
-interface NavItem {
-  id: string;
-  icon: string;
-  label: string;
-  hasBadge: boolean;  // 뱃지 표시 여부
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { id: 'home', icon: '🏠', label: '홈', hasBadge: false },
-  { id: 'analysis', icon: '📊', label: '분석', hasBadge: false },
-  { id: 'alerts', icon: '🔔', label: '알림', hasBadge: true },
-  { id: 'settings', icon: '⚙️', label: '설정', hasBadge: false },
-];
-
-// ============================================
-// 스타일 상수
-// ============================================
-const STYLES = {
-  nav: {
-    position: 'fixed' as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    background: 'rgba(15,23,42,0.95)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-    display: 'flex',
-    justifyContent: 'space-around',
-    padding: '8px 0 calc(8px + env(safe-area-inset-bottom))',
-    zIndex: 100,
-  },
-  button: {
-    background: 'none',
-    border: 'none',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '4px',
-    cursor: 'pointer',
-    position: 'relative' as const,
-    padding: '4px 12px',
-    minWidth: '60px',
-    // 터치 타겟 최소 44px 확보
-    minHeight: '44px',
-    justifyContent: 'center',
-  },
-  badge: {
-    position: 'absolute' as const,
-    top: '2px',
-    right: '6px',
-    background: '#ef4444',
-    color: '#fff',
-    fontSize: '9px',
-    fontWeight: '700' as const,
-    padding: '1px 5px',
-    borderRadius: '6px',
-    minWidth: '16px',
-    textAlign: 'center' as const,
-  },
-};
-
-// ============================================
-// MobileNav 컴포넌트
-// ============================================
 const MobileNav: React.FC<MobileNavProps> = ({
   activeTab,
   onTabChange,
-  unreadAlertCount,
+  alertCount = 0,
 }) => {
+  const tabs = [
+    { id: 'positions', icon: '📊', label: '포지션' },
+    { id: 'alerts', icon: '🔔', label: '알림', badge: alertCount },
+    { id: 'market', icon: '🥚', label: '시장' },
+    { id: 'guide', icon: '📚', label: '가이드' },
+  ];
+
   return (
     <nav
-      style={STYLES.nav}
-      role="navigation"
-      aria-label="하단 메뉴"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'rgba(15, 23, 42, 0.98)',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        padding: '6px 8px',
+        paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
+        display: 'flex',
+        justifyContent: 'space-around',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        zIndex: 100,
+      }}
     >
-      {NAV_ITEMS.map((item) => {
-        const isActive = activeTab === item.id;
-        const badgeCount = item.hasBadge ? unreadAlertCount : 0;
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
 
         return (
           <button
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            style={STYLES.button}
-            aria-label={item.label}
-            aria-current={isActive ? 'page' : undefined}
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            style={{
+              background: isActive ? 'rgba(59,130,246,0.12)' : 'none',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '6px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '3px',
+              cursor: 'pointer',
+              position: 'relative',
+              minWidth: '60px',
+              transition: 'background 0.2s',
+            }}
           >
             {/* 아이콘 */}
-            <span style={{ fontSize: '20px' }}>{item.icon}</span>
+            <span style={{ fontSize: '20px' }}>{tab.icon}</span>
 
             {/* 라벨 */}
             <span
@@ -112,17 +76,48 @@ const MobileNav: React.FC<MobileNavProps> = ({
                 fontSize: '10px',
                 color: isActive ? '#60a5fa' : '#64748b',
                 fontWeight: isActive ? '600' : '400',
-                transition: 'color 0.2s ease',
+                letterSpacing: '-0.2px',
               }}
             >
-              {item.label}
+              {tab.label}
             </span>
 
-            {/* 알림 뱃지 */}
-            {badgeCount > 0 && (
-              <span style={STYLES.badge}>
-                {badgeCount > 9 ? '9+' : badgeCount}
+            {/* 배지 */}
+            {tab.badge != null && tab.badge > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '2px',
+                  right: '10px',
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontSize: '9px',
+                  fontWeight: '700',
+                  padding: '1px 5px',
+                  borderRadius: '6px',
+                  minWidth: '16px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 3px rgba(239,68,68,0.4)',
+                }}
+              >
+                {tab.badge}
               </span>
+            )}
+
+            {/* 활성 인디케이터 */}
+            {isActive && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-1px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '20px',
+                  height: '2px',
+                  background: '#3b82f6',
+                  borderRadius: '1px',
+                }}
+              />
             )}
           </button>
         );
