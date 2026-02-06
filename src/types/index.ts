@@ -93,7 +93,7 @@ export interface ChartDataPoint {
 
 // 알림 타입
 export interface Alert {
-  id: string;
+  id: number;
   type: string;
   message: string;
   timestamp: string;
