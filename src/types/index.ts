@@ -94,16 +94,21 @@ export interface ChartDataPoint {
 // 알림 타입
 export interface Alert {
   id: number;
-  type: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  severity: 'low' | 'medium' | 'high' | 'critical';
   stockName: string;
   code: string;
-  preset: string;
+  preset: {
+    id: string;
+    name: string;
+    icon: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+  };
+  message: string;
+  currentPrice?: number;
+  targetPrice?: number;
+  timestamp?: number;
+  read?: boolean;
+  type?: string;
 }
-
 // 반응형 훅 반환 타입
 export interface ResponsiveState {
   width: number;
