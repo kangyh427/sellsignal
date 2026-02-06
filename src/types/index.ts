@@ -52,19 +52,23 @@ export interface Stock {
 }
 
 // 포지션 타입
+// ※ 원본 JSX 호환: name, code를 직접 보유 (stock 중첩 구조와 병행)
 export interface Position {
-  id: string;
-  stock: Stock;
+  id: string | number;
+  stock?: Stock;              // 중첩 구조 (StockModal에서 사용)
+  name?: string;              // 평탄 구조 (원본 JSX 호환) - stock?.name의 단축
+  code?: string;              // 평탄 구조 (원본 JSX 호환) - stock?.code의 단축
   buyPrice: number;
   quantity: number;
   currentPrice: number;
-  buyDate: string;
+  buyDate?: string;
   selectedPresets: string[];
   presetSettings?: PresetSettings;
   memo?: string;
   alerts?: Alert[];
   priceHistory?: PricePoint[];
-  highestPriceRecorded?: number; // 보유 중 최고가 (2/3 매도법 계산용)
+  highestPrice?: number;          // 원본 JSX 호환 (보유 중 최고가)
+  highestPriceRecorded?: number;  // 기존 코드 호환 (동일 용도)
 }
 
 // 수익률이 계산된 포지션 타입
@@ -91,6 +95,9 @@ export interface ChartDataPoint {
   volume: number;
 }
 
+// ※ PriceData는 ChartDataPoint의 별칭 (PositionCard 등에서 사용)
+export type PriceData = ChartDataPoint;
+
 // 알림 타입
 export interface Alert {
   id: number;
@@ -109,6 +116,7 @@ export interface Alert {
   read?: boolean;
   type?: string;
 }
+
 // 반응형 훅 반환 타입
 export interface ResponsiveState {
   width: number;
