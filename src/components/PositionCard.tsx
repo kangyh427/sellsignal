@@ -5,6 +5,8 @@ import { useResponsive } from '../hooks/useResponsive';
 import { SELL_PRESETS, PROFIT_STAGES, STOCK_LIST, EARNINGS_DATA } from '../constants';
 import EnhancedCandleChart from './EnhancedCandleChart';
 import EarningsWidget from './EarningsWidget';
+import AINewsPopup from './AINewsPopup';
+import AIReportPopup from './AIReportPopup';
 
 // ============================================
 // 타입 정의
@@ -654,9 +656,23 @@ const PositionCard: React.FC<PositionCardProps> = ({
         </div>
       </div>
 
-      {/* AI 팝업 모달 (향후 Sprint에서 구현) */}
-      {/* showAINews && <AINewsPopup ... /> */}
-      {/* showAIReport && <AIReportPopup ... /> */}
+      {/* AI 팝업 모달 */}
+      {showAINews && (
+        <AINewsPopup
+          position={position}
+          onClose={() => setShowAINews(false)}
+          isPremium={isPremium}
+          onUpgrade={onUpgrade}
+        />
+      )}
+      {showAIReport && (
+        <AIReportPopup
+          position={position}
+          onClose={() => setShowAIReport(false)}
+          isPremium={isPremium}
+          onUpgrade={onUpgrade}
+        />
+      )}
     </>
   );
 };
