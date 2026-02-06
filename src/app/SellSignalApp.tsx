@@ -49,6 +49,34 @@ import {
 import EnhancedCandleChart from '../components/EnhancedCandleChart';
 import StockModal from '../components/StockModal';
 import ResponsiveHeader from '../components/ResponsiveHeader';
+import MarketCycleWidget from '../components/MarketCycleWidget';
+// NOTE: SummaryCards.tsx에서 export 이름이 다를 수 있습니다.
+// 만약 빌드 에러가 나면 아래 import를 확인해주세요:
+//   - default export인 경우: import SummaryCards from '../components/SummaryCards';
+//   - named export인 경우: import { SummaryCards } from '../components/SummaryCards';
+import SummaryCards from '../components/SummaryCards';
+
+// ============================================
+// ResponsiveSummaryCards 래퍼
+// SummaryCards.tsx의 props 인터페이스와 맞추기 위한 래퍼입니다.
+// 만약 SummaryCards가 동일한 props를 받는다면 직접 사용하셔도 됩니다.
+// ============================================
+const ResponsiveSummaryCards = ({ totalCost, totalValue, totalProfit, totalProfitRate }: {
+  totalCost: number;
+  totalValue: number;
+  totalProfit: number;
+  totalProfitRate: number;
+}) => {
+  // SummaryCards 컴포넌트가 동일한 props를 받으면 직접 전달
+  return (
+    <SummaryCards
+      totalCost={totalCost}
+      totalValue={totalValue}
+      totalProfit={totalProfit}
+      totalProfitRate={totalProfitRate}
+    />
+  );
+};
 
 // ============================================
 // Main App Component
@@ -56,7 +84,7 @@ import ResponsiveHeader from '../components/ResponsiveHeader';
 export default function SellSignalApp() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
   
-  // 상태 관리 (타입 명시)
+  // 상태 관리
   const [user, setUser] = useState<User>({ name: '투자자', email: 'user@example.com', membership: 'free' });
   const [positions, setPositions] = useState<Position[]>([]);
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -78,12 +106,10 @@ export default function SellSignalApp() {
     if (positions.length === 0) return;
     
     const updatedPositions = positions.map((pos: Position) => {
-      // 이미 초기화된 포지션이거나 priceHistory가 있으면 건너뛰기
       if (priceHistoryInitialized.current.has(pos.id) || (pos.priceHistory && pos.priceHistory.length > 0)) {
         return pos;
       }
       
-      // 새 포지션에 대해서만 히스토리 생성
       const history = generateMockPriceData(pos.buyPrice, 60);
       priceHistoryInitialized.current.add(pos.id);
       
@@ -97,7 +123,6 @@ export default function SellSignalApp() {
       };
     });
     
-    // 실제로 변경이 있을 때만 업데이트
     const hasChanges = updatedPositions.some((pos: Position, idx: number) => 
       pos !== positions[idx]
     );
@@ -105,35 +130,26 @@ export default function SellSignalApp() {
     if (hasChanges) {
       setPositions(updatedPositions);
     }
-  }, [positions]); // positions 전체를 의존성으로 사용하되, ref로 중복 초기화 방지
+  }, [positions]);
 
   // highestPriceRecorded 자동 업데이트
   useEffect(() => {
     if (positions.length === 0) return;
     
     const updatedPositions = positions.map((pos: Position) => {
-      // 최고가가 없거나 현재가가 최고가보다 높으면 업데이트
       const currentHighest = pos.highestPriceRecorded || pos.buyPrice;
       
       if (pos.currentPrice > currentHighest) {
-        return {
-          ...pos,
-          highestPriceRecorded: pos.currentPrice
-        };
+        return { ...pos, highestPriceRecorded: pos.currentPrice };
       }
       
-      // highestPriceRecorded가 없는 경우 초기화
       if (!pos.highestPriceRecorded) {
-        return {
-          ...pos,
-          highestPriceRecorded: Math.max(pos.buyPrice, pos.currentPrice)
-        };
+        return { ...pos, highestPriceRecorded: Math.max(pos.buyPrice, pos.currentPrice) };
       }
       
       return pos;
     });
     
-    // 실제 변경이 있을 때만 업데이트
     const hasChanges = updatedPositions.some((pos: Position, idx: number) => 
       pos.highestPriceRecorded !== positions[idx].highestPriceRecorded
     );
@@ -149,13 +165,7 @@ export default function SellSignalApp() {
       const profitRate = ((pos.currentPrice - pos.buyPrice) / pos.buyPrice) * 100;
       const profitAmount = (pos.currentPrice - pos.buyPrice) * pos.quantity;
       const totalValue = pos.currentPrice * pos.quantity;
-      
-      return {
-        ...pos,
-        profitRate,
-        profitAmount,
-        totalValue,
-      };
+      return { ...pos, profitRate, profitAmount, totalValue };
     });
   }, [positions]);
 
@@ -165,11 +175,8 @@ export default function SellSignalApp() {
     const totalValue = positions.reduce((sum: number, p: Position) => sum + (p.currentPrice * p.quantity), 0);
     const totalProfit = totalValue - totalInvestment;
     const profitRate = totalInvestment > 0 ? (totalProfit / totalInvestment) * 100 : 0;
-
     return { totalInvestment, totalValue, totalProfit, profitRate };
   }, [positions]);
-
-  // 주식 추가/편집 모달
 
   return (
     <div style={{
@@ -263,7 +270,6 @@ export default function SellSignalApp() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {positionsWithProfitRate.map((pos: PositionWithProfit) => {
-                    // 차트 데이터 생성 (priceHistory가 있으면 사용)
                     const chartData = pos.priceHistory && pos.priceHistory.length > 0
                       ? pos.priceHistory.map((p: PricePoint) => ({
                           date: new Date(p.date),
@@ -275,10 +281,8 @@ export default function SellSignalApp() {
                         }))
                       : generateMockPriceData(pos.buyPrice, 30);
                     
-                    // 매도 가격 계산
                     const sellPrices = calculateSellPrices(pos, chartData, pos.presetSettings);
                     
-                    // 수익 구간 판단
                     const getStage = () => {
                       if (pos.profitRate < 5) return 'initial';
                       if (pos.profitRate < 10) return 'profit5';
@@ -298,7 +302,7 @@ export default function SellSignalApp() {
                           border: '1px solid rgba(255,255,255,0.1)',
                         }}
                       >
-                        {/* 헤더 */}
+                        {/* 종목 헤더 */}
                         <div style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
@@ -307,34 +311,19 @@ export default function SellSignalApp() {
                         }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '8px',
-                              marginBottom: '6px' 
+                              display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' 
                             }}>
                               <h3 style={{ 
-                                fontSize: isMobile ? '17px' : '19px', 
-                                fontWeight: '700', 
-                                color: '#fff',
-                                margin: 0 
+                                fontSize: isMobile ? '17px' : '19px', fontWeight: '700', color: '#fff', margin: 0 
                               }}>
                                 {pos.stock.name}
                               </h3>
-                              <span style={{
-                                fontSize: '13px',
-                                color: '#64748b',
-                                fontWeight: '500'
-                              }}>
+                              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
                                 {pos.stock.code}
                               </span>
                             </div>
-                            
                             <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '8px',
-                              fontSize: '13px',
-                              color: '#94a3b8' 
+                              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#94a3b8' 
                             }}>
                               <span>{pos.quantity}주</span>
                               <span>·</span>
@@ -344,46 +333,36 @@ export default function SellSignalApp() {
                           
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ 
-                              fontSize: isMobile ? '19px' : '21px', 
-                              fontWeight: '800',
-                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
-                              marginBottom: '4px'
+                              fontSize: isMobile ? '19px' : '21px', fontWeight: '800',
+                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', marginBottom: '4px'
                             }}>
                               {formatPercent(pos.profitRate)}
                             </div>
                             <div style={{ 
-                              fontSize: '14px',
-                              color: pos.profitRate >= 0 ? '#10b981' : '#ef4444',
-                              fontWeight: '600'
+                              fontSize: '14px', color: pos.profitRate >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'
                             }}>
                               {formatKoreanNumber(pos.profitAmount)}원
                             </div>
                           </div>
                         </div>
 
-                        {/* 수익 단계 표시 */}
+                        {/* 수익 단계 뱃지 */}
                         <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: `${stageInfo.color}20`,
-                          color: stageInfo.color,
-                          padding: '6px 12px',
-                          borderRadius: '8px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          marginBottom: '16px'
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          background: `${stageInfo.color}20`, color: stageInfo.color,
+                          padding: '6px 12px', borderRadius: '8px', fontSize: '12px',
+                          fontWeight: '600', marginBottom: '16px'
                         }}>
                           <span>{stageInfo.label}</span>
                           <span style={{ opacity: 0.7 }}>({stageInfo.range})</span>
                         </div>
 
-                        {/* 차트 */}
+                        {/* 캔들 차트 */}
                         {chartData && chartData.length > 0 && (
                           <div style={{ marginBottom: '16px' }}>
                             <EnhancedCandleChart
                               data={chartData}
-                              width={isMobile ? window.innerWidth - 64 : 500}
+                              width={isMobile ? Math.min(typeof window !== 'undefined' ? window.innerWidth - 64 : 350, 500) : 500}
                               height={isMobile ? 240 : 280}
                               buyPrice={pos.buyPrice}
                               sellPrices={sellPrices}
@@ -400,36 +379,27 @@ export default function SellSignalApp() {
                         {pos.selectedPresets.length > 0 && (
                           <div style={{ marginBottom: '12px' }}>
                             <div style={{ 
-                              fontSize: '13px', 
-                              color: '#94a3b8', 
-                              marginBottom: '8px',
-                              fontWeight: '600' 
+                              fontSize: '13px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' 
                             }}>
                               설정된 매도 전략
                             </div>
-                            <div style={{ 
-                              display: 'flex', 
-                              gap: '6px', 
-                              flexWrap: 'wrap' 
-                            }}>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                               {pos.selectedPresets.map((presetId: string) => {
                                 const preset = SELL_PRESETS[presetId];
-                                const price = sellPrices[presetId];
+                                if (!preset) return null;
+                                const price = sellPrices[presetId as keyof typeof sellPrices];
                                 return (
                                   <div
                                     key={presetId}
                                     style={{
-                                      fontSize: '12px',
-                                      padding: '6px 10px',
-                                      background: `${preset.color}20`,
-                                      color: preset.color,
-                                      borderRadius: '6px',
-                                      border: `1px solid ${preset.color}40`,
+                                      fontSize: '12px', padding: '6px 10px',
+                                      background: `${preset.color}20`, color: preset.color,
+                                      borderRadius: '6px', border: `1px solid ${preset.color}40`,
                                       fontWeight: '600'
                                     }}
                                   >
                                     {preset.icon} {preset.name}
-                                    {price && ` (${formatKoreanNumber(price)})`}
+                                    {price && ` (${formatKoreanNumber(price as number)})`}
                                   </div>
                                 );
                               })}
@@ -440,37 +410,28 @@ export default function SellSignalApp() {
                         {/* 메모 */}
                         {pos.memo && (
                           <div style={{
-                            fontSize: '13px',
-                            color: '#94a3b8',
+                            fontSize: '13px', color: '#94a3b8',
                             background: 'rgba(255,255,255,0.03)',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            marginBottom: '12px',
-                            lineHeight: '1.5'
+                            padding: '10px 12px', borderRadius: '8px',
+                            marginBottom: '12px', lineHeight: '1.5'
                           }}>
                             {pos.memo}
                           </div>
                         )}
 
-                        {/* 액션 버튼들 */}
+                        {/* 액션 버튼 */}
                         <div style={{ 
-                          display: 'flex', 
-                          gap: '8px',
-                          borderTop: '1px solid rgba(255,255,255,0.05)',
-                          paddingTop: '12px'
+                          display: 'flex', gap: '8px',
+                          borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px'
                         }}>
                           <button
                             onClick={() => setEditingPosition(pos)}
                             style={{
-                              flex: 1,
-                              padding: '10px',
+                              flex: 1, padding: '10px',
                               background: 'rgba(59,130,246,0.1)',
                               border: '1px solid rgba(59,130,246,0.3)',
-                              borderRadius: '8px',
-                              color: '#60a5fa',
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
+                              borderRadius: '8px', color: '#60a5fa',
+                              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
                             }}
                           >
                             수정
@@ -482,15 +443,11 @@ export default function SellSignalApp() {
                               }
                             }}
                             style={{
-                              flex: 1,
-                              padding: '10px',
+                              flex: 1, padding: '10px',
                               background: 'rgba(239,68,68,0.1)',
                               border: '1px solid rgba(239,68,68,0.3)',
-                              borderRadius: '8px',
-                              color: '#ef4444',
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
+                              borderRadius: '8px', color: '#ef4444',
+                              fontSize: '13px', fontWeight: '600', cursor: 'pointer',
                             }}
                           >
                             삭제
@@ -507,29 +464,21 @@ export default function SellSignalApp() {
 
         {activeTab === 'analysis' && (
           <div style={{ 
-            background: 'rgba(255,255,255,0.03)', 
-            borderRadius: '12px', 
-            padding: '40px 20px',
-            textAlign: 'center',
+            background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
+            padding: '40px 20px', textAlign: 'center',
           }}>
             <div style={{ fontSize: '48px', marginBottom: '12px' }}>📈</div>
-            <div style={{ fontSize: '15px', color: '#94a3b8' }}>
-              상세 분석 기능 준비 중입니다
-            </div>
+            <div style={{ fontSize: '15px', color: '#94a3b8' }}>상세 분석 기능 준비 중입니다</div>
           </div>
         )}
 
         {activeTab === 'settings' && (
           <div style={{ 
-            background: 'rgba(255,255,255,0.03)', 
-            borderRadius: '12px', 
-            padding: '40px 20px',
-            textAlign: 'center',
+            background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
+            padding: '40px 20px', textAlign: 'center',
           }}>
             <div style={{ fontSize: '48px', marginBottom: '12px' }}>⚙️</div>
-            <div style={{ fontSize: '15px', color: '#94a3b8' }}>
-              설정 기능 준비 중입니다
-            </div>
+            <div style={{ fontSize: '15px', color: '#94a3b8' }}>설정 기능 준비 중입니다</div>
           </div>
         )}
       </main>
@@ -537,35 +486,27 @@ export default function SellSignalApp() {
       {/* 모바일 하단 네비게이션 */}
       {isMobile && (
         <nav style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
+          position: 'fixed', bottom: 0, left: 0, right: 0,
           background: 'rgba(15,23,42,0.95)',
           backdropFilter: 'blur(10px)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex',
-          justifyContent: 'space-around',
+          display: 'flex', justifyContent: 'space-around',
           padding: '8px 0 calc(8px + env(safe-area-inset-bottom))',
           zIndex: 100,
         }}>
           {[
             { id: 'home', icon: '🏠', label: '홈', badge: 0 },
             { id: 'analysis', icon: '📊', label: '분석', badge: 0 },
-            { id: 'alerts', icon: '🔔', label: '알림', badge: alerts.filter(a => !a.read).length },
+            { id: 'alerts', icon: '🔔', label: '알림', badge: alerts.filter((a: Alert) => !a.read).length },
             { id: 'settings', icon: '⚙️', label: '설정', badge: 0 },
           ].map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               style={{
-                background: 'none',
-                border: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer',
+                background: 'none', border: 'none',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: '4px', cursor: 'pointer',
                 position: 'relative',
               }}
             >
@@ -577,17 +518,10 @@ export default function SellSignalApp() {
               }}>{item.label}</span>
               {item.badge > 0 && (
                 <span style={{
-                  position: 'absolute',
-                  top: '2px',
-                  right: '6px',
-                  background: '#ef4444',
-                  color: '#fff',
-                  fontSize: '9px',
-                  fontWeight: '700',
-                  padding: '1px 5px',
-                  borderRadius: '6px',
-                  minWidth: '16px',
-                  textAlign: 'center',
+                  position: 'absolute', top: '2px', right: '6px',
+                  background: '#ef4444', color: '#fff', fontSize: '9px',
+                  fontWeight: '700', padding: '1px 5px', borderRadius: '6px',
+                  minWidth: '16px', textAlign: 'center',
                 }}>{item.badge}</span>
               )}
             </button>
@@ -595,11 +529,10 @@ export default function SellSignalApp() {
         </nav>
       )}
 
-      {/* 모달들 */}
+      {/* 종목 추가 모달 */}
       {showAddModal && (
         <StockModal 
           onSave={(stock: Position) => { 
-            // 새 포지션 추가 시 priceHistory 즉시 생성
             const history = generateMockPriceData(stock.buyPrice, 60);
             const newPosition: Position = {
               ...stock,
@@ -611,7 +544,6 @@ export default function SellSignalApp() {
               })),
               highestPriceRecorded: Math.max(stock.buyPrice, stock.currentPrice)
             };
-            
             setPositions(prev => [...prev, newPosition]); 
             setShowAddModal(false); 
           }} 
@@ -619,6 +551,8 @@ export default function SellSignalApp() {
           isMobile={isMobile}
         />
       )}
+
+      {/* 종목 수정 모달 */}
       {editingPosition && (
         <StockModal 
           stock={editingPosition} 
@@ -634,69 +568,41 @@ export default function SellSignalApp() {
       {/* 업그레이드 팝업 */}
       {showUpgradePopup && (
         <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
           background: 'rgba(0,0,0,0.9)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          zIndex: 1000,
-          padding: isMobile ? '16px' : '40px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 1000, padding: isMobile ? '16px' : '40px',
         }}>
           <div style={{ 
             background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
             borderRadius: '20px', 
             padding: isMobile ? '20px' : '32px', 
-            maxWidth: '420px', 
-            width: '100%',
-            maxHeight: '90vh',
-            overflow: 'auto',
+            maxWidth: '420px', width: '100%', maxHeight: '90vh', overflow: 'auto',
             border: '1px solid rgba(139,92,246,0.3)',
             boxShadow: '0 0 60px rgba(139,92,246,0.2)'
           }}>
-            {/* 헤더 */}
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
               <div style={{ fontSize: '56px', marginBottom: '12px' }}>👑</div>
               <h2 style={{ 
-                fontSize: isMobile ? '22px' : '26px', 
-                fontWeight: '700', 
-                color: '#fff', 
-                margin: '0 0 8px' 
+                fontSize: isMobile ? '22px' : '26px', fontWeight: '700', color: '#fff', margin: '0 0 8px' 
               }}>프리미엄 멤버십</h2>
-              <p style={{ 
-                fontSize: '14px', 
-                color: '#94a3b8', 
-                margin: 0
-              }}>더 강력한 매도 시그널 도구를 경험하세요</p>
+              <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
+                더 강력한 매도 시그널 도구를 경험하세요
+              </p>
             </div>
             
-            {/* 가격 */}
             <div style={{
               background: 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.15) 100%)',
-              borderRadius: '12px',
-              padding: '16px',
-              textAlign: 'center',
-              marginBottom: '20px',
-              border: '1px solid rgba(139,92,246,0.3)'
+              borderRadius: '12px', padding: '16px', textAlign: 'center',
+              marginBottom: '20px', border: '1px solid rgba(139,92,246,0.3)'
             }}>
               <div style={{ fontSize: '14px', color: '#a78bfa', marginBottom: '4px' }}>월 구독료</div>
-              <div style={{ 
-                fontSize: isMobile ? '32px' : '36px', 
-                fontWeight: '800', 
-                color: '#fff'
-              }}>
-                ₩5,900
-                <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>/월</span>
+              <div style={{ fontSize: isMobile ? '32px' : '36px', fontWeight: '800', color: '#fff' }}>
+                ₩5,900<span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>/월</span>
               </div>
-              <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
-                🎁 첫 7일 무료 체험
-              </div>
+              <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>🎁 첫 7일 무료 체험</div>
             </div>
             
-            {/* 기능 비교 */}
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '12px' }}>
                 ✨ 프리미엄 혜택
@@ -710,13 +616,9 @@ export default function SellSignalApp() {
                 { icon: '📧', text: '이메일 리포트', free: '❌', premium: '✅' },
               ].map((item, i) => (
                 <div key={i} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 12px',
-                  background: 'rgba(255,255,255,0.03)',
-                  borderRadius: '8px',
-                  marginBottom: '6px'
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 12px', background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '8px', marginBottom: '6px'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '16px' }}>{item.icon}</span>
@@ -728,26 +630,15 @@ export default function SellSignalApp() {
                   </div>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '4px', paddingRight: '12px' }}>
-                <span style={{ fontSize: '10px', color: '#64748b' }}>무료</span>
-                <span style={{ fontSize: '10px', color: '#10b981' }}>프리미엄</span>
-              </div>
             </div>
             
-            {/* 버튼 */}
             <button 
               onClick={() => { setUser({ ...user, membership: 'premium' }); setShowUpgradePopup(false); }} 
               style={{ 
-                width: '100%', 
-                padding: isMobile ? '16px' : '18px', 
+                width: '100%', padding: isMobile ? '16px' : '18px', 
                 background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)', 
-                border: 'none', 
-                borderRadius: '12px', 
-                color: '#fff', 
-                fontSize: '16px', 
-                fontWeight: '700', 
-                cursor: 'pointer', 
-                marginBottom: '10px',
+                border: 'none', borderRadius: '12px', color: '#fff', 
+                fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px',
                 boxShadow: '0 4px 20px rgba(139,92,246,0.4)'
               }}
             >
@@ -756,27 +647,14 @@ export default function SellSignalApp() {
             <button 
               onClick={() => setShowUpgradePopup(false)} 
               style={{ 
-                width: '100%', 
-                padding: '12px', 
-                background: 'transparent', 
-                border: '1px solid rgba(255,255,255,0.1)', 
-                borderRadius: '10px',
-                color: '#64748b', 
-                fontSize: '14px', 
-                cursor: 'pointer' 
+                width: '100%', padding: '12px', background: 'transparent', 
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px',
+                color: '#64748b', fontSize: '14px', cursor: 'pointer' 
               }}
             >
               나중에 할게요
             </button>
-            
-            {/* 하단 안내 */}
-            <p style={{ 
-              fontSize: '11px', 
-              color: '#64748b', 
-              textAlign: 'center', 
-              margin: '16px 0 0',
-              lineHeight: '1.5'
-            }}>
+            <p style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', margin: '16px 0 0', lineHeight: '1.5' }}>
               언제든지 해지 가능 · 자동 결제 · 부가세 포함
             </p>
           </div>
