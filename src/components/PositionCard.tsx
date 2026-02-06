@@ -2,10 +2,13 @@
 
 import React, { useState, useMemo } from 'react';
 import { useResponsive } from '../hooks/useResponsive';
+// ✅ 수정 1: PriceData는 이제 types/index.ts에서 ChartDataPoint의 별칭으로 정의됨
 import { Position, PriceData } from '../types';
 import { SELL_PRESETS, PROFIT_STAGES } from '../constants';
-import { calculateSellPrices } from '../utils';
-import { CandleChart } from './CandleChart';
+// ✅ 수정 2: import 경로 수정 (../utils → ../utils/calculations)
+import { calculateSellPrices } from '../utils/calculations';
+// ✅ 수정 3: CandleChart → EnhancedCandleChart (default export)
+import EnhancedCandleChart from './EnhancedCandleChart';
 
 interface PositionCardProps {
   position: Position;
@@ -33,6 +36,11 @@ export const PositionCard: React.FC<PositionCardProps> = ({
     maSignal: true,
   });
 
+  // ✅ 수정 4: position에서 name/code를 안전하게 가져오는 헬퍼
+  // 평탄 구조(position.name)와 중첩 구조(position.stock.name) 모두 지원
+  const stockName = position.name || position.stock?.name || '종목명 없음';
+  const stockCode = position.code || position.stock?.code || '';
+
   const currentPrice = priceData?.[priceData.length - 1]?.close || position.buyPrice;
   const profitRate = ((currentPrice - position.buyPrice) / position.buyPrice) * 100;
   const profitAmount = (currentPrice - position.buyPrice) * position.quantity;
@@ -51,8 +59,9 @@ export const PositionCard: React.FC<PositionCardProps> = ({
   };
   const stage = getStage();
 
-  const naverStockUrl = `https://finance.naver.com/item/main.naver?code=${position.code}`;
-  const naverChartUrl = `https://finance.naver.com/item/fchart.naver?code=${position.code}`;
+  // ✅ 수정 5: stockCode 헬퍼 사용
+  const naverStockUrl = `https://finance.naver.com/item/main.naver?code=${stockCode}`;
+  const naverChartUrl = `https://finance.naver.com/item/fchart.naver?code=${stockCode}`;
 
   const chartSize = isMobile 
     ? { width: Math.min(280, typeof window !== 'undefined' ? window.innerWidth - 80 : 280), height: 160 }
@@ -88,13 +97,15 @@ export const PositionCard: React.FC<PositionCardProps> = ({
           flex: '1 1 auto',
           minWidth: 0,
         }}>
+          {/* ✅ stockName 헬퍼 사용 */}
           <a href={naverStockUrl} target="_blank" rel="noopener noreferrer" style={{
             fontSize: isMobile ? '14px' : '18px',
             fontWeight: '700',
             color: '#fff',
             textDecoration: 'none',
             whiteSpace: 'nowrap',
-          }}>{position.name} ↗</a>
+          }}>{stockName} ↗</a>
+          {/* ✅ stockCode 헬퍼 사용 */}
           <span style={{
             background: 'rgba(59,130,246,0.2)',
             color: '#60a5fa',
@@ -102,7 +113,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
             borderRadius: '4px',
             fontSize: isMobile ? '9px' : '12px',
             fontWeight: '600',
-          }}>{position.code}</span>
+          }}>{stockCode}</span>
           <span style={{
             background: stage.color + '20',
             color: stage.color,
@@ -283,6 +294,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
         </div>
 
         {/* 우측: 차트 */}
+        {/* ✅ 수정: CandleChart → EnhancedCandleChart */}
         {isMobile ? (
           <div>
             <button onClick={() => setShowChart(!showChart)} style={{
@@ -304,7 +316,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
                 flexDirection: 'column',
                 alignItems: 'center',
               }}>
-                <CandleChart
+                <EnhancedCandleChart
                   data={priceData.slice(-30)}
                   width={chartSize.width}
                   height={chartSize.height}
@@ -324,7 +336,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
               cursor: 'pointer',
               flexShrink: 0,
             }}>
-              <CandleChart
+              <EnhancedCandleChart
                 data={priceData.slice(-40)}
                 width={chartSize.width}
                 height={chartSize.height}
