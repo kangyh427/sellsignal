@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import useResponsive from '../hooks/useResponsive';
+import { useResponsive } from '../hooks/useResponsive';
 
 // ============================================
 // 요약 카드 컴포넌트 — 반응형 (모바일 2x2 / 데스크탑 4열)
