@@ -1,7 +1,6 @@
-
 export const metadata = {
-  title: '매도의 기술 - 주식 매도 시그널 도구',
-  description: '수익 단계별 맞춤형 매도 조건 알림 도구',
+  title: '매도의 기술 - CREST | 주식 매도 시그널 도구',
+  description: '수익 단계별 맞춤형 매도 조건 알림 도구 — Ride the Peak',
 };
 
 export const viewport = {
