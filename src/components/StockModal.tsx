@@ -1,32 +1,25 @@
 'use client';
 // ============================================
-// StockModal - 종목 추가/수정 모달
+// StockModal - 종목 추가/수정 모달 (바텀시트 개선)
 // 경로: src/components/StockModal.tsx
-// 세션3에서 SellSignalApp.tsx L447-862 분리
 // ============================================
-// 모바일 최적화:
-//   - 모바일에서 바텀시트 스타일 (하단 슬라이드업)
-//   - 입력 필드 16px 이상 (iOS 줌 방지)
-//   - 터치 타겟 44px 이상 확보
-//   - safe-area-inset 대응
+// 세션5 모바일 터치 UX 개선:
+//   [B2] 바텀시트 슬라이드업 애니메이션 + 드래그 핸들
+//   [B5] safe-area-inset 하단 여백
+//   [B6] inputMode="numeric" 숫자 키패드 적용
+//   [B1] 모든 인터랙티브 요소 44px 터치 타겟
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SELL_PRESETS } from '../constants';
 import { useResponsive } from '../hooks/useResponsive';
 import type { Position, StockInfo } from '../types';
-
-// ── 유틸 함수 import ──
-// searchStocks, findExactStock은 utils에서 가져옴
 import { searchStocks, findExactStock } from '../utils';
 
 // ── Props 타입 정의 ──
 interface StockModalProps {
-  /** 수정 모드일 때 기존 종목 데이터 */
   stock?: Position | null;
-  /** 저장 콜백 */
   onSave: (stock: any) => void;
-  /** 닫기 콜백 */
   onClose: () => void;
 }
 
@@ -49,6 +42,15 @@ interface FormState {
 const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
   const { isMobile, isTablet } = useResponsive();
 
+  // ── 닫기 애니메이션 상태 ──
+  const [isClosing, setIsClosing] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // ── 드래그 상태 (모바일 바텀시트) ──
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
+
   // ── 폼 초기값 ──
   const [form, setForm] = useState<FormState>(
     stock
@@ -66,6 +68,57 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
   const [searchResults, setSearchResults] = useState<StockInfo[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [stockFound, setStockFound] = useState(!!stock);
+
+  // ── 배경 스크롤 방지 ──
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    // iOS에서 position: fixed 처리
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.top = `-${scrollY}px`;
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      const top = document.body.style.top;
+      document.body.style.top = '';
+      window.scrollTo(0, parseInt(top || '0') * -1);
+    };
+  }, []);
+
+  // ── 애니메이션 닫기 ──
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    // 애니메이션 완료 후 실제 닫기
+    setTimeout(() => {
+      onClose();
+    }, isMobile ? 250 : 200);
+  }, [onClose, isMobile]);
+
+  // ── 드래그 핸들러 (모바일 바텀시트 드래그 닫기) ──
+  const handleDragStart = (e: React.TouchEvent) => {
+    setDragStartY(e.touches[0].clientY);
+  };
+
+  const handleDragMove = (e: React.TouchEvent) => {
+    if (dragStartY === null) return;
+    const deltaY = e.touches[0].clientY - dragStartY;
+    // 아래로만 드래그 허용
+    if (deltaY > 0) {
+      setDragDeltaY(deltaY);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (dragDeltaY > 120) {
+      // 120px 이상 드래그하면 닫기
+      handleClose();
+    }
+    setDragStartY(null);
+    setDragDeltaY(0);
+  };
 
   // ── 종목 검색 ──
   const handleStockSearch = (query: string) => {
@@ -101,7 +154,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
     const current = form.selectedPresets || [];
     setForm({
       ...form,
-      selectedPresets: current.includes(id) ? current.filter(p => p !== id) : [...current, id],
+      selectedPresets: current.includes(id) ? current.filter((p: string) => p !== id) : [...current, id],
     });
   };
 
@@ -125,6 +178,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
 
   return (
     <div
+      ref={overlayRef}
       style={{
         position: 'fixed',
         inset: 0,
@@ -134,10 +188,15 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
         justifyContent: 'center',
         zIndex: 1000,
         padding: isMobile ? '0' : '20px',
+        // 애니메이션
+        animation: isClosing
+          ? 'fadeOut 0.2s ease-in forwards'
+          : 'fadeIn 0.25s ease-out',
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
       <div
+        ref={contentRef}
         style={{
           background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
           borderRadius: isMobile ? '20px 20px 0 0' : '20px',
@@ -148,12 +207,46 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
           display: 'flex',
           flexDirection: 'column',
           border: '1px solid rgba(255,255,255,0.1)',
+          // 바텀시트 애니메이션 + 드래그
+          animation: isMobile
+            ? isClosing
+              ? 'slideDown 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards'
+              : 'slideUp 0.3s cubic-bezier(0.32, 0.72, 0, 1)'
+            : isClosing
+              ? 'fadeOut 0.2s ease-in forwards'
+              : 'fadeIn 0.25s ease-out',
+          transform: dragDeltaY > 0 ? `translateY(${dragDeltaY}px)` : undefined,
+          transition: dragDeltaY > 0 ? 'none' : undefined,
         }}
       >
+        {/* ── [B2] 드래그 핸들 (모바일 전용) ── */}
+        {isMobile && (
+          <div
+            onTouchStart={handleDragStart}
+            onTouchMove={handleDragMove}
+            onTouchEnd={handleDragEnd}
+            style={{
+              padding: '8px 0 4px',
+              cursor: 'grab',
+              touchAction: 'none',
+            }}
+          >
+            <div
+              style={{
+                width: '36px',
+                height: '4px',
+                background: 'rgba(255,255,255,0.3)',
+                borderRadius: '2px',
+                margin: '0 auto',
+              }}
+            />
+          </div>
+        )}
+
         {/* ── 헤더 ── */}
         <div
           style={{
-            padding: isMobile ? '16px 20px' : '20px 24px',
+            padding: isMobile ? '12px 20px 16px' : '20px 24px',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -171,7 +264,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
             {stock ? '📝 종목 수정' : '➕ 새 종목 추가'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               background: 'rgba(255,255,255,0.1)',
               border: 'none',
@@ -180,7 +273,12 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
               color: '#fff',
               fontSize: '14px',
               cursor: 'pointer',
-              minHeight: '40px',
+              // [B1] 터치 타겟 44px 보장
+              minHeight: '44px',
+              minWidth: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             닫기
@@ -189,13 +287,16 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
 
         {/* ── 스크롤 영역 ── */}
         <div
+          className="scroll-container"
           style={{
             flex: 1,
             overflow: 'auto',
             padding: isMobile ? '16px 20px' : '20px 24px',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
           }}
         >
-          {/* 종목 검색 */}
+          {/* ── 종목 검색 ── */}
           <div style={{ marginBottom: '16px', position: 'relative' }}>
             <label
               style={{
@@ -214,6 +315,9 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
               onChange={(e) => handleStockSearch(e.target.value)}
               onFocus={() => searchResults.length > 0 && setShowResults(true)}
               placeholder="예: 삼성전자 또는 005930"
+              // [B6] enterKeyHint로 모바일 키보드 '검색' 버튼 표시
+              enterKeyHint="search"
+              autoComplete="off"
               style={{
                 width: '100%',
                 padding: '14px 16px',
@@ -223,9 +327,12 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                   : '1px solid rgba(255,255,255,0.15)',
                 borderRadius: showResults ? '12px 12px 0 0' : '12px',
                 color: '#fff',
-                fontSize: '16px', // iOS 줌 방지: 16px 이상
+                // [B6] iOS 줌 방지: 반드시 16px 이상
+                fontSize: '16px',
                 outline: 'none',
                 boxSizing: 'border-box',
+                // [B1] 터치 타겟 44px 보장
+                minHeight: '48px',
               }}
             />
             {/* 검색 결과 드롭다운 */}
@@ -250,7 +357,9 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                     key={result.code}
                     onClick={() => selectStock(result)}
                     style={{
+                      // [B1] 검색결과 항목도 44px 터치 타겟
                       padding: '14px 16px',
+                      minHeight: '48px',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
@@ -259,8 +368,10 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                         idx < searchResults.length - 1
                           ? '1px solid rgba(255,255,255,0.05)'
                           : 'none',
+                      // 터치 피드백
                       transition: 'background 0.15s',
                     }}
+                    // 모바일에서는 hover 대신 active 사용
                     onMouseEnter={(e) =>
                       ((e.currentTarget as HTMLDivElement).style.background =
                         'rgba(255,255,255,0.05)')
@@ -296,7 +407,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
             )}
           </div>
 
-          {/* 매수가, 수량 */}
+          {/* ── 매수가, 수량 ── */}
           <div
             style={{
               display: 'grid',
@@ -305,6 +416,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
               marginBottom: '20px',
             }}
           >
+            {/* 매수가 */}
             <div>
               <label
                 style={{
@@ -318,10 +430,18 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                 매수가 (원) *
               </label>
               <input
-                type="number"
+                // [B6] inputMode="numeric"으로 모바일 숫자 키패드 표시
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={form.buyPrice}
-                onChange={(e) => setForm({ ...form, buyPrice: e.target.value })}
+                onChange={(e) => {
+                  // 숫자만 허용
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setForm({ ...form, buyPrice: val });
+                }}
                 placeholder="72000"
+                enterKeyHint="next"
                 style={{
                   width: '100%',
                   padding: '14px 16px',
@@ -332,9 +452,11 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                   fontSize: '16px',
                   outline: 'none',
                   boxSizing: 'border-box',
+                  minHeight: '48px',
                 }}
               />
             </div>
+            {/* 수량 */}
             <div>
               <label
                 style={{
@@ -348,10 +470,17 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                 수량 (주) *
               </label>
               <input
-                type="number"
+                // [B6] 수량도 숫자 키패드
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setForm({ ...form, quantity: val });
+                }}
                 placeholder="100"
+                enterKeyHint="done"
                 style={{
                   width: '100%',
                   padding: '14px 16px',
@@ -362,6 +491,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                   fontSize: '16px',
                   outline: 'none',
                   boxSizing: 'border-box',
+                  minHeight: '48px',
                 }}
               />
             </div>
@@ -394,7 +524,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
               ⚠️ 아래 기본값은 예시일 뿐입니다. 반드시 본인의 투자 원칙에 따라 수정하십시오.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {Object.values(SELL_PRESETS).map((preset) => {
+              {Object.values(SELL_PRESETS).map((preset: any) => {
                 const isSelected = (form.selectedPresets || []).includes(preset.id);
                 return (
                   <div
@@ -413,7 +543,8 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                       borderRadius: '12px',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
-                      minHeight: '44px', // 터치 타겟 확보
+                      // [B1] 터치 타겟 44px 보장
+                      minHeight: '52px',
                     }}
                     onClick={() => togglePreset(preset.id)}
                   >
@@ -448,15 +579,20 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                     {/* 커스텀 입력 (hasInput이 있고 선택된 경우) */}
                     {preset.hasInput && isSelected && (
                       <input
-                        type="number"
+                        // [B6] 프리셋 값도 숫자 키패드
+                        type="text"
+                        inputMode="numeric"
+                        pattern="-?[0-9]*"
                         value={form.presetSettings?.[preset.id]?.value ?? preset.inputDefault}
                         onChange={(e) => {
                           e.stopPropagation();
+                          // 음수 허용 (손절 기준)
+                          const val = e.target.value.replace(/[^0-9\-]/g, '');
                           setForm({
                             ...form,
                             presetSettings: {
                               ...form.presetSettings,
-                              [preset.id]: { value: Number(e.target.value) },
+                              [preset.id]: { value: Number(val) || 0 },
                             },
                           });
                         }}
@@ -468,10 +604,12 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                           border: '1px solid rgba(255,255,255,0.2)',
                           borderRadius: '8px',
                           color: '#fff',
-                          fontSize: '14px',
+                          fontSize: '16px',
                           outline: 'none',
                           textAlign: 'center',
                           flexShrink: 0,
+                          // [B1] 터치 타겟
+                          minHeight: '44px',
                         }}
                       />
                     )}
@@ -486,6 +624,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
         <div
           style={{
             padding: isMobile ? '16px 20px' : '16px 24px',
+            // [B5] safe-area 하단 여백
             paddingBottom: isMobile ? 'max(16px, env(safe-area-inset-bottom))' : '16px',
             borderTop: '1px solid rgba(255,255,255,0.08)',
             background: 'rgba(0,0,0,0.2)',
@@ -508,7 +647,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
           {/* 버튼 */}
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               style={{
                 flex: 1,
                 padding: '16px',
@@ -518,6 +657,7 @@ const StockModal: React.FC<StockModalProps> = ({ stock, onSave, onClose }) => {
                 color: '#fff',
                 fontSize: '16px',
                 cursor: 'pointer',
+                // [B1] 터치 타겟 52px
                 minHeight: '52px',
               }}
             >
