@@ -1,14 +1,14 @@
 'use client';
 // ============================================
 // MobileBottomNav - 모바일 하단 네비게이션
-// 세션1 신규: 2×2 탭네비 제거 후 하단네비로 통합
+// 경로: src/components/MobileBottomNav.tsx
 // ============================================
-// 개선사항:
-// - 레이블 11px → 13px (M1 해결)
-// - 아이콘 22px → 24px (시인성)
-// - 터치 영역 48px 보장 (M7 해결)
-// - 경계선 대비 강화 (0.12 → 0.15)
-// - safe-area-inset-bottom 대응 (노치 대응)
+// 세션6 [A3] 변경사항:
+//   - 아이콘/라벨 통일: 📊포지션 / 🔔알림 / 🌐시장 / 📚가이드
+//   - 배경 헤더와 통일: rgba(10,10,15,0.98)
+//   - 활성 탭: rgba(59,130,246,0.12) + #60a5fa
+//   - safe-area-inset-bottom 대응
+//   - 터치 타겟 48px 보장
 // ============================================
 
 import React from 'react';
@@ -26,10 +26,11 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onTabChange,
   alertCount,
 }) => {
+  // [A3] 통일된 아이콘/라벨
   const tabs: Array<{ id: MobileTab; icon: string; label: string; badge?: number }> = [
     { id: 'positions', icon: '📊', label: '포지션' },
     { id: 'alerts', icon: '🔔', label: '알림', badge: alertCount },
-    { id: 'market', icon: '🥚', label: '시장' },
+    { id: 'market', icon: '🌐', label: '시장' },
     { id: 'guide', icon: '📚', label: '가이드' },
   ];
 
@@ -39,13 +40,16 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       bottom: 0,
       left: 0,
       right: 0,
-      background: 'rgba(15, 23, 42, 0.98)',
-      borderTop: '1px solid rgba(255,255,255,0.15)',
-      padding: '6px 8px',
-      paddingBottom: 'max(6px, env(safe-area-inset-bottom))',
+      // [A3] 헤더와 동일한 배경색
+      background: 'rgba(10, 10, 15, 0.98)',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      padding: '6px 12px',
+      // [A3] safe-area 하단 여백
+      paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
       display: 'flex',
       justifyContent: 'space-around',
-      backdropFilter: 'blur(12px)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
       zIndex: 100,
     }}>
       {tabs.map(item => {
@@ -55,26 +59,30 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             key={item.id}
             onClick={() => onTabChange(item.id)}
             style={{
-              background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+              // [A3] 활성 탭 배경
+              background: isActive ? 'rgba(59,130,246,0.12)' : 'transparent',
               border: 'none',
-              padding: '6px 16px',
+              padding: '6px 14px',
               borderRadius: '12px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '3px',
+              gap: '2px',
               cursor: 'pointer',
               position: 'relative',
-              minWidth: '64px',
-              minHeight: '48px',  /* 터치영역 48px 보장 */
+              minWidth: '60px',
+              // [A3] 터치 타겟 48px 보장
+              minHeight: '48px',
               justifyContent: 'center',
+              transition: 'background 0.2s ease',
             }}
           >
-            <span style={{ fontSize: '24px', lineHeight: '1' }}>{item.icon}</span>
+            <span style={{ fontSize: '20px', lineHeight: '1' }}>{item.icon}</span>
             <span style={{
-              fontSize: '13px',  /* 11px → 13px 개선 */
-              color: isActive ? '#60a5fa' : '#94a3b8',
-              fontWeight: isActive ? '600' : '500',
+              fontSize: '11px',
+              // [A3] 활성 탭 색상
+              color: isActive ? '#60a5fa' : '#64748b',
+              fontWeight: isActive ? '700' : '500',
               lineHeight: '1',
             }}>{item.label}</span>
 
@@ -82,17 +90,17 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {item.badge && item.badge > 0 && (
               <span style={{
                 position: 'absolute',
-                top: '2px',
-                right: '10px',
+                top: '1px',
+                right: '6px',
                 background: '#ef4444',
                 color: '#fff',
-                fontSize: '10px',
+                fontSize: '9px',
                 fontWeight: '700',
-                padding: '2px 6px',
-                borderRadius: '8px',
-                minWidth: '18px',
+                padding: '1px 5px',
+                borderRadius: '7px',
+                minWidth: '16px',
                 textAlign: 'center',
-                lineHeight: '1.2',
+                lineHeight: '1.3',
               }}>{item.badge}</span>
             )}
           </button>
