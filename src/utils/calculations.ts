@@ -1,93 +1,63 @@
-import type { Position, ChartDataPoint, PresetSettings, SellPrices } from '../types';
-
 // ============================================
-// 계산 유틸리티 함수들
+// 매도 기준가 계산 유틸리티
+// 위치: src/utils/calculateSellPrices.ts
 // ============================================
+// PositionCard 내부에서 추출 → 독립 유틸리티로 분리
+// 다른 컴포넌트(알림 시스템, 대시보드 등)에서도 재사용 가능
 
-// 매도 가격 계산
+import type { Position, PriceData, SellPrices, PresetSettings } from '../types';
+
+/**
+ * 포지션과 가격 데이터를 기반으로 매도 기준가격을 계산합니다.
+ *
+ * @param position - 포지션 정보 (매수가, 최고가 등)
+ * @param priceData - 캔들차트 가격 데이터 배열
+ * @param presetSettings - 사용자가 설정한 프리셋 파라미터
+ * @returns SellPrices - 각 전략별 매도 기준가
+ */
 export const calculateSellPrices = (
-  position: Position, 
-  priceData?: ChartDataPoint[], 
-  presetSettings?: PresetSettings
+  position: Position,
+  priceData: PriceData[] | undefined,
+  presetSettings?: PresetSettings,
 ): SellPrices => {
   const prices: SellPrices = {};
-  
-  // 손절가
-  if (presetSettings?.stopLoss) {
-    prices.stopLoss = Math.round(position.buyPrice * (1 + (presetSettings.stopLoss.value || -5) / 100));
+
+  // ── 1. 손절가 (손실제한 매도법) ──
+  // 기본값: 매수가 대비 -5% (사용자 설정 가능)
+  prices.stopLoss = Math.round(
+    position.buyPrice * (1 + (presetSettings?.stopLoss?.value || -5) / 100),
+  );
+
+  // ── 2. 2/3 익절가 (익절 매도법) ──
+  // 최고가에서 수익의 1/3을 반납한 지점
+  const highestPrice = position.highestPrice || position.highestPriceRecorded;
+  if (highestPrice) {
+    prices.twoThird = Math.round(
+      highestPrice - (highestPrice - position.buyPrice) / 3,
+    );
   }
-  
-  // 2/3 익절가 - 보유 중 최고가 기준으로 계산
-  if (position.currentPrice > position.buyPrice) {
-    // highestPriceRecorded가 있으면 사용, 없으면 currentPrice 사용 (호환성)
-    const highestPrice = position.highestPriceRecorded || position.currentPrice;
-    prices.twoThird = Math.round(highestPrice - (highestPrice - position.buyPrice) / 3);
+
+  // ── 3. 이동평균선 기준가 ──
+  // 기본 20일 이동평균 (사용자 설정 가능)
+  const maPeriod = presetSettings?.maSignal?.value || 20;
+  if (priceData && priceData.length >= maPeriod) {
+    prices.maSignal = Math.round(
+      priceData.slice(-maPeriod).reduce((sum, d) => sum + d.close, 0) / maPeriod,
+    );
   }
-  
-  // 이동평균선
-  if (priceData && priceData.length > 0) {
-    const maPeriod = presetSettings?.maSignal?.value || 20;
-    if (priceData.length >= maPeriod) {
-      const recentPrices = priceData.slice(-maPeriod);
-      const sum = recentPrices.reduce((acc, d) => acc + d.close, 0);
-      prices.maSignal = Math.round(sum / maPeriod);
-    }
-  }
-  
-  // 3봉 매도법
+
+  // ── 4. 봉3개 매도법 (50% 기준) ──
+  // 직전 양봉의 50% 하회 시 절반 매도 기준가
   if (priceData && priceData.length >= 2) {
     const prevCandle = priceData[priceData.length - 2];
     if (prevCandle.close > prevCandle.open) {
-      prices.candle3_50 = Math.round(prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5);
+      prices.candle3_50 = Math.round(
+        prevCandle.close - (prevCandle.close - prevCandle.open) * 0.5,
+      );
     }
   }
-  
+
   return prices;
 };
 
-// D-Day 계산
-export const calculateDDay = (dateStr: string): string => {
-  const targetDate = new Date(dateStr);
-  const today = new Date();
-  const diff = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  
-  if (diff === 0) return 'D-Day';
-  if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`;
-};
-
-// 모의 가격 데이터 생성
-export const generateMockPriceData = (basePrice: number, days: number = 60): ChartDataPoint[] => {
-  const data: ChartDataPoint[] = [];
-  let price = basePrice;
-  for (let i = 0; i < days; i++) {
-    const change = (Math.random() - 0.47) * basePrice * 0.025;
-    price = Math.max(price + change, basePrice * 0.7);
-    const high = price * (1 + Math.random() * 0.02);
-    const low = price * (1 - Math.random() * 0.02);
-    const open = low + Math.random() * (high - low);
-    const close = low + Math.random() * (high - low);
-    data.push({ 
-      date: new Date(Date.now() - (days - i) * 86400000), 
-      open, 
-      high, 
-      low, 
-      close, 
-      volume: Math.floor(Math.random() * 1000000 + 500000) 
-    });
-  }
-  return data;
-};
-
-// 한국식 숫자 포맷 (억, 만)
-export const formatKoreanNumber = (num: number): string => {
-  if (num >= 100000000) return `${(num / 100000000).toFixed(1)}억`;
-  if (num >= 10000) return `${(num / 10000).toFixed(0)}만`;
-  return num.toLocaleString();
-};
-
-// 퍼센트 포맷 (+/- 기호 포함)
-export const formatPercent = (num: number): string => {
-  const sign = num >= 0 ? '+' : '';
-  return `${sign}${num.toFixed(2)}%`;
-};
+export default calculateSellPrices;
