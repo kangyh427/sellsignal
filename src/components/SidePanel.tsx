@@ -1,19 +1,20 @@
 'use client';
 
+// ============================================
+// SidePanel — 우측 사이드바
+// 위치: src/components/SidePanel.tsx
+//
+// 세션 4: 모바일 탭 전환 최적화
+// - 탭별 표시/숨김 로직 개선
+// - 모바일 여백/패딩 미세 조정
+// - 스크롤 성능 개선
+// ============================================
+
 import React from 'react';
 import type { Alert } from '../types';
-// 직접 import (순환 참조 방지 — SidePanel 자체가 components/ 내부)
 import MarketCycleWidget from './MarketCycleWidget';
 import AlertCard from './AlertCard';
 import SellMethodGuide from './SellMethodGuide';
-
-// ============================================
-// SidePanel 컴포넌트
-// 위치: src/components/SidePanel.tsx
-//
-// SellSignalApp.tsx 라인 476~614에서 추출
-// 우측 사이드바 — 시장분석, 알림, 가이드, 면책조항
-// ============================================
 
 interface SidePanelProps {
   isMobile: boolean;
@@ -43,7 +44,11 @@ const SidePanel: React.FC<SidePanelProps> = ({
   }
 
   return (
-    <div style={{ padding: isMobile ? '0 16px' : '0' }}>
+    <div style={{ 
+      padding: isMobile ? '0 16px' : '0',
+      // 모바일에서 하단 네비 겹침 방지
+      paddingBottom: isMobile ? '16px' : '0',
+    }}>
       {/* ── 시장 분석 위젯 ── */}
       <div
         style={{
@@ -59,7 +64,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
           display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
           background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
           borderRadius: '14px',
-          padding: isMobile ? '14px' : '16px',
+          padding: isMobile ? '12px' : '16px',
           border: '1px solid rgba(255,255,255,0.08)',
           marginBottom: '12px',
           maxHeight: isMobile ? 'none' : '300px',
@@ -77,7 +82,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
         >
           <h2
             style={{
-              fontSize: isMobile ? '15px' : '16px',
+              fontSize: isMobile ? '14px' : '16px',
               fontWeight: '600',
               color: '#fff',
               margin: 0,
@@ -92,9 +97,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 style={{
                   background: '#ef4444',
                   color: '#fff',
-                  padding: '2px 10px',
+                  padding: '2px 8px',
                   borderRadius: '10px',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: '700',
                 }}
               >
@@ -111,8 +116,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 borderRadius: '6px',
                 padding: '6px 10px',
                 color: '#94a3b8',
-                fontSize: '12px',
+                fontSize: '11px',
                 cursor: 'pointer',
+                minHeight: '32px', // 터치 타겟
               }}
             >
               모두 지우기
@@ -125,22 +131,36 @@ const SidePanel: React.FC<SidePanelProps> = ({
           <div
             style={{
               textAlign: 'center',
-              padding: isMobile ? '20px 16px' : '30px 16px',
+              padding: isMobile ? '24px 16px' : '30px 16px',
             }}
           >
-            <div style={{ fontSize: '32px', marginBottom: '10px' }}>✨</div>
-            <div style={{ fontSize: '14px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
+            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
               현재 도달한 조건이 없습니다
             </div>
           </div>
         ) : (
-          alerts.slice(0, 5).map((alert) => (
+          alerts.slice(0, isMobile ? 3 : 5).map((alert) => (
             <AlertCard
               key={alert.id}
               alert={alert}
               onDismiss={onDismissAlert}
             />
           ))
+        )}
+        
+        {/* 모바일에서 알림 더보기 */}
+        {isMobile && alerts.length > 3 && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '8px',
+              fontSize: '12px',
+              color: '#60a5fa',
+            }}
+          >
+            +{alerts.length - 3}개 더보기
+          </div>
         )}
       </div>
 
@@ -151,7 +171,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
       {(!isMobile || activeTab === 'guide') && (
         <div
           style={{
-            padding: isMobile ? '12px' : '14px',
+            padding: isMobile ? '10px 12px' : '14px',
             background: 'rgba(255,255,255,0.02)',
             borderRadius: '12px',
             borderLeft: '4px solid #64748b',
@@ -159,15 +179,15 @@ const SidePanel: React.FC<SidePanelProps> = ({
         >
           <p
             style={{
-              fontSize: isMobile ? '11px' : '12px',
+              fontSize: isMobile ? '10px' : '12px',
               color: '#64748b',
               margin: 0,
               lineHeight: '1.6',
             }}
           >
-            ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티 도구입니다. 제공되는
-            알람은 투자자문이나 투자권유가 아니며, 모든 투자 판단의 책임은 사용자에게
-            있습니다.
+            ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티 도구입니다. 
+            제공되는 알람은 투자자문이나 투자권유가 아니며, 모든 투자 판단의 책임은 
+            사용자에게 있습니다.
           </p>
         </div>
       )}
