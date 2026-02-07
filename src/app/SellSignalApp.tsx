@@ -19,6 +19,8 @@ import ResponsiveHeader from '../components/ResponsiveHeader';
 import ResponsiveSummaryCards from '../components/ResponsiveSummaryCards';
 import MobileBottomNav from '../components/MobileBottomNav';
 import type { MobileTab } from '../components/MobileBottomNav';
+import PositionCard from '../components/PositionCard';
+
 
 // ============================================
 
@@ -26,208 +28,9 @@ import type { MobileTab } from '../components/MobileBottomNav';
 // [세션1] ResponsiveSummaryCards → components/ResponsiveSummaryCards.tsx 분리 완료
 // [세션1] MobileBottomNav → components/MobileBottomNav.tsx 신규 생성
 
-// ============================================
-// 반응형 캔들 차트 컴포넌트
-// ============================================
-// 캔들 차트 컴포넌트 - X축 날짜 & Y축 가격 개선
-// ============================================
-const EnhancedCandleChart = ({ data, width = 270, height = 280, buyPrice, sellPrices, visibleLines }) => {
-  if (!data || data.length === 0) return null;
-  
-  // 차트 크기에 따른 폰트 크기 결정
-  const isSmallChart = width < 280;
-  const fontSize = {
-    xAxis: isSmallChart ? 10 : 11,
-    yAxis: isSmallChart ? 9 : 10,
-    label: isSmallChart ? 8 : 9
-  };
-  
-  const padding = { top: 10, right: 70, bottom: 34, left: 6 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-  
-  const allPrices = data.flatMap(d => [d.high, d.low]).concat([buyPrice]).concat(Object.values(sellPrices || {}).filter(Boolean));
-  const minP = Math.min(...allPrices) * 0.98;
-  const maxP = Math.max(...allPrices) * 1.02;
-  const range = maxP - minP || 1;
-  const candleW = Math.max(3, (chartW / data.length) - 1.5);
-  
-  const scaleY = (p) => padding.top + chartH - ((p - minP) / range) * chartH;
-  const scaleX = (i) => padding.left + (i / data.length) * chartW;
-  const currentPrice = data[data.length - 1]?.close || buyPrice;
+// [세션2] EnhancedCandleChart → components/EnhancedCandleChart.tsx 분리 완료
+// [세션2] PositionCard → components/PositionCard.tsx 분리 완료
 
-  // 날짜 포맷 - 월/일 형식
-  const formatDate = (date) => {
-    const d = new Date(date);
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    return `${month}/${day}`;
-  };
-
-  // X축 날짜 표시 위치 계산 - 항상 5개 이상 표시
-  const getXAxisIndices = () => {
-    const dataLen = data.length;
-    // 기본적으로 5~6개 표시 (차트 크기와 무관하게)
-    if (dataLen <= 10) {
-      // 데이터가 적으면 전체 표시
-      return Array.from({ length: dataLen }, (_, i) => i).filter((_, i) => i % 2 === 0);
-    } else if (dataLen <= 20) {
-      // 5개 표시
-      return [
-        0, 
-        Math.floor(dataLen * 0.25), 
-        Math.floor(dataLen * 0.5), 
-        Math.floor(dataLen * 0.75), 
-        dataLen - 1
-      ];
-    } else {
-      // 6개 표시
-      return [
-        0, 
-        Math.floor(dataLen * 0.2), 
-        Math.floor(dataLen * 0.4), 
-        Math.floor(dataLen * 0.6), 
-        Math.floor(dataLen * 0.8), 
-        dataLen - 1
-      ];
-    }
-  };
-  
-  const xAxisIndices = getXAxisIndices();
-  
-  // 가격 포맷 - 실제 가격 (콤마 포함)
-  const formatPrice = (price) => {
-    return Math.round(price).toLocaleString();
-  };
-
-  return (
-    <svg width={width} height={height} style={{ display: 'block', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-      {/* Y축 그리드 및 가격 라벨 - 5단계 */}
-      {[0,1,2,3,4].map(i => {
-        const price = minP + (range * i / 4);
-        const y = scaleY(price);
-        return (
-          <g key={i}>
-            <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255,255,255,0.12)" strokeDasharray="3,3" />
-            <text 
-              x={width - padding.right + 4} 
-              y={y + 4} 
-              fill="#d4d4d8" 
-              fontSize={fontSize.yAxis}
-              fontWeight="600"
-            >
-              {formatPrice(price)}
-            </text>
-          </g>
-        );
-      })}
-      
-      {/* X축 기준선 */}
-      <line 
-        x1={padding.left} 
-        y1={height - padding.bottom} 
-        x2={width - padding.right} 
-        y2={height - padding.bottom} 
-        stroke="rgba(255,255,255,0.2)" 
-      />
-      
-      {/* X축 날짜 라벨 - 5~6개 */}
-      {xAxisIndices.map((idx, i) => {
-        if (idx >= data.length || !data[idx]?.date) return null;
-        const x = scaleX(idx) + candleW / 2;
-        return (
-          <g key={`x-${i}`}>
-            {/* 눈금선 */}
-            <line 
-              x1={x} 
-              y1={height - padding.bottom} 
-              x2={x} 
-              y2={height - padding.bottom + 4} 
-              stroke="rgba(255,255,255,0.4)" 
-            />
-            {/* 날짜 텍스트 */}
-            <text 
-              x={x} 
-              y={height - padding.bottom + 18} 
-              fill="#d4d4d8" 
-              fontSize={fontSize.xAxis} 
-              textAnchor="middle"
-              fontWeight="600"
-            >
-              {formatDate(data[idx].date)}
-            </text>
-          </g>
-        );
-      })}
-      
-      {/* 캔들 */}
-      {data.map((c, i) => {
-        const x = scaleX(i);
-        const isUp = c.close >= c.open;
-        const color = isUp ? '#10b981' : '#ef4444';
-        return (
-          <g key={i}>
-            <line x1={x + candleW/2} y1={scaleY(c.high)} x2={x + candleW/2} y2={scaleY(c.low)} stroke={color} strokeWidth={1} />
-            <rect x={x} y={scaleY(Math.max(c.open, c.close))} width={candleW} height={Math.max(1, Math.abs(scaleY(c.open) - scaleY(c.close)))} fill={color} />
-          </g>
-        );
-      })}
-      
-      {/* 매수가 라인 */}
-      <line x1={padding.left} y1={scaleY(buyPrice)} x2={width - padding.right} y2={scaleY(buyPrice)} stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="4,2"/>
-      <rect x={width - padding.right} y={scaleY(buyPrice) - 8} width={66} height={16} fill="#3b82f6" rx={2} />
-      <text x={width - padding.right + 3} y={scaleY(buyPrice) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">매수 {buyPrice.toLocaleString()}</text>
-      
-      {/* 손절가 라인 */}
-      {visibleLines?.stopLoss && sellPrices?.stopLoss && (
-        <g>
-          <line x1={padding.left} y1={scaleY(sellPrices.stopLoss)} x2={width - padding.right} y2={scaleY(sellPrices.stopLoss)} stroke="#ef4444" strokeWidth={1.5}/>
-          <rect x={width - padding.right} y={scaleY(sellPrices.stopLoss) - 8} width={66} height={16} fill="#ef4444" rx={2} />
-          <text x={width - padding.right + 3} y={scaleY(sellPrices.stopLoss) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">손절 {sellPrices.stopLoss.toLocaleString()}</text>
-        </g>
-      )}
-      
-      {/* 2/3 익절가 라인 */}
-      {visibleLines?.twoThird && sellPrices?.twoThird && (
-        <g>
-          <line x1={padding.left} y1={scaleY(sellPrices.twoThird)} x2={width - padding.right} y2={scaleY(sellPrices.twoThird)} stroke="#8b5cf6" strokeWidth={1.5}/>
-          <rect x={width - padding.right} y={scaleY(sellPrices.twoThird) - 8} width={66} height={16} fill="#8b5cf6" rx={2} />
-          <text x={width - padding.right + 3} y={scaleY(sellPrices.twoThird) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">2/3익 {sellPrices.twoThird.toLocaleString()}</text>
-        </g>
-      )}
-      
-      {/* 이동평균선 라인 */}
-      {visibleLines?.maSignal && sellPrices?.maSignal && (
-        <g>
-          <line x1={padding.left} y1={scaleY(sellPrices.maSignal)} x2={width - padding.right} y2={scaleY(sellPrices.maSignal)} stroke="#06b6d4" strokeWidth={1.5} strokeDasharray="4,2"/>
-          <rect x={width - padding.right} y={scaleY(sellPrices.maSignal) - 8} width={66} height={16} fill="#06b6d4" rx={2} />
-          <text x={width - padding.right + 3} y={scaleY(sellPrices.maSignal) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">이평 {sellPrices.maSignal.toLocaleString()}</text>
-        </g>
-      )}
-      
-      {/* 매물대 라인 (저항대) */}
-      {visibleLines?.volumeZone && sellPrices?.volumeZone && (
-        <g>
-          <line x1={padding.left} y1={scaleY(sellPrices.volumeZone)} x2={width - padding.right} y2={scaleY(sellPrices.volumeZone)} stroke="#84cc16" strokeWidth={1.5} strokeDasharray="6,3"/>
-          <rect x={width - padding.right} y={scaleY(sellPrices.volumeZone) - 8} width={66} height={16} fill="#84cc16" rx={2} />
-          <text x={width - padding.right + 3} y={scaleY(sellPrices.volumeZone) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">저항 {sellPrices.volumeZone.toLocaleString()}</text>
-        </g>
-      )}
-      
-      {/* 추세선 라인 (지지선) */}
-      {visibleLines?.trendline && sellPrices?.trendline && (
-        <g>
-          <line x1={padding.left} y1={scaleY(sellPrices.trendline)} x2={width - padding.right} y2={scaleY(sellPrices.trendline)} stroke="#ec4899" strokeWidth={1.5} strokeDasharray="8,4"/>
-          <rect x={width - padding.right} y={scaleY(sellPrices.trendline) - 8} width={66} height={16} fill="#ec4899" rx={2} />
-          <text x={width - padding.right + 3} y={scaleY(sellPrices.trendline) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">지지 {sellPrices.trendline.toLocaleString()}</text>
-        </g>
-      )}
-      
-      {/* 현재가 표시 */}
-      <circle cx={scaleX(data.length - 1) + candleW/2} cy={scaleY(currentPrice)} r={4} fill={currentPrice >= buyPrice ? '#10b981' : '#ef4444'} stroke="#fff" strokeWidth={1} />
-    </svg>
-  );
-};
 
 // ============================================
 // 코스톨라니 달걀 위젯 - 완전 SVG 구현
@@ -625,399 +428,7 @@ const MarketCycleWidget = ({ isPremium }) => {
 
 
 
-// ============================================
-// 반응형 포지션 카드 컴포넌트
-// ============================================
-const PositionCard = ({ position, priceData, onEdit, onDelete, isPremium, onUpgrade }) => {
-  const { isMobile, isTablet } = useResponsive();
-  const [visibleLines, setVisibleLines] = useState({ candle3: true, stopLoss: true, twoThird: true, maSignal: true, volumeZone: true, trendline: true });
-  const [showAINews, setShowAINews] = useState(false);
-  const [showAIReport, setShowAIReport] = useState(false);
-  const [showChart, setShowChart] = useState(!isMobile); // 모바일에서는 차트 토글
-  
-  const currentPrice = priceData?.[priceData.length - 1]?.close || position.buyPrice;
-  const profitRate = ((currentPrice - position.buyPrice) / position.buyPrice) * 100;
-  const profitAmount = (currentPrice - position.buyPrice) * position.quantity;
-  const totalValue = currentPrice * position.quantity;
-  const isProfit = profitRate >= 0;
-  const sellPrices = calculateSellPrices(position, priceData, position.presetSettings);
-  
-  const getStage = () => {
-    if (profitRate < 0) return { ...PROFIT_STAGES.initial, label: '손실 구간', color: '#ef4444' };
-    if (profitRate < 5) return PROFIT_STAGES.initial;
-    if (profitRate < 10) return PROFIT_STAGES.profit5;
-    return PROFIT_STAGES.profit10;
-  };
-  
-  const stage = getStage();
-  const naverStockUrl = 'https://finance.naver.com/item/main.naver?code=' + position.code;
-  const naverChartUrl = 'https://finance.naver.com/item/fchart.naver?code=' + position.code;
-
-  // 차트 크기 계산
-  const getChartSize = () => {
-    if (isMobile) return { width: Math.min(320, window.innerWidth - 48), height: 200 };
-    if (isTablet) return { width: 240, height: 240 };
-    return { width: 270, height: 280 };
-  };
-  const chartSize = getChartSize();
-
-  return (
-    <>
-      <div style={{ 
-        background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)', 
-        borderRadius: isMobile ? '14px' : '14px', 
-        padding: isMobile ? '14px' : '16px', 
-        marginBottom: isMobile ? '14px' : '14px', 
-        border: '1px solid rgba(255,255,255,0.12)' 
-      }}>
-        {/* 헤더 */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: isMobile ? 'flex-start' : 'center', 
-          marginBottom: '12px',
-          flexWrap: isMobile ? 'wrap' : 'nowrap',
-          gap: isMobile ? '8px' : '0'
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            flexWrap: 'wrap',
-            flex: isMobile ? '1 1 100%' : 'initial'
-          }}>
-            <a href={naverStockUrl} target="_blank" rel="noopener noreferrer" style={{ 
-              fontSize: isMobile ? '16px' : '18px', 
-              fontWeight: '700', 
-              color: '#fff', 
-              textDecoration: 'none' 
-            }}>
-              {position.name} ↗
-            </a>
-            <span style={{ 
-              background: 'rgba(59,130,246,0.2)', 
-              color: '#60a5fa', 
-              padding: isMobile ? '3px 8px' : '4px 10px', 
-              borderRadius: '5px', 
-              fontSize: isMobile ? '11px' : '13px', 
-              fontWeight: '600' 
-            }}>
-              {position.code}
-            </span>
-            <span style={{ 
-              background: stage.color + '20', 
-              color: stage.color, 
-              padding: isMobile ? '3px 8px' : '4px 10px', 
-              borderRadius: '5px', 
-              fontSize: isMobile ? '11px' : '13px', 
-              fontWeight: '600' 
-            }}>
-              {stage.label}
-            </span>
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            gap: '6px',
-            marginLeft: isMobile ? 'auto' : '0'
-          }}>
-            <button 
-              onClick={() => onEdit(position)} 
-              style={{ 
-                background: 'rgba(255,255,255,0.08)', 
-                border: 'none', 
-                borderRadius: '6px', 
-                padding: isMobile ? '8px 12px' : '8px 14px', 
-                color: '#94a3b8', 
-                fontSize: isMobile ? '12px' : '13px', 
-                cursor: 'pointer',
-                minHeight: '36px'
-              }}
-            >수정</button>
-            <button 
-              onClick={() => onDelete(position.id)} 
-              style={{ 
-                background: 'rgba(239,68,68,0.15)', 
-                border: 'none', 
-                borderRadius: '6px', 
-                padding: isMobile ? '8px 12px' : '8px 14px', 
-                color: '#ef4444', 
-                fontSize: isMobile ? '12px' : '13px', 
-                cursor: 'pointer',
-                minHeight: '36px'
-              }}
-            >삭제</button>
-          </div>
-        </div>
-        
-        {/* 메인 콘텐츠 */}
-        <div style={{ 
-          display: isMobile ? 'flex' : 'grid', 
-          flexDirection: isMobile ? 'column' : undefined,
-          gridTemplateColumns: isMobile ? undefined : isTablet ? '1fr 250px' : '1fr 280px', 
-          gap: '12px', 
-          alignItems: 'stretch' 
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {/* 가격 정보 */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', 
-              gap: '8px', 
-              marginBottom: '12px' 
-            }}>
-              {[
-                { label: '매수가', value: '₩' + position.buyPrice.toLocaleString() },
-                { label: '현재가', value: '₩' + Math.round(currentPrice).toLocaleString(), color: isProfit ? '#10b981' : '#ef4444' },
-                { label: '수량', value: position.quantity + '주' },
-                { label: '평가금액', value: '₩' + Math.round(totalValue).toLocaleString() }
-              ].map((item, i) => (
-                <div key={i} style={{ 
-                  background: 'rgba(0,0,0,0.35)', 
-                  borderRadius: '8px', 
-                  padding: isMobile ? '12px 10px' : '10px',
-                  border: '1px solid rgba(255,255,255,0.08)'
-                }}>
-                  <div style={{ fontSize: isMobile ? '12px' : '12px', color: '#94a3b8', marginBottom: '4px' }}>{item.label}</div>
-                  <div style={{ 
-                    fontSize: isMobile ? '16px' : '17px', 
-                    fontWeight: '700', 
-                    color: item.color || '#f1f5f9',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-            
-            {/* 평가손익 */}
-            <div style={{ 
-              background: isProfit ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', 
-              borderRadius: '10px', 
-              padding: isMobile ? '14px' : '12px', 
-              borderLeft: '4px solid ' + (isProfit ? '#10b981' : '#ef4444'), 
-              marginBottom: '12px', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center' 
-            }}>
-              <div>
-                <div style={{ fontSize: isMobile ? '12px' : '12px', color: '#94a3b8', marginBottom: '4px' }}>평가손익</div>
-                <div style={{ fontSize: isMobile ? '20px' : '22px', fontWeight: '700', color: isProfit ? '#10b981' : '#ef4444' }}>
-                  {isProfit ? '+' : ''}₩{Math.round(profitAmount).toLocaleString()}
-                </div>
-              </div>
-              <div style={{ 
-                fontSize: isMobile ? '22px' : '26px', 
-                fontWeight: '800', 
-                color: isProfit ? '#10b981' : '#ef4444', 
-                background: isProfit ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)', 
-                padding: isMobile ? '8px 12px' : '8px 14px', 
-                borderRadius: '10px' 
-              }}>
-                {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
-              </div>
-            </div>
-            
-            {/* 매도 조건 */}
-            <div style={{ 
-              background: 'rgba(0,0,0,0.35)', 
-              borderRadius: '10px', 
-              padding: isMobile ? '12px' : '12px', 
-              marginBottom: '10px', 
-              flex: 1,
-              border: '1px solid rgba(255,255,255,0.08)'
-            }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginBottom: '8px' 
-              }}>
-                <span style={{ fontSize: isMobile ? '14px' : '15px', color: '#fff', fontWeight: '600' }}>📊 매도 조건별 기준가격</span>
-                <button 
-                  onClick={() => onEdit(position)} 
-                  style={{ 
-                    background: 'rgba(59,130,246,0.15)', 
-                    border: '1px solid rgba(59,130,246,0.3)', 
-                    borderRadius: '4px', 
-                    padding: isMobile ? '6px 10px' : '4px 10px', 
-                    color: '#60a5fa', 
-                    fontSize: isMobile ? '11px' : '12px', 
-                    cursor: 'pointer',
-                    minHeight: '32px'
-                  }}
-                >✏️ 조건 변경</button>
-              </div>
-              <div style={{ 
-                fontSize: '10px', 
-                color: '#f59e0b', 
-                marginBottom: '6px', 
-                background: 'rgba(245,158,11,0.1)', 
-                padding: '5px 8px', 
-                borderRadius: '4px' 
-              }}>
-                ⚠️ 수치는 예시입니다. 본인의 투자 원칙에 따라 수정하세요.
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {(position.selectedPresets || []).slice(0, isMobile ? 3 : undefined).map(presetId => {
-                  const preset = SELL_PRESETS[presetId];
-                  if (!preset) return null;
-                  
-                  let priceText = '-', priceColor = '#94a3b8';
-                  const hasChartLine = ['candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone', 'trendline'].includes(presetId);
-                  
-                  if (presetId === 'stopLoss' && sellPrices.stopLoss) { 
-                    priceText = '₩' + sellPrices.stopLoss.toLocaleString(); 
-                    priceColor = currentPrice <= sellPrices.stopLoss ? '#ef4444' : '#94a3b8'; 
-                  }
-                  else if (presetId === 'twoThird' && sellPrices.twoThird) { 
-                    priceText = '₩' + sellPrices.twoThird.toLocaleString(); 
-                    priceColor = currentPrice <= sellPrices.twoThird ? '#f59e0b' : '#94a3b8'; 
-                  }
-                  else if (presetId === 'maSignal' && sellPrices.maSignal) { 
-                    priceText = '₩' + sellPrices.maSignal.toLocaleString(); 
-                    priceColor = currentPrice < sellPrices.maSignal ? '#f59e0b' : '#94a3b8'; 
-                  }
-                  else if (presetId === 'candle3' && sellPrices.candle3_50) { 
-                    priceText = '₩' + sellPrices.candle3_50.toLocaleString(); 
-                  }
-                  else if (presetId === 'volumeZone' && sellPrices.volumeZone) { 
-                    priceText = '₩' + sellPrices.volumeZone.toLocaleString(); 
-                    priceColor = currentPrice >= sellPrices.volumeZone ? '#f59e0b' : '#94a3b8'; 
-                  }
-                  else if (presetId === 'trendline' && sellPrices.trendline) { 
-                    priceText = '₩' + sellPrices.trendline.toLocaleString(); 
-                    priceColor = currentPrice <= sellPrices.trendline ? '#ef4444' : '#94a3b8'; 
-                  }
-                  
-                  return (
-                    <div key={presetId} style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      padding: isMobile ? '10px' : '8px 10px', 
-                      background: 'rgba(255,255,255,0.03)', 
-                      borderRadius: '6px', 
-                      borderLeft: '3px solid ' + preset.color 
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {hasChartLine && !isMobile ? (
-                          <input 
-                            type="checkbox" 
-                            checked={visibleLines[presetId] || false} 
-                            onChange={() => setVisibleLines(prev => ({ ...prev, [presetId]: !prev[presetId] }))} 
-                            style={{ width: '16px', height: '16px', accentColor: preset.color, cursor: 'pointer' }} 
-                          />
-                        ) : (
-                          <div style={{ width: isMobile ? '0' : '16px' }} />
-                        )}
-                        <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#e2e8f0' }}>{preset.icon} {isMobile ? preset.name.replace(' 매도법', '') : preset.name}</span>
-                      </div>
-                      <span style={{ fontSize: isMobile ? '13px' : '15px', fontWeight: '700', color: priceColor }}>{priceText}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              {!isMobile && (
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>체크박스 선택 시 차트에 가격선 표시</div>
-              )}
-            </div>
-            
-            {/* 실적 위젯 */}
-            <EarningsWidget 
-              position={position} 
-              isPremium={isPremium} 
-              onShowAINews={() => setShowAINews(true)} 
-              onShowAIReport={() => setShowAIReport(true)} 
-            />
-          </div>
-          
-          {/* 차트 영역 */}
-          {isMobile ? (
-            <div>
-              <button
-                onClick={() => setShowChart(!showChart)}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'rgba(59,130,246,0.1)',
-                  border: '1px solid rgba(59,130,246,0.3)',
-                  borderRadius: '8px',
-                  color: '#60a5fa',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  marginBottom: showChart ? '10px' : '0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                📊 차트 {showChart ? '접기 ▲' : '보기 ▼'}
-              </button>
-              {showChart && (
-                <div 
-                  onClick={() => window.open(naverChartUrl, '_blank')} 
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div style={{ 
-                    background: 'rgba(0,0,0,0.3)', 
-                    borderRadius: '8px', 
-                    padding: '4px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center' 
-                  }}>
-                    <EnhancedCandleChart 
-                      data={priceData?.slice(-30)} 
-                      width={chartSize.width} 
-                      height={chartSize.height} 
-                      buyPrice={position.buyPrice} 
-                      sellPrices={sellPrices} 
-                      visibleLines={visibleLines} 
-                    />
-                  </div>
-                  <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '11px', color: '#64748b' }}>탭하여 네이버 차트 열기</div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div 
-              onClick={() => window.open(naverChartUrl, '_blank')} 
-              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
-            >
-              <div style={{ 
-                background: 'rgba(0,0,0,0.3)', 
-                borderRadius: '8px', 
-                padding: '4px', 
-                flex: 1, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center' 
-              }}>
-                <EnhancedCandleChart 
-                  data={priceData?.slice(-40)} 
-                  width={chartSize.width} 
-                  height={chartSize.height} 
-                  buyPrice={position.buyPrice} 
-                  sellPrices={sellPrices} 
-                  visibleLines={visibleLines} 
-                />
-              </div>
-              <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '12px', color: '#64748b' }}>클릭 → 네이버 증권 차트</div>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* AI 팝업 */}
-      {showAINews && <AINewsPopup position={position} onClose={() => setShowAINews(false)} isPremium={isPremium} onUpgrade={onUpgrade} />}
-      {showAIReport && <AIReportPopup position={position} onClose={() => setShowAIReport(false)} isPremium={isPremium} onUpgrade={onUpgrade} />}
-    </>
-  );
-};
+// [세션2] PositionCard → components/PositionCard.tsx 분리 완료
 
 // ============================================
 // 알림 카드 - 완전 구현
@@ -1984,6 +1395,11 @@ export default function SellSignalAppV5() {
   const [showUpgradePopup, setShowUpgradePopup] = useState(false);
   const [activeTab, setActiveTab] = useState<MobileTab>('positions');
   
+
+  // ── [세션2] AI 팝업 상태 (PositionCard에서 메인 앱으로 끌어올림) ──
+  const [aiNewsPosition, setAiNewsPosition] = useState(null);
+  const [aiReportPosition, setAiReportPosition] = useState(null);
+
   const isPremium = user?.membership === 'premium';
 
   // ⬇️ useEffect들
@@ -2233,6 +1649,8 @@ export default function SellSignalAppV5() {
                 }} 
                 isPremium={isPremium}
                 onUpgrade={() => setShowUpgradePopup(true)}
+                onShowAINews={(pos) => setAiNewsPosition(pos)}
+                onShowAIReport={(pos) => setAiReportPosition(pos)}
               />
             ))}
           </div>
@@ -2580,6 +1998,25 @@ export default function SellSignalAppV5() {
       )}
 
       {/* 업그레이드 팝업 - 완전 구현 */}
+
+      {/* [세션2] AI 팝업 - 메인 앱에서 관리 */}
+      {aiNewsPosition && (
+        <AINewsPopup 
+          position={aiNewsPosition} 
+          onClose={() => setAiNewsPosition(null)} 
+          isPremium={isPremium} 
+          onUpgrade={() => setShowUpgradePopup(true)} 
+        />
+      )}
+      {aiReportPosition && (
+        <AIReportPopup 
+          position={aiReportPosition} 
+          onClose={() => setAiReportPosition(null)} 
+          isPremium={isPremium} 
+          onUpgrade={() => setShowUpgradePopup(true)} 
+        />
+      )}
+
       {showUpgradePopup && (
         <div style={{ 
           position: 'fixed', 
