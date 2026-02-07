@@ -1,27 +1,34 @@
 'use client';
 // ============================================
 // ResponsiveSummaryCards - 반응형 요약 카드
-// 세션1 분리: 총 매수/평가/손익/수익률 표시
+// 경로: src/components/ResponsiveSummaryCards.tsx
 // ============================================
-// 개선사항:
-// - 모바일 레이블 12px → 13px (가독성)
-// - 모바일 값 17px → 18px (시인성)
-// - 태블릿 레이블 11px → 13px (진단서 P1)
-// - 카드 간 여백 통일 12px (진단서 P7)
-// - 카드 경계선 강화 0.08 → 0.15
+// 세션6 [A2] 모바일 컴팩트 리디자인:
+//   - 모바일 금액 축약: 억/만 단위 표시
+//   - 2×2 그리드 패딩/폰트 최적화
+//   - 배경 투명도 낮춤 (시각적 가벼움)
+//   - 아이콘+라벨 한 줄 배치
 // ============================================
 
 import React from 'react';
 import { useResponsive } from '../hooks/useResponsive';
 
-interface SummaryCardsProps {
+interface ResponsiveSummaryCardsProps {
   totalCost: number;
   totalValue: number;
   totalProfit: number;
   totalProfitRate: number;
 }
 
-const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
+// ── [A2] 금액 축약 포맷 (모바일용) ──
+const formatCompact = (v: number): string => {
+  const abs = Math.abs(v);
+  if (abs >= 100000000) return (v / 100000000).toFixed(1) + '억';
+  if (abs >= 10000) return (v / 10000).toFixed(0) + '만';
+  return v.toLocaleString();
+};
+
+const ResponsiveSummaryCards: React.FC<ResponsiveSummaryCardsProps> = ({
   totalCost,
   totalValue,
   totalProfit,
@@ -30,63 +37,73 @@ const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
   const { isMobile, isTablet } = useResponsive();
 
   const cards = [
-    { label: '총 매수금액', value: '₩' + Math.round(totalCost).toLocaleString(), icon: '💵' },
-    { label: '총 평가금액', value: '₩' + Math.round(totalValue).toLocaleString(), icon: '💰' },
     {
-      label: '총 평가손익',
-      value: (totalProfit >= 0 ? '+' : '') + '₩' + Math.round(totalProfit).toLocaleString(),
-      color: totalProfit >= 0 ? '#10b981' : '#ef4444',
-      icon: '📈',
+      icon: '💰',
+      label: '총 매수금액',
+      value: isMobile ? `₩${formatCompact(totalCost)}` : `₩${Math.round(totalCost).toLocaleString()}`,
+      color: '#94a3b8',
     },
     {
-      label: '총 수익률',
-      value: (totalProfitRate >= 0 ? '+' : '') + totalProfitRate.toFixed(2) + '%',
-      color: totalProfitRate >= 0 ? '#10b981' : '#ef4444',
+      icon: '💎',
+      label: '총 평가금액',
+      value: isMobile ? `₩${formatCompact(totalValue)}` : `₩${Math.round(totalValue).toLocaleString()}`,
+      color: '#60a5fa',
+    },
+    {
+      icon: '📊',
+      label: '총 평가손익',
+      value: `${totalProfit >= 0 ? '+' : ''}₩${isMobile ? formatCompact(totalProfit) : Math.round(totalProfit).toLocaleString()}`,
+      color: totalProfit >= 0 ? '#10b981' : '#ef4444',
+    },
+    {
       icon: '🎯',
+      label: '총 수익률',
+      value: `${totalProfitRate >= 0 ? '+' : ''}${totalProfitRate.toFixed(2)}%`,
+      color: totalProfitRate >= 0 ? '#10b981' : '#ef4444',
     },
   ];
 
   // ──────────────────────────────────────────
-  // 모바일: 2×2 그리드
+  // [A2] 모바일: 2×2 컴팩트 그리드
   // ──────────────────────────────────────────
   if (isMobile) {
     return (
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '10px',
-        marginBottom: '16px',
-        padding: '0 16px',
+        padding: '12px 16px 8px',
       }}>
-        {cards.map((card, i) => (
-          <div key={i} style={{
-            background: 'linear-gradient(145deg, #2d3a4f 0%, #1a2332 100%)',
-            borderRadius: '12px',
-            padding: '14px',
-            border: '1px solid rgba(255,255,255,0.15)',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              marginBottom: '8px',
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px',
+        }}>
+          {cards.map((card, i) => (
+            <div key={i} style={{
+              background: 'rgba(255,255,255,0.04)',
+              borderRadius: '12px',
+              padding: '12px',
+              border: '1px solid rgba(255,255,255,0.06)',
             }}>
-              <span style={{ fontSize: '15px' }}>{card.icon}</span>
-              <span style={{
-                fontSize: '13px',  /* 12px → 13px 개선 */
-                color: '#94a3b8',
-              }}>{card.label}</span>
+              <div style={{
+                fontSize: '11px',
+                color: '#64748b',
+                marginBottom: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}>
+                <span style={{ fontSize: '12px' }}>{card.icon}</span>
+                {card.label}
+              </div>
+              <div style={{
+                fontSize: '18px',
+                fontWeight: '700',
+                color: card.color,
+                lineHeight: '1.2',
+                letterSpacing: '-0.3px',
+              }}>{card.value}</div>
             </div>
-            <div style={{
-              fontSize: '18px',  /* 17px → 18px 개선 */
-              fontWeight: '700',
-              color: card.color || '#fff',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>{card.value}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     );
   }
@@ -106,26 +123,23 @@ const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
         {cards.map((card, i) => (
           <div key={i} style={{
             background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-            borderRadius: '10px',
+            borderRadius: '12px',
             padding: '14px',
-            border: '1px solid rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.06)',
           }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: '5px',
-              marginBottom: '6px',
+              marginBottom: '5px',
             }}>
               <span style={{ fontSize: '14px' }}>{card.icon}</span>
-              <span style={{
-                fontSize: '13px',  /* 11px → 13px 개선 (P1) */
-                color: '#94a3b8',  /* 64748b → 94a3b8 대비 강화 */
-              }}>{card.label}</span>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>{card.label}</span>
             </div>
             <div style={{
               fontSize: '18px',
               fontWeight: '700',
-              color: card.color || '#fff',
+              color: card.color,
             }}>{card.value}</div>
           </div>
         ))}
@@ -134,7 +148,7 @@ const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
   }
 
   // ──────────────────────────────────────────
-  // 데스크톱: 4열 그리드 (넓은 패딩)
+  // 데스크톱: 4열 그리드
   // ──────────────────────────────────────────
   return (
     <div style={{
@@ -146,9 +160,9 @@ const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
       {cards.map((card, i) => (
         <div key={i} style={{
           background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-          borderRadius: '12px',
+          borderRadius: '14px',
           padding: '16px',
-          border: '1px solid rgba(255,255,255,0.12)',
+          border: '1px solid rgba(255,255,255,0.06)',
         }}>
           <div style={{
             display: 'flex',
@@ -157,15 +171,12 @@ const ResponsiveSummaryCards: React.FC<SummaryCardsProps> = ({
             marginBottom: '6px',
           }}>
             <span style={{ fontSize: '16px' }}>{card.icon}</span>
-            <span style={{
-              fontSize: '13px',
-              color: '#94a3b8',
-            }}>{card.label}</span>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>{card.label}</span>
           </div>
           <div style={{
             fontSize: '22px',
             fontWeight: '700',
-            color: card.color || '#fff',
+            color: card.color,
           }}>{card.value}</div>
         </div>
       ))}
