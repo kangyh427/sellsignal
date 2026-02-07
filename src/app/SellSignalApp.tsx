@@ -2,13 +2,15 @@
 // @ts-nocheck
 // ============================================
 // CREST 매도의 기술 - 메인 앱 컴포넌트
-// 경로: src/components/SellSignalApp.tsx
+// 경로: src/app/SellSignalApp.tsx
 // ============================================
 // 세션4 아키텍처 정리 완료:
 //   - AINewsPopup    → components/AINewsPopup.tsx
 //   - AIReportPopup  → components/AIReportPopup.tsx
 //   - UpgradePopup   → components/UpgradePopup.tsx
 //   - Footer         → components/Footer.tsx
+// 세션5 모바일 터치 UX:
+//   [B5] safe-area 하단 여백 적용
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -192,7 +194,8 @@ export default function SellSignalAppV5() {
         color: '#fff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '14px',
-        paddingBottom: isMobile ? '70px' : '0',
+        // [B5] safe-area 하단 여백 반영 (MobileBottomNav 높이 + 노치)
+        paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
       }}
     >
       {/* 글로벌 스타일 */}
