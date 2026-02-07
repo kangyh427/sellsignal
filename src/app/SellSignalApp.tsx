@@ -1,18 +1,13 @@
 'use client';
 
 // ============================================
-// SellSignalApp.tsx — 메인 오케스트레이터 (리팩토링 v2)
+// SellSignalApp.tsx — 메인 오케스트레이터
 // 위치: src/app/SellSignalApp.tsx
 //
-// 세션 2: Zustand 도입 + 컴포넌트 분해
-// 909줄 → ~180줄 (약 80% 절감)
-//
-// 변경 사항:
-//   - useState 12개 → Zustand 스토어 3개로 이동
-//   - 인라인 JSX 5개 영역 → 독립 컴포넌트로 추출
-//     · UpgradePopup, SidePanel, PositionList,
-//       AdColumn, MobileTabBar
-//   - 하단 인라인 네비 → MobileNav 컴포넌트 교체
+// 세션 4: 모바일 네비게이션 통합 + 레이아웃 개선
+// - MobileNav ↔ MobileTabBar 탭 ID 통일
+// - mobileTabs 순서: 포지션 → 시장 → 알림 → 가이드
+// - 모바일 하단 여백 개선 (safe area)
 // ============================================
 
 import React, { useEffect } from 'react';
@@ -90,17 +85,17 @@ export default function SellSignalApp() {
     closeUpgradePopup();
   };
 
-  // ── 모바일 탭 데이터 ──
+  // ── 모바일 탭 데이터 (MobileNav와 동일한 ID/순서) ──
   const mobileTabs = [
     { id: 'positions', label: '📊 포지션', count: positions.length },
-    { id: 'alerts', label: '🔔 알림', count: alerts.length },
-    { id: 'market', label: '🥚 시장분석' },
-    { id: 'guide', label: '📚 가이드' },
+    { id: 'market',    label: '🥚 시장' },
+    { id: 'alerts',    label: '🔔 알림', count: alerts.length },
+    { id: 'guide',     label: '📚 가이드' },
   ];
 
   // ── 레이아웃 스타일 ──
   const getMainLayoutStyle = (): React.CSSProperties => {
-    if (isMobile) return { display: 'flex', flexDirection: 'column', gap: '16px' };
+    if (isMobile) return { display: 'flex', flexDirection: 'column', gap: '12px' };
     if (isTablet) return { display: 'grid', gridTemplateColumns: '1fr 320px', gap: '16px', padding: '0 20px' };
     return {
       display: 'grid',
@@ -120,7 +115,8 @@ export default function SellSignalApp() {
         color: '#fff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '14px',
-        paddingBottom: isMobile ? '70px' : '0',
+        // 모바일: 하단 네비(56px) + safe area 여유
+        paddingBottom: isMobile ? '80px' : '0',
       }}
     >
       {/* 전역 스타일 */}
@@ -128,10 +124,12 @@ export default function SellSignalApp() {
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
         * { -webkit-tap-highlight-color: transparent; }
+        /* 모바일 탭바 스크롤바 숨김 */
+        .mobile-tab-bar::-webkit-scrollbar { display: none; }
       `}</style>
 
       {/* ── 반응형 헤더 ── */}
@@ -147,7 +145,7 @@ export default function SellSignalApp() {
         style={{
           maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
           margin: '0 auto',
-          padding: isMobile ? '16px 0' : '24px',
+          padding: isMobile ? '12px 0' : '24px',
         }}
       >
         {/* 요약 카드 */}
@@ -158,7 +156,7 @@ export default function SellSignalApp() {
           totalProfitRate={totalProfitRate}
         />
 
-        {/* 모바일 인라인 탭 */}
+        {/* 모바일 인라인 탭 (상단 빠른 전환) */}
         {isMobile && (
           <MobileTabBar
             activeTab={activeTab}
