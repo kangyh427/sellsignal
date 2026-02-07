@@ -1,14 +1,16 @@
 'use client';
 
-import React from 'react';
-
 // ============================================
-// MobileTabBar 컴포넌트
+// MobileTabBar — 모바일 상단 인라인 탭 (통합 버전)
 // 위치: src/components/MobileTabBar.tsx
 //
-// SellSignalApp.tsx 라인 259~317에서 추출
-// 모바일 상단 인라인 탭 (포지션/알림/시장분석/가이드)
+// 세션 4: MobileNav와 탭 ID/라벨 통일
+// - 탭 ID: positions / market / alerts / guide
+// - 터치 타겟 44px 최소
+// - 스크롤 숨김 + 스냅 개선
 // ============================================
+
+import React from 'react';
 
 interface TabItem {
   id: string;
@@ -27,53 +29,67 @@ const MobileTabBar: React.FC<MobileTabBarProps> = ({ activeTab, onTabChange, tab
     <div
       style={{
         display: 'flex',
-        gap: '8px',
+        gap: '6px',
         padding: '0 16px',
-        marginBottom: '16px',
+        marginBottom: '14px',
         overflowX: 'auto',
+        // 스크롤바 숨김
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch',
       }}
     >
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          style={{
-            padding: '10px 16px',
-            background:
-              activeTab === tab.id
+      <style>{`
+        .mobile-tab-bar::-webkit-scrollbar { display: none; }
+      `}</style>
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            style={{
+              padding: '8px 14px',
+              minHeight: '40px', // 터치 타겟
+              background: isActive
                 ? 'rgba(59,130,246,0.2)'
                 : 'rgba(255,255,255,0.05)',
-            border:
-              activeTab === tab.id
+              border: isActive
                 ? '1px solid rgba(59,130,246,0.4)'
                 : '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '10px',
-            color: activeTab === tab.id ? '#60a5fa' : '#94a3b8',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          {tab.label}
-          {(tab.count ?? 0) > 0 && (
-            <span
-              style={{
-                background: activeTab === tab.id ? '#3b82f6' : 'rgba(255,255,255,0.2)',
-                color: '#fff',
-                padding: '2px 6px',
-                borderRadius: '6px',
-                fontSize: '11px',
-              }}
-            >
-              {tab.count}
-            </span>
-          )}
-        </button>
-      ))}
+              borderRadius: '10px',
+              color: isActive ? '#60a5fa' : '#94a3b8',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'all 0.15s ease',
+              WebkitTapHighlightColor: 'transparent',
+              flexShrink: 0,
+            }}
+          >
+            {tab.label}
+            {(tab.count ?? 0) > 0 && (
+              <span
+                style={{
+                  background: isActive ? '#3b82f6' : 'rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  padding: '1px 6px',
+                  borderRadius: '6px',
+                  fontSize: '10px',
+                  fontWeight: '700',
+                  lineHeight: '1.4',
+                }}
+              >
+                {tab.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 };
