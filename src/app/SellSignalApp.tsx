@@ -223,7 +223,7 @@ export default function SellSignalAppV5() {
         style={{
           maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
           margin: '0 auto',
-          padding: isMobile ? '16px 0' : '24px',
+          padding: isMobile ? '0' : '24px',
         }}
       >
         {/* 요약 카드 */}
