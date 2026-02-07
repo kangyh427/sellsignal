@@ -1,32 +1,26 @@
-// ============================================
-// EnhancedCandleChart 컴포넌트 (모바일 반응형 개선)
-// 위치: src/components/EnhancedCandleChart.tsx
-// ============================================
-// 세션3 개선사항:
-// - SVG viewBox 기반 반응형 (컨테이너 크기에 자동 적응)
-// - 모바일 터치 영역 확대 (캔들 최소 너비 보장)
-// - 폰트 크기 반응형 조정
-// - 타입: types/index.ts에서 import
-
 'use client';
+// ============================================
+// EnhancedCandleChart - 반응형 캔들 차트 컴포넌트
+// 경로: src/components/EnhancedCandleChart.tsx
+// 세션2에서 SellSignalApp.tsx L34-230 분리
+// ============================================
 
 import React from 'react';
-import type { SellPrices, VisibleLines } from '../types';
+import type { CandleData, SellPrices } from '../types';
 
-// ============================================
-// 내부 타입 (차트 전용, PriceData와 동일하나 date 유연성 유지)
-// ============================================
-interface CandleData {
-  date: Date | string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+// ── Props 타입 정의 ──
+interface VisibleLines {
+  candle3?: boolean;
+  stopLoss?: boolean;
+  twoThird?: boolean;
+  maSignal?: boolean;
+  volumeZone?: boolean;
+  trendline?: boolean;
+  [key: string]: boolean | undefined;
 }
 
 interface EnhancedCandleChartProps {
-  data: CandleData[] | undefined;
+  data: CandleData[] | null;
   width?: number;
   height?: number;
   buyPrice: number;
@@ -34,8 +28,19 @@ interface EnhancedCandleChartProps {
   visibleLines?: VisibleLines;
 }
 
+// ── 가격 포맷 (콤마 포함) ──
+const formatPrice = (price: number): string => {
+  return Math.round(price).toLocaleString();
+};
+
+// ── 날짜 포맷 (월/일) ──
+const formatDate = (date: Date): string => {
+  const d = new Date(date);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+};
+
 // ============================================
-// 캔들차트 컴포넌트
+// 메인 컴포넌트
 // ============================================
 const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
   data,
@@ -56,16 +61,11 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
   };
 
   // ── 패딩 & 차트 영역 계산 ──
-  const padding = {
-    top: 10,
-    right: isSmallChart ? 60 : 70,  // 모바일에서 우측 패딩 축소
-    bottom: 34,
-    left: 6,
-  };
+  const padding = { top: 10, right: 70, bottom: 34, left: 6 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  // ── 가격 범위 계산 (매도가 포함) ──
+  // ── 가격 범위 계산 (매수가 + 매도가 포함) ──
   const allPrices = data
     .flatMap((d) => [d.high, d.low])
     .concat([buyPrice])
@@ -73,23 +73,15 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
   const minP = Math.min(...allPrices) * 0.98;
   const maxP = Math.max(...allPrices) * 1.02;
   const range = maxP - minP || 1;
-
-  // 캔들 너비: 모바일에서 최소 4px 보장 (터치 영역)
-  const candleW = Math.max(isSmallChart ? 4 : 3, chartW / data.length - 1.5);
+  const candleW = Math.max(3, chartW / data.length - 1.5);
 
   // ── 스케일 함수 ──
   const scaleY = (p: number) => padding.top + chartH - ((p - minP) / range) * chartH;
   const scaleX = (i: number) => padding.left + (i / data.length) * chartW;
   const currentPrice = data[data.length - 1]?.close || buyPrice;
 
-  // 날짜 포맷 - 월/일 형식
-  const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  };
-
-  // X축 날짜 표시 위치 계산 - 항상 5~6개 표시
-  const getXAxisIndices = () => {
+  // ── X축 날짜 인덱스 (5~6개 표시) ──
+  const getXAxisIndices = (): number[] => {
     const len = data.length;
     if (len <= 10) {
       return Array.from({ length: len }, (_, i) => i).filter((_, i) => i % 2 === 0);
@@ -97,61 +89,46 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
     if (len <= 20) {
       return [0, Math.floor(len * 0.25), Math.floor(len * 0.5), Math.floor(len * 0.75), len - 1];
     }
-    return [
-      0,
-      Math.floor(len * 0.2),
-      Math.floor(len * 0.4),
-      Math.floor(len * 0.6),
-      Math.floor(len * 0.8),
-      len - 1,
-    ];
+    return [0, Math.floor(len * 0.2), Math.floor(len * 0.4), Math.floor(len * 0.6), Math.floor(len * 0.8), len - 1];
   };
   const xAxisIndices = getXAxisIndices();
 
-  // 가격 포맷 (콤마 포함)
-  const formatPrice = (price: number) => Math.round(price).toLocaleString();
-
-  // ── 매도선 렌더 헬퍼 (중복 제거) ──
-  const renderSellLine = (
+  // ── 매도 가격선 렌더링 헬퍼 ──
+  const renderPriceLine = (
     key: string,
     price: number | undefined,
     color: string,
     label: string,
-    visible?: boolean,
+    dashArray?: string
   ) => {
-    if (!visible || !price) return null;
-    const y = scaleY(price);
-    // 라벨 너비: 모바일에서 축소
-    const labelW = isSmallChart ? 56 : 66;
+    if (!visibleLines?.[key] || !price) return null;
     return (
       <g key={key}>
         <line
           x1={padding.left}
-          y1={y}
+          y1={scaleY(price)}
           x2={width - padding.right}
-          y2={y}
+          y2={scaleY(price)}
           stroke={color}
           strokeWidth={1.5}
-          strokeDasharray={
-            key === 'maSignal' || key === 'buyPrice' ? '4,2' : undefined
-          }
+          strokeDasharray={dashArray}
         />
         <rect
           x={width - padding.right}
-          y={y - 8}
-          width={labelW}
+          y={scaleY(price) - 8}
+          width={66}
           height={16}
           fill={color}
           rx={2}
         />
         <text
           x={width - padding.right + 3}
-          y={y + 4}
+          y={scaleY(price) + 4}
           fill="#fff"
           fontSize={fontSize.label}
           fontWeight="600"
         >
-          {label} {formatPrice(price)}
+          {label} {price.toLocaleString()}
         </text>
       </g>
     );
@@ -161,17 +138,9 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
     <svg
       width={width}
       height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      style={{
-        display: 'block',
-        background: 'rgba(0,0,0,0.3)',
-        borderRadius: '8px',
-        maxWidth: '100%',        // 컨테이너 초과 방지
-        height: 'auto',          // 비율 유지
-        touchAction: 'manipulation', // 모바일 터치 최적화
-      }}
+      style={{ display: 'block', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}
     >
-      {/* ── Y축 그리드 및 가격 라벨 (5단계) ── */}
+      {/* ── Y축 그리드 & 가격 라벨 (5단계) ── */}
       {[0, 1, 2, 3, 4].map((i) => {
         const price = minP + (range * i) / 4;
         const y = scaleY(price);
@@ -234,14 +203,13 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
         );
       })}
 
-      {/* ── 캔들 ── */}
+      {/* ── 캔들 본체 ── */}
       {data.map((c, i) => {
         const x = scaleX(i);
         const isUp = c.close >= c.open;
         const color = isUp ? '#10b981' : '#ef4444';
         return (
-          <g key={`candle-${i}`}>
-            {/* 심지 */}
+          <g key={`c-${i}`}>
             <line
               x1={x + candleW / 2}
               y1={scaleY(c.high)}
@@ -250,7 +218,6 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
               stroke={color}
               strokeWidth={1}
             />
-            {/* 몸통 */}
             <rect
               x={x}
               y={scaleY(Math.max(c.open, c.close))}
@@ -263,43 +230,35 @@ const EnhancedCandleChart: React.FC<EnhancedCandleChartProps> = ({
       })}
 
       {/* ── 매수가 라인 (항상 표시) ── */}
-      {renderSellLine('buyPrice', buyPrice, '#3b82f6', '매수', true)}
+      <line
+        x1={padding.left}
+        y1={scaleY(buyPrice)}
+        x2={width - padding.right}
+        y2={scaleY(buyPrice)}
+        stroke="#3b82f6"
+        strokeWidth={1.5}
+        strokeDasharray="4,2"
+      />
+      <rect x={width - padding.right} y={scaleY(buyPrice) - 8} width={66} height={16} fill="#3b82f6" rx={2} />
+      <text x={width - padding.right + 3} y={scaleY(buyPrice) + 4} fill="#fff" fontSize={fontSize.label} fontWeight="600">
+        매수 {buyPrice.toLocaleString()}
+      </text>
 
-      {/* ── 손절가 라인 ── */}
-      {renderSellLine(
-        'stopLoss',
-        sellPrices?.stopLoss,
-        '#ef4444',
-        '손절',
-        visibleLines?.stopLoss,
-      )}
+      {/* ── 매도 가격선들 ── */}
+      {renderPriceLine('stopLoss', sellPrices?.stopLoss, '#ef4444', '손절')}
+      {renderPriceLine('twoThird', sellPrices?.twoThird, '#8b5cf6', '2/3익')}
+      {renderPriceLine('maSignal', sellPrices?.maSignal, '#06b6d4', '이평', '4,2')}
+      {renderPriceLine('volumeZone', sellPrices?.volumeZone, '#84cc16', '저항', '6,3')}
+      {renderPriceLine('trendline', sellPrices?.trendline, '#ec4899', '지지', '8,4')}
 
-      {/* ── 2/3 익절가 라인 ── */}
-      {renderSellLine(
-        'twoThird',
-        sellPrices?.twoThird,
-        '#8b5cf6',
-        '2/3익',
-        visibleLines?.twoThird,
-      )}
-
-      {/* ── 이동평균선 라인 ── */}
-      {renderSellLine(
-        'maSignal',
-        sellPrices?.maSignal,
-        '#06b6d4',
-        '이평',
-        visibleLines?.maSignal,
-      )}
-
-      {/* ── 현재가 표시 (점) ── */}
+      {/* ── 현재가 마커 ── */}
       <circle
         cx={scaleX(data.length - 1) + candleW / 2}
         cy={scaleY(currentPrice)}
-        r={isSmallChart ? 5 : 4}   // 모바일에서 약간 크게
+        r={4}
         fill={currentPrice >= buyPrice ? '#10b981' : '#ef4444'}
         stroke="#fff"
-        strokeWidth={1.5}
+        strokeWidth={1}
       />
     </svg>
   );
