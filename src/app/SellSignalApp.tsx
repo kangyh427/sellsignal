@@ -1,26 +1,26 @@
 'use client';
 // @ts-nocheck
 // ============================================
-// CREST 매도의 기술 - 메인 앱 컴포넌트
-// 경로: src/app/SellSignalApp.tsx
+// CREST ë§¤ë„ì˜ ê¸°ìˆ  - ë©”ì¸ ì•± ì»´í¬ë„ŒíŠ¸
+// ê²½ë¡œ: src/app/SellSignalApp.tsx
 // ============================================
-// 세션4 아키텍처 정리 완료:
-//   - AINewsPopup    → components/AINewsPopup.tsx
-//   - AIReportPopup  → components/AIReportPopup.tsx
-//   - UpgradePopup   → components/UpgradePopup.tsx
-//   - Footer         → components/Footer.tsx
-// 세션5 모바일 터치 UX:
-//   [B5] safe-area 하단 여백 적용
+// ì„¸ì…˜4 ì•„í‚¤í…ì²˜ ì •ë¦¬ ì™„ë£Œ:
+//   - AINewsPopup    â†’ components/AINewsPopup.tsx
+//   - AIReportPopup  â†’ components/AIReportPopup.tsx
+//   - UpgradePopup   â†’ components/UpgradePopup.tsx
+//   - Footer         â†’ components/Footer.tsx
+// ì„¸ì…˜5 ëª¨ë°”ì¼ í„°ì¹˜ UX:
+//   [B5] safe-area í•˜ë‹¨ ì—¬ë°± ì ìš©
 // ============================================
 
 import React, { useState, useEffect } from 'react';
 
-// ── 분리된 모듈 import ──
+// â”€â”€ ë¶„ë¦¬ëœ ëª¨ë“ˆ import â”€â”€
 import { SELL_PRESETS } from '../constants';
 import { generateMockPriceData } from '../utils';
 import { useResponsive } from '../hooks/useResponsive';
 
-// ── 분리된 컴포넌트 import ──
+// â”€â”€ ë¶„ë¦¬ëœ ì»´í¬ë„ŒíŠ¸ import â”€â”€
 import AlertCard from '../components/AlertCard';
 import SellMethodGuide from '../components/SellMethodGuide';
 import ResponsiveHeader from '../components/ResponsiveHeader';
@@ -36,45 +36,45 @@ import UpgradePopup from '../components/UpgradePopup';
 import Footer from '../components/Footer';
 
 // ============================================
-// 메인 앱 (반응형 적용)
+// ë©”ì¸ ì•± (ë°˜ì‘í˜• ì ìš©)
 // ============================================
 export default function SellSignalAppV5() {
   const { isMobile, isTablet, isDesktop } = useResponsive();
 
-  // ── Auth 대신 로컬 상태 ──
+  // â”€â”€ Auth ëŒ€ì‹  ë¡œì»¬ ìƒíƒœ â”€â”€
   const [user, setUser] = useState(null);
-  const isLoggedIn = false; // 데모 모드
+  const isLoggedIn = false; // ë°ëª¨ ëª¨ë“œ
   const isSaving = false;
 
-  // ── 데모 포지션 데이터 ──
+  // â”€â”€ ë°ëª¨ í¬ì§€ì…˜ ë°ì´í„° â”€â”€
   const [positions, setPositions] = useState([
     {
-      id: 1, name: '삼성전자', code: '005930',
+      id: 1, name: 'ì‚¼ì„±ì „ìž', code: '005930',
       buyPrice: 71500, quantity: 100,
       highestPrice: 78000,
       selectedPresets: ['candle3', 'stopLoss', 'maSignal'],
       presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } },
-      stock: { name: '삼성전자', code: '005930', market: '코스피', sector: '반도체', per: 12.5, pbr: 1.2, sectorPer: 15.2, sectorPbr: 1.8 },
+      stock: { name: 'ì‚¼ì„±ì „ìž', code: '005930', market: 'ì½”ìŠ¤í”¼', sector: 'ë°˜ë„ì²´', per: 12.5, pbr: 1.2, sectorPer: 15.2, sectorPbr: 1.8 },
     },
     {
-      id: 2, name: '현대차', code: '005380',
+      id: 2, name: 'í˜„ëŒ€ì°¨', code: '005380',
       buyPrice: 50000, quantity: 100,
       highestPrice: 55000,
       selectedPresets: ['candle3', 'stopLoss', 'twoThird'],
       presetSettings: { stopLoss: { value: -5 } },
-      stock: { name: '현대차', code: '005380', market: '코스피', sector: '자동차', per: 5.8, pbr: 0.6, sectorPer: 7.2, sectorPbr: 0.8 },
+      stock: { name: 'í˜„ëŒ€ì°¨', code: '005380', market: 'ì½”ìŠ¤í”¼', sector: 'ìžë™ì°¨', per: 5.8, pbr: 0.6, sectorPer: 7.2, sectorPbr: 0.8 },
     },
     {
-      id: 3, name: '한화에어로스페이스', code: '012450',
+      id: 3, name: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤', code: '012450',
       buyPrice: 350000, quantity: 10,
       highestPrice: 380000,
       selectedPresets: ['twoThird', 'maSignal', 'volumeZone'],
       presetSettings: { maSignal: { value: 20 } },
-      stock: { name: '한화에어로스페이스', code: '012450', market: '코스피', sector: '방산', per: 35.2, pbr: 4.5, sectorPer: 22.0, sectorPbr: 2.8 },
+      stock: { name: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤', code: '012450', market: 'ì½”ìŠ¤í”¼', sector: 'ë°©ì‚°', per: 35.2, pbr: 4.5, sectorPer: 22.0, sectorPbr: 2.8 },
     },
   ]);
 
-  // ── 포지션 CRUD (로컬 상태) ──
+  // â”€â”€ í¬ì§€ì…˜ CRUD (ë¡œì»¬ ìƒíƒœ) â”€â”€
   const addPosition = (stock) => {
     const newPos = { ...stock, id: Date.now() };
     setPositions((prev) => [...prev, newPos]);
@@ -86,32 +86,32 @@ export default function SellSignalAppV5() {
     setPositions((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // ── 가격 데이터 & 알림 상태 ──
+  // â”€â”€ ê°€ê²© ë°ì´í„° & ì•Œë¦¼ ìƒíƒœ â”€â”€
   const [priceDataMap, setPriceDataMap] = useState({});
   const [alerts, setAlerts] = useState([
     {
       id: 1,
-      stockName: '삼성전자',
+      stockName: 'ì‚¼ì„±ì „ìž',
       code: '005930',
       preset: SELL_PRESETS.stopLoss,
-      message: '손절 기준가(-5%) 근접! 현재 -4.2%',
+      message: 'ì†ì ˆ ê¸°ì¤€ê°€(-5%) ê·¼ì ‘! í˜„ìž¬ -4.2%',
       currentPrice: 68500,
       targetPrice: 67925,
       timestamp: Date.now() - 300000,
     },
     {
       id: 2,
-      stockName: '한화에어로스페이스',
+      stockName: 'í•œí™”ì—ì–´ë¡œìŠ¤íŽ˜ì´ìŠ¤',
       code: '012450',
       preset: SELL_PRESETS.twoThird,
-      message: '최고점 대비 1/3 하락 근접',
+      message: 'ìµœê³ ì  ëŒ€ë¹„ 1/3 í•˜ë½ ê·¼ì ‘',
       currentPrice: 365000,
       targetPrice: 369600,
       timestamp: Date.now() - 1800000,
     },
   ]);
 
-  // ── UI 상태 ──
+  // â”€â”€ UI ìƒíƒœ â”€â”€
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPosition, setEditingPosition] = useState(null);
   const [showUpgradePopup, setShowUpgradePopup] = useState(false);
@@ -121,7 +121,7 @@ export default function SellSignalAppV5() {
 
   const isPremium = user?.membership === 'premium';
 
-  // ── 가격 데이터 초기화 ──
+  // â”€â”€ ê°€ê²© ë°ì´í„° ì´ˆê¸°í™” â”€â”€
   useEffect(() => {
     if (positions.length === 0) return;
     const newData = {};
@@ -135,7 +135,7 @@ export default function SellSignalAppV5() {
     }
   }, [positions]);
 
-  // ── 실시간 가격 업데이트 (3초 간격) ──
+  // â”€â”€ ì‹¤ì‹œê°„ ê°€ê²© ì—…ë°ì´íŠ¸ (3ì´ˆ ê°„ê²©) â”€â”€
   useEffect(() => {
     const interval = setInterval(() => {
       setPriceDataMap((prev) => {
@@ -159,7 +159,7 @@ export default function SellSignalAppV5() {
     return () => clearInterval(interval);
   }, []);
 
-  // ── 총계 계산 ──
+  // â”€â”€ ì´ê³„ ê³„ì‚° â”€â”€
   const totalCost = positions.reduce((sum, p) => sum + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((sum, p) => {
     const price = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice;
@@ -168,7 +168,7 @@ export default function SellSignalAppV5() {
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 
-  // ── 메인 레이아웃 스타일 계산 ──
+  // â”€â”€ ë©”ì¸ ë ˆì´ì•„ì›ƒ ìŠ¤íƒ€ì¼ ê³„ì‚° â”€â”€
   const getMainLayoutStyle = () => {
     if (isMobile) {
       return { display: 'flex', flexDirection: 'column' as const, gap: '16px', padding: '0' };
@@ -184,7 +184,7 @@ export default function SellSignalAppV5() {
   };
 
   // ============================================
-  // JSX 렌더링
+  // JSX ë Œë”ë§
   // ============================================
   return (
     <div
@@ -194,11 +194,11 @@ export default function SellSignalAppV5() {
         color: '#fff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '14px',
-        // [B5] safe-area 하단 여백 반영 (MobileBottomNav 높이 + 노치)
+        // [B5] safe-area í•˜ë‹¨ ì—¬ë°± ë°˜ì˜ (MobileBottomNav ë†’ì´ + ë…¸ì¹˜)
         paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
       }}
     >
-      {/* 글로벌 스타일 */}
+      {/* ê¸€ë¡œë²Œ ìŠ¤íƒ€ì¼ */}
       <style>{`
         * { box-sizing: border-box; }
         input::placeholder { color: #475569; }
@@ -210,7 +210,7 @@ export default function SellSignalAppV5() {
         * { -webkit-tap-highlight-color: transparent; }
       `}</style>
 
-      {/* ── 헤더 ── */}
+      {/* â”€â”€ í—¤ë” â”€â”€ */}
       <ResponsiveHeader
         alerts={alerts}
         isPremium={isPremium}
@@ -218,7 +218,7 @@ export default function SellSignalAppV5() {
         onShowAddModal={() => setShowAddModal(true)}
       />
 
-      {/* ── 메인 콘텐츠 ── */}
+      {/* â”€â”€ ë©”ì¸ ì½˜í…ì¸  â”€â”€ */}
       <main
         style={{
           maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
@@ -226,7 +226,7 @@ export default function SellSignalAppV5() {
           padding: isMobile ? '0' : '24px',
         }}
       >
-        {/* 요약 카드 */}
+        {/* ìš”ì•½ ì¹´ë“œ */}
         <ResponsiveSummaryCards
           totalCost={totalCost}
           totalValue={totalValue}
@@ -234,9 +234,9 @@ export default function SellSignalAppV5() {
           totalProfitRate={totalProfitRate}
         />
 
-        {/* 메인 레이아웃 */}
+        {/* ë©”ì¸ ë ˆì´ì•„ì›ƒ */}
         <div style={getMainLayoutStyle()}>
-          {/* 광고 영역 (데스크톱, 무료회원) */}
+          {/* ê´‘ê³  ì˜ì—­ (ë°ìŠ¤í¬í†±, ë¬´ë£ŒíšŒì›) */}
           {!isMobile && !isTablet && !isPremium && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[1, 2].map((i) => (
@@ -256,8 +256,8 @@ export default function SellSignalAppV5() {
                     justifyContent: 'center',
                   }}
                 >
-                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>광고</div>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📢</div>
+                  <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '8px' }}>ê´‘ê³ </div>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>ðŸ“¢</div>
                   <div style={{ fontSize: '11px', color: '#374151' }}>Google AdMob</div>
                 </div>
               ))}
@@ -272,21 +272,21 @@ export default function SellSignalAppV5() {
                   cursor: 'pointer',
                 }}
               >
-                <div style={{ fontSize: '22px', marginBottom: '6px' }}>👑</div>
-                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>광고 제거</div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>프리미엄</div>
+                <div style={{ fontSize: '22px', marginBottom: '6px' }}>ðŸ‘‘</div>
+                <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600' }}>ê´‘ê³  ì œê±°</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>í”„ë¦¬ë¯¸ì—„</div>
               </div>
             </div>
           )}
 
-          {/* ── 포지션 목록 ── */}
+          {/* â”€â”€ í¬ì§€ì…˜ ëª©ë¡ â”€â”€ */}
           <div
             style={{
               display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
               padding: isMobile ? '0 16px' : '0',
             }}
           >
-            {/* 모바일: 시장 분석 미니 요약 */}
+            {/* ëª¨ë°”ì¼: ì‹œìž¥ ë¶„ì„ ë¯¸ë‹ˆ ìš”ì•½ */}
             {isMobile && activeTab === 'positions' && (
               <div
                 onClick={() => setActiveTab('market')}
@@ -303,25 +303,25 @@ export default function SellSignalAppV5() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '28px' }}>🥚</span>
+                  <span style={{ fontSize: '28px' }}>ðŸ¥š</span>
                   <div>
-                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444' }}>4단계: 금리고점 (팔 때)</div>
-                    <div style={{ fontSize: '13px', color: '#cbd5e1' }}>매도 관망 권장 · 탭하여 상세보기</div>
+                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#ef4444' }}>4ë‹¨ê³„: ê¸ˆë¦¬ê³ ì  (íŒ” ë•Œ)</div>
+                    <div style={{ fontSize: '13px', color: '#cbd5e1' }}>ë§¤ë„ ê´€ë§ ê¶Œìž¥ Â· íƒ­í•˜ì—¬ ìƒì„¸ë³´ê¸°</div>
                   </div>
                 </div>
-                <span style={{ color: '#94a3b8', fontSize: '20px' }}>›</span>
+                <span style={{ color: '#94a3b8', fontSize: '20px' }}>â€º</span>
               </div>
             )}
 
-            {/* 섹션 헤더 */}
+            {/* ì„¹ì…˜ í—¤ë” */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <h2 style={{ fontSize: isMobile ? '17px' : '19px', fontWeight: '600', color: '#fff', margin: 0 }}>
-                📊 모니터링 중인 종목
+                ðŸ“Š ëª¨ë‹ˆí„°ë§ ì¤‘ì¸ ì¢…ëª©
               </h2>
-              <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#94a3b8' }}>실시간 조건 감시 중</span>
+              <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#94a3b8' }}>ì‹¤ì‹œê°„ ì¡°ê±´ ê°ì‹œ ì¤‘</span>
             </div>
 
-            {/* 비로그인 안내 */}
+            {/* ë¹„ë¡œê·¸ì¸ ì•ˆë‚´ */}
             {!isLoggedIn && (
               <div
                 style={{
@@ -335,15 +335,15 @@ export default function SellSignalAppV5() {
                   gap: '10px',
                 }}
               >
-                <span style={{ fontSize: '20px' }}>💡</span>
+                <span style={{ fontSize: '20px' }}>ðŸ’¡</span>
                 <div>
-                  <div style={{ fontSize: '13px', color: '#60a5fa', fontWeight: '600' }}>데모 모드</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>로그인하면 내 종목을 저장하고 관리할 수 있습니다</div>
+                  <div style={{ fontSize: '13px', color: '#60a5fa', fontWeight: '600' }}>ë°ëª¨ ëª¨ë“œ</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>ë¡œê·¸ì¸í•˜ë©´ ë‚´ ì¢…ëª©ì„ ì €ìž¥í•˜ê³  ê´€ë¦¬í•  ìˆ˜ ìžˆìŠµë‹ˆë‹¤</div>
                 </div>
               </div>
             )}
 
-            {/* 포지션 카드 목록 */}
+            {/* í¬ì§€ì…˜ ì¹´ë“œ ëª©ë¡ */}
             {positions.map((pos) => (
               <PositionCard
                 key={pos.id}
@@ -366,15 +366,15 @@ export default function SellSignalAppV5() {
             ))}
           </div>
 
-          {/* ── 우측 사이드바 / 모바일 탭 콘텐츠 ── */}
+          {/* â”€â”€ ìš°ì¸¡ ì‚¬ì´ë“œë°” / ëª¨ë°”ì¼ íƒ­ ì½˜í…ì¸  â”€â”€ */}
           {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
             <div style={{ display: 'block', padding: isMobile ? '0 16px' : '0' }}>
-              {/* 시장 분석 */}
+              {/* ì‹œìž¥ ë¶„ì„ */}
               <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
                 <MarketCycleWidget isPremium={isPremium} />
               </div>
 
-              {/* 알림 영역 */}
+              {/* ì•Œë¦¼ ì˜ì—­ */}
               <div
                 style={{
                   display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
@@ -399,7 +399,7 @@ export default function SellSignalAppV5() {
                       gap: '8px',
                     }}
                   >
-                    🔔 조건 도달 알림
+                    ðŸ”” ì¡°ê±´ ë„ë‹¬ ì•Œë¦¼
                     {alerts.length > 0 && (
                       <span
                         style={{
@@ -428,14 +428,14 @@ export default function SellSignalAppV5() {
                         cursor: 'pointer',
                       }}
                     >
-                      모두 지우기
+                      ëª¨ë‘ ì§€ìš°ê¸°
                     </button>
                   )}
                 </div>
                 {alerts.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: isMobile ? '20px 16px' : '30px 16px' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '10px' }}>✨</div>
-                    <div style={{ fontSize: '14px', color: '#94a3b8' }}>현재 도달한 조건이 없습니다</div>
+                    <div style={{ fontSize: '32px', marginBottom: '10px' }}>âœ¨</div>
+                    <div style={{ fontSize: '14px', color: '#94a3b8' }}>í˜„ìž¬ ë„ë‹¬í•œ ì¡°ê±´ì´ ì—†ìŠµë‹ˆë‹¤</div>
                   </div>
                 ) : (
                   alerts
@@ -446,10 +446,10 @@ export default function SellSignalAppV5() {
                 )}
               </div>
 
-              {/* 매도법 가이드 */}
+              {/* ë§¤ë„ë²• ê°€ì´ë“œ */}
               <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
 
-              {/* 면책조항 */}
+              {/* ë©´ì±…ì¡°í•­ */}
               {(!isMobile || activeTab === 'guide') && (
                 <div
                   style={{
@@ -460,8 +460,8 @@ export default function SellSignalAppV5() {
                   }}
                 >
                   <p style={{ fontSize: isMobile ? '11px' : '12px', color: '#64748b', margin: 0, lineHeight: '1.6' }}>
-                    ⚠️ 본 앱은 사용자가 선택한 조건을 모니터링하는 유틸리티 도구입니다. 제공되는 알람은 투자자문이나
-                    투자권유가 아니며, 모든 투자 판단의 책임은 사용자에게 있습니다.
+                    âš ï¸ ë³¸ ì•±ì€ ì‚¬ìš©ìžê°€ ì„ íƒí•œ ì¡°ê±´ì„ ëª¨ë‹ˆí„°ë§í•˜ëŠ” ìœ í‹¸ë¦¬í‹° ë„êµ¬ìž…ë‹ˆë‹¤. ì œê³µë˜ëŠ” ì•ŒëžŒì€ íˆ¬ìžìžë¬¸ì´ë‚˜
+                    íˆ¬ìžê¶Œìœ ê°€ ì•„ë‹ˆë©°, ëª¨ë“  íˆ¬ìž íŒë‹¨ì˜ ì±…ìž„ì€ ì‚¬ìš©ìžì—ê²Œ ìžˆìŠµë‹ˆë‹¤.
                   </p>
                 </div>
               )}
@@ -470,13 +470,13 @@ export default function SellSignalAppV5() {
         </div>
       </main>
 
-      {/* ── 모바일 하단 네비게이션 ── */}
+      {/* â”€â”€ ëª¨ë°”ì¼ í•˜ë‹¨ ë„¤ë¹„ê²Œì´ì…˜ â”€â”€ */}
       {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
 
-      {/* ── 데스크톱 푸터 ── */}
+      {/* â”€â”€ ë°ìŠ¤í¬í†± í‘¸í„° â”€â”€ */}
       {!isMobile && <Footer />}
 
-      {/* ── 모달들 ── */}
+      {/* â”€â”€ ëª¨ë‹¬ë“¤ â”€â”€ */}
       {showAddModal && (
         <StockModal
           onSave={(stock) => {
@@ -497,7 +497,7 @@ export default function SellSignalAppV5() {
         />
       )}
 
-      {/* ── AI 팝업 ── */}
+      {/* â”€â”€ AI íŒì—… â”€â”€ */}
       {aiNewsPosition && (
         <AINewsPopup
           position={aiNewsPosition}
@@ -515,7 +515,7 @@ export default function SellSignalAppV5() {
         />
       )}
 
-      {/* ── 업그레이드 팝업 ── */}
+      {/* â”€â”€ ì—…ê·¸ë ˆì´ë“œ íŒì—… â”€â”€ */}
       {showUpgradePopup && (
         <UpgradePopup
           onUpgrade={() => {
