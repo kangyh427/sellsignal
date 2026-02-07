@@ -1,23 +1,34 @@
 'use client';
+// ============================================
+// UpgradePopup - 프리미엄 업그레이드 팝업
+// 경로: src/components/UpgradePopup.tsx
+// 세션4(아키텍처 정리)에서 SellSignalApp.tsx L1217-1366 분리
+// ============================================
+// 모바일 최적화:
+//   - 모바일 패딩/폰트 사이즈 조절
+//   - 최대 높이 90vh, 스크롤 대응
+//   - 버튼 터치 타겟 확보
+// ============================================
 
 import React from 'react';
+import { useResponsive } from '../hooks/useResponsive';
 
-// ============================================
-// UpgradePopup 컴포넌트
-// 위치: src/components/UpgradePopup.tsx
-//
-// SellSignalApp.tsx 라인 711~906에서 추출
-// 프리미엄 멤버십 업그레이드 팝업
-// ============================================
-
+// ── Props 타입 정의 ──
 interface UpgradePopupProps {
-  isMobile: boolean;
   onUpgrade: () => void;
   onClose: () => void;
 }
 
-// ── 프리미엄 혜택 비교 데이터 ──
-const PREMIUM_FEATURES = [
+// ── 기능 비교 항목 타입 ──
+interface FeatureItem {
+  icon: string;
+  text: string;
+  free: string;
+  premium: string;
+}
+
+// ── 기능 비교 데이터 ──
+const FEATURES: FeatureItem[] = [
   { icon: '🚫', text: '광고 완전 제거', free: '❌', premium: '✅' },
   { icon: '📊', text: '모니터링 종목 수', free: '5개', premium: '20개' },
   { icon: '🤖', text: 'AI 뉴스 분석', free: '❌', premium: '✅' },
@@ -26,7 +37,12 @@ const PREMIUM_FEATURES = [
   { icon: '📧', text: '이메일 리포트', free: '❌', premium: '✅' },
 ];
 
-const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClose }) => {
+// ============================================
+// 메인 컴포넌트
+// ============================================
+const UpgradePopup: React.FC<UpgradePopupProps> = ({ onUpgrade, onClose }) => {
+  const { isMobile } = useResponsive();
+
   return (
     <div
       style={{
@@ -42,7 +58,6 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
         zIndex: 1000,
         padding: isMobile ? '16px' : '40px',
       }}
-      onClick={onClose}
     >
       <div
         style={{
@@ -56,9 +71,8 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
           border: '1px solid rgba(139,92,246,0.3)',
           boxShadow: '0 0 60px rgba(139,92,246,0.2)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* 상단 아이콘 & 타이틀 */}
+        {/* ── 헤더 ── */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div style={{ fontSize: '56px', marginBottom: '12px' }}>👑</div>
           <h2
@@ -76,11 +90,10 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
           </p>
         </div>
 
-        {/* 가격 표시 */}
+        {/* ── 가격 ── */}
         <div
           style={{
-            background:
-              'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.15) 100%)',
+            background: 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.15) 100%)',
             borderRadius: '12px',
             padding: '16px',
             textAlign: 'center',
@@ -88,37 +101,20 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
             border: '1px solid rgba(139,92,246,0.3)',
           }}
         >
-          <div style={{ fontSize: '14px', color: '#a78bfa', marginBottom: '4px' }}>
-            월 구독료
-          </div>
-          <div
-            style={{
-              fontSize: isMobile ? '32px' : '36px',
-              fontWeight: '800',
-              color: '#fff',
-            }}
-          >
+          <div style={{ fontSize: '14px', color: '#a78bfa', marginBottom: '4px' }}>월 구독료</div>
+          <div style={{ fontSize: isMobile ? '32px' : '36px', fontWeight: '800', color: '#fff' }}>
             ₩5,900
             <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>/월</span>
           </div>
-          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
-            🎁 첫 7일 무료 체험
-          </div>
+          <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>🎁 첫 7일 무료 체험</div>
         </div>
 
-        {/* 기능 비교 */}
+        {/* ── 기능 비교 ── */}
         <div style={{ marginBottom: '20px' }}>
-          <div
-            style={{
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#fff',
-              marginBottom: '12px',
-            }}
-          >
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '12px' }}>
             ✨ 프리미엄 혜택
           </div>
-          {PREMIUM_FEATURES.map((item, i) => (
+          {FEATURES.map((item, i) => (
             <div
               key={i}
               style={{
@@ -136,44 +132,22 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
                 <span style={{ fontSize: '13px', color: '#e2e8f0' }}>{item.text}</span>
               </div>
               <div style={{ display: 'flex', gap: '16px' }}>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    color: '#64748b',
-                    minWidth: '32px',
-                    textAlign: 'center',
-                  }}
-                >
+                <span style={{ fontSize: '12px', color: '#64748b', minWidth: '32px', textAlign: 'center' as const }}>
                   {item.free}
                 </span>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    color: '#10b981',
-                    minWidth: '32px',
-                    textAlign: 'center',
-                  }}
-                >
+                <span style={{ fontSize: '12px', color: '#10b981', minWidth: '32px', textAlign: 'center' as const }}>
                   {item.premium}
                 </span>
               </div>
             </div>
           ))}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '16px',
-              marginTop: '4px',
-              paddingRight: '12px',
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '4px', paddingRight: '12px' }}>
             <span style={{ fontSize: '10px', color: '#64748b' }}>무료</span>
             <span style={{ fontSize: '10px', color: '#10b981' }}>프리미엄</span>
           </div>
         </div>
 
-        {/* CTA 버튼 */}
+        {/* ── CTA 버튼 ── */}
         <button
           onClick={onUpgrade}
           style={{
@@ -208,7 +182,7 @@ const UpgradePopup: React.FC<UpgradePopupProps> = ({ isMobile, onUpgrade, onClos
           나중에 할게요
         </button>
 
-        {/* 면책 */}
+        {/* ── 하단 안내 ── */}
         <p
           style={{
             fontSize: '11px',
