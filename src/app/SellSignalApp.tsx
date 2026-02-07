@@ -14,14 +14,15 @@ import { generateMockPriceData } from '../utils';
 import type { Position, Alert, ChartDataPoint } from '../types';
 
 // ── 컴포넌트 임포트 ──
-import { ResponsiveHeader } from '../components/ResponsiveHeader';
-import { SummaryCards } from '../components/SummaryCards';
-import { MarketCycleWidget } from '../components/MarketCycleWidget';
-import { PositionCard } from '../components/PositionCard';
-import { StockModal } from '../components/StockModal';
-import { AlertCard } from '../components/AlertCard';
-import { SellMethodGuide } from '../components/SellMethodGuide';
-import { UpgradeModal } from '../components/UpgradeModal';
+import {
+  ResponsiveHeader,
+  SummaryCards,
+  MarketCycleWidget,
+  PositionCard,
+  StockModal,
+  AlertCard,
+  SellMethodGuide,
+} from '../components';
 
 // ============================================
 // 데모 데이터 — 원본 JSX 2896~2922 기반
