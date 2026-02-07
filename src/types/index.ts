@@ -1,53 +1,11 @@
 // ============================================
-// TypeScript 타입 정의 (types/index.ts)
+// 전체 타입 정의 (Single Source of Truth)
 // 위치: src/types/index.ts
 // ============================================
-// ✅ 프로젝트 전체에서 사용하는 타입의 유일한 정의 소스
-// ✅ PositionCard 내부 타입도 여기서 관리 (중복 제거)
-// ✅ 원본 JSX 호환성 유지
-// ✅ 세션3: VisibleLines 인덱스 시그니처 추가, candle3 키 추가
+// 모든 컴포넌트, 스토어, 유틸리티가 이 파일에서 타입을 import합니다.
+// 타입을 수정할 때는 반드시 이 파일만 수정하세요.
 
-// ── 매도 프리셋 타입 ──
-export interface SellPreset {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  stages: string[];
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  color: string;
-  hasInput?: boolean;
-  inputLabel?: string;
-  inputDefault?: number;
-}
-
-// ── 프리셋 설정 타입 ──
-export interface PresetSettings {
-  [key: string]: {
-    value: number;
-  };
-}
-
-// ── 매도가격 타입 (PositionCard에서 사용) ──
-export interface SellPrices {
-  stopLoss?: number;      // 손절가
-  twoThird?: number;      // 2/3 익절가
-  maSignal?: number;      // 이동평균선 기준가
-  candle3_50?: number;    // 3봉 매도법 기준가
-}
-
-// ── 차트 라인 표시 옵션 ──
-// 프리셋 ID를 키로 사용하므로 인덱스 시그니처 추가
-export interface VisibleLines {
-  stopLoss?: boolean;
-  twoThird?: boolean;
-  maSignal?: boolean;
-  candle3?: boolean;        // 프리셋 ID 기준 (candle3)
-  candle3_50?: boolean;     // SellPrices 키 기준 (하위 호환)
-  [key: string]: boolean | undefined;  // 동적 키 접근 허용
-}
-
-// ── 주식 종목 타입 ──
+// ── 종목 정보 (정적 데이터) ──
 export interface Stock {
   name: string;
   code: string;
@@ -59,43 +17,31 @@ export interface Stock {
   sectorPbr: number;
 }
 
-// ── 포지션 타입 ──
-// ※ name, code 평탄 구조와 stock 중첩 구조 병행 (원본 JSX 호환)
+// ── 보유 포지션 ──
 export interface Position {
-  id: string | number;
-  stock?: Stock;              // 중첩 구조 (StockModal에서 사용)
-  name?: string;              // 평탄 구조 (원본 JSX 호환)
-  code?: string;              // 평탄 구조 (원본 JSX 호환)
+  id: number | string;
+  // 종목 정보 (평탄/중첩 구조 모두 지원)
+  stock?: Stock;
+  name: string;
+  code: string;
+  // 매매 정보
   buyPrice: number;
   quantity: number;
-  currentPrice: number;
+  currentPrice?: number;
+  highestPrice?: number;
   buyDate?: string;
+  // 매도 전략
   selectedPresets: string[];
-  presetSettings?: PresetSettings;
+  presetSettings: Record<string, { value: number }>;
+  // 기타
   memo?: string;
   alerts?: Alert[];
-  priceHistory?: PricePoint[];
-  highestPrice?: number;          // 보유 중 최고가
-  highestPriceRecorded?: number;  // 기존 코드 호환 (동일 용도)
+  priceHistory?: ChartDataPoint[];
 }
 
-// ── 수익률 계산된 포지션 ──
-export interface PositionWithProfit extends Position {
-  profitRate: number;
-  profitAmount: number;
-  totalValue: number;
-}
-
-// ── 가격 데이터 포인트 ──
-export interface PricePoint {
-  date: string;
-  price: number;
-  volume?: number;
-}
-
-// ── 차트 데이터 포인트 (캔들차트용) ──
+// ── 차트 데이터 포인트 ──
 export interface ChartDataPoint {
-  date: Date;
+  date: Date | string;
   open: number;
   high: number;
   low: number;
@@ -103,10 +49,10 @@ export interface ChartDataPoint {
   volume: number;
 }
 
-// ※ PriceData는 ChartDataPoint의 별칭 (PositionCard 등에서 사용)
+// ── PriceData (차트 컴포넌트 호환) ──
 export type PriceData = ChartDataPoint;
 
-// ── 알림 타입 ──
+// ── 알림 ──
 export interface Alert {
   id: number;
   stockName: string;
@@ -115,17 +61,46 @@ export interface Alert {
     id: string;
     name: string;
     icon: string;
-    severity: 'critical' | 'high' | 'medium' | 'low';
+    severity: string;
   };
   message: string;
-  currentPrice?: number;
-  targetPrice?: number;
-  timestamp?: number;
-  read?: boolean;
-  type?: string;
+  currentPrice: number;
+  targetPrice: number;
+  timestamp: number;
 }
 
-// ── 반응형 훅 반환 타입 ──
+// ── 매도 프리셋 ──
+export interface SellPreset {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  stages: string[];
+  severity: string;
+  color: string;
+  hasInput?: boolean;
+  inputLabel?: string;
+  inputDefault?: number;
+}
+
+// ── 매도가 계산 결과 ──
+export interface SellPrices {
+  stopLoss?: number;
+  twoThird?: number;
+  maSignal?: number;
+  candle3_50?: number;
+  [key: string]: number | undefined;
+}
+
+// ── 차트 표시 라인 토글 ──
+export interface VisibleLines {
+  stopLoss: boolean;
+  twoThird: boolean;
+  maSignal: boolean;
+  candle3_50: boolean;
+}
+
+// ── 반응형 상태 ──
 export interface ResponsiveState {
   width: number;
   height: number;
@@ -135,80 +110,7 @@ export interface ResponsiveState {
   isWide: boolean;
 }
 
-// ── 사용자 타입 ──
-export interface User {
-  name?: string;
-  email: string;
-  membership: 'free' | 'premium';
-}
-
-// ── Form 상태 타입 (StockModal 내부) ──
-export interface FormState {
-  stockCode: string;
-  buyPrice: string;
-  quantity: string;
-  buyDate: string;
-  selectedPresets: string[];
-  presetSettings: PresetSettings;
-  memo: string;
-}
-
-// ── 컴포넌트 Props 타입 ──
-
-export interface ResponsiveHeaderProps {
-  alerts: Alert[];
-  isPremium: boolean;
-  onShowUpgrade: () => void;
-  onShowAddModal: () => void;
-}
-
-export interface StockModalProps {
-  stock?: Position;
-  onSave: (position: Position) => void;
-  onClose: () => void;
-  isMobile: boolean;
-}
-
-export interface CandleChartProps {
-  data: ChartDataPoint[];
-  width?: number;
-  height?: number;
-  buyPrice: number;
-  sellPrices?: SellPrices;
-  visibleLines?: VisibleLines;
-}
-
-export interface PositionCardProps {
-  position: Position;
-  priceData?: ChartDataPoint[];
-  onEdit: (position: Position) => void;
-  onDelete: (id: string | number) => void;
-  isPremium: boolean;
-  onUpgrade: () => void;
-}
-
-export interface AlertCardProps {
-  alert: Alert;
-  onDismiss: (id: number) => void;
-}
-
-export interface SummaryCardsProps {
-  totalCost: number;
-  totalValue: number;
-  totalProfit: number;
-  totalProfitRate: number;
-}
-
-export interface SellMethodGuideProps {
-  isMobile: boolean;
-  activeTab: string;
-}
-
-export interface MarketCycleWidgetProps {
-  isPremium: boolean;
-}
-
-// ── 수익 단계 타입 ──
+// ── 수익 단계 ──
 export interface ProfitStage {
   label: string;
   color: string;
@@ -216,11 +118,190 @@ export interface ProfitStage {
   methods: string[];
 }
 
-// ── 탭 아이템 타입 (모바일 네비게이션) ──
-export interface TabItem {
-  id: string;
-  icon: string;
-  label: string;
-  count?: number;
-  badge?: number;
+// ============================================
+// 컴포넌트 Props 타입
+// ============================================
+
+// ── PositionCard ──
+export interface PositionCardProps {
+  position: Position;
+  priceData: ChartDataPoint[] | undefined;
+  onEdit: (position: Position) => void;
+  onDelete: (id: string | number) => void;
+  isPremium: boolean;
+  onUpgrade?: () => void;
+}
+
+// ── StockModal ──
+export interface StockModalProps {
+  stock?: Position | null;
+  onSave: (position: Position) => void;
+  onClose: () => void;
+  isMobile: boolean;
+}
+
+// ── StockModal 내부 폼 상태 ──
+export interface FormState {
+  stockCode: string;
+  buyPrice: string;
+  quantity: string;
+  buyDate: string;
+  selectedPresets: string[];
+  presetSettings: Record<string, { value: number }>;
+  memo: string;
+}
+
+// ── EnhancedCandleChart ──
+export interface EnhancedCandleChartProps {
+  data: ChartDataPoint[] | undefined;
+  width?: number;
+  height?: number;
+  buyPrice: number;
+  sellPrices?: SellPrices;
+  visibleLines?: VisibleLines;
+}
+
+// ── ResponsiveHeader ──
+export interface ResponsiveHeaderProps {
+  alerts: Alert[];
+  isPremium: boolean;
+  onShowUpgrade: () => void;
+  onShowAddModal: () => void;
+}
+
+// ── SummaryCards ──
+export interface SummaryCardsProps {
+  totalCost: number;
+  totalValue: number;
+  totalProfit: number;
+  totalProfitRate: number;
+}
+
+// ── MarketCycleWidget ──
+export interface MarketCycleWidgetProps {
+  isPremium: boolean;
+}
+
+// ── EarningsWidget ──
+export interface EarningsWidgetProps {
+  position: Position;
+  isPremium: boolean;
+  onShowAINews: () => void;
+  onShowAIReport: () => void;
+}
+
+// ── AI 팝업 공통 ──
+export interface AIPopupProps {
+  position: Position;
+  onClose: () => void;
+  isPremium: boolean;
+  onUpgrade?: () => void;
+}
+
+// ── SellMethodGuide ──
+export interface SellMethodGuideProps {
+  isMobile: boolean;
+  activeTab: string;
+}
+
+// ── AlertCard ──
+export interface AlertCardProps {
+  alert: Alert;
+  onDismiss: (id: number) => void;
+  isMobile?: boolean;
+}
+
+// ── MobileNav ──
+export interface MobileNavProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  alertCount: number;
+}
+
+// ── MobileTabBar ──
+export interface MobileTabBarProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  tabs: Array<{
+    id: string;
+    label: string;
+    count?: number;
+  }>;
+}
+
+// ── PositionList ──
+export interface PositionListProps {
+  positions: Position[];
+  priceDataMap: Record<string | number, ChartDataPoint[]>;
+  isMobile: boolean;
+  activeTab: string;
+  isPremium: boolean;
+  onEdit: (position: Position) => void;
+  onDelete: (id: string | number) => void;
+  onUpgrade: () => void;
+  onAddStock: () => void;
+  onNavigateToMarket: () => void;
+}
+
+// ── SidePanel ──
+export interface SidePanelProps {
+  isMobile: boolean;
+  activeTab: string;
+  isPremium: boolean;
+  alerts: Alert[];
+  onDismissAlert: (id: number) => void;
+  onClearAllAlerts: () => void;
+}
+
+// ── AdColumn ──
+export interface AdColumnProps {
+  onUpgrade: () => void;
+}
+
+// ── UpgradePopup ──
+export interface UpgradePopupProps {
+  isMobile: boolean;
+  onUpgrade: () => void;
+  onClose: () => void;
+}
+
+// ── PositionCard 서브컴포넌트 Props ──
+export interface PositionCardHeaderProps {
+  position: Position;
+  stage: ProfitStage & { label: string; color: string };
+  naverStockUrl: string;
+  isMobile: boolean;
+  onEdit: (position: Position) => void;
+  onDelete: (id: string | number) => void;
+}
+
+export interface PositionCardPriceInfoProps {
+  buyPrice: number;
+  currentPrice: number;
+  quantity: number;
+  totalValue: number;
+  profitRate: number;
+  profitAmount: number;
+  isProfit: boolean;
+  isMobile: boolean;
+}
+
+export interface PositionCardStrategyProps {
+  position: Position;
+  currentPrice: number;
+  sellPrices: SellPrices;
+  visibleLines: VisibleLines;
+  onToggleLine: (lineKey: string) => void;
+  onEdit: (position: Position) => void;
+  isMobile: boolean;
+}
+
+export interface PositionCardChartProps {
+  priceData: ChartDataPoint[] | undefined;
+  buyPrice: number;
+  sellPrices: SellPrices;
+  visibleLines: VisibleLines;
+  naverChartUrl: string;
+  isMobile: boolean;
+  isTablet: boolean;
 }
