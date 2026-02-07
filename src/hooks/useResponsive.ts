@@ -1,95 +1,72 @@
-'use client';
+// ============================================
+// 반응형 훅 (hooks/useResponsive.ts)
+// 위치: src/hooks/useResponsive.ts
+// ============================================
+// ✅ BREAKPOINTS는 constants/index.ts에서 import (중복 제거)
+// ✅ SSR Hydration 안전 처리 (mounted 상태)
+// ✅ debounce 150ms 적용
+// ✅ cleanup 처리 완비
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { BREAKPOINTS } from '../constants';
 import type { ResponsiveState } from '../types';
 
-// ============================================
-// 반응형 브레이크포인트
-// ============================================
-export const BREAKPOINTS = {
-  mobile: 480,
-  tablet: 768,
-  desktop: 1024,
-  wide: 1400
-} as const;
+// ── SSR 안전한 초기값 ──
+const getInitialState = (): ResponsiveState => ({
+  width: 1200,
+  height: 800,
+  isMobile: false,
+  isTablet: false,
+  isDesktop: true,
+  isWide: false,
+});
 
-// ============================================
-// 반응형 훅 - Hydration 안전 + debounce 성능 최적화
-// ============================================
+// ── 창 크기로부터 반응형 상태 계산 ──
+const calculateState = (width: number, height: number): ResponsiveState => ({
+  width,
+  height,
+  isMobile: width < BREAKPOINTS.tablet,
+  isTablet: width >= BREAKPOINTS.tablet && width < BREAKPOINTS.desktop,
+  isDesktop: width >= BREAKPOINTS.desktop,
+  isWide: width >= BREAKPOINTS.wide,
+});
+
+// ── 메인 훅 ──
 export const useResponsive = (): ResponsiveState => {
+  const [state, setState] = useState<ResponsiveState>(getInitialState);
   const [mounted, setMounted] = useState(false);
-  const [windowSize, setWindowSize] = useState({
-    width: 1200,
-    height: 800,
-  });
 
-  // debounce용 타이머 ref (resize 이벤트 과다 발생 방지)
-  const resizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // debounce된 resize 핸들러 (150ms)
-  // 모바일에서 스크롤/회전 시 resize 이벤트가 수십 번 발생 → 렌더링 부하 방지
-  const handleResize = useCallback(() => {
-    if (resizeTimer.current) {
-      clearTimeout(resizeTimer.current);
-    }
-    resizeTimer.current = setTimeout(() => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    }, 150);
-  }, []);
-
+  // SSR → CSR 전환 시 실제 윈도우 크기로 업데이트
   useEffect(() => {
     setMounted(true);
+    setState(calculateState(window.innerWidth, window.innerHeight));
+  }, []);
 
-    // 최초 1회는 debounce 없이 즉시 반영
-    setWindowSize({
-      width: window.innerWidth,
-      height: window.innerHeight,
-    });
+  // 리사이즈 이벤트 핸들러 (debounce 150ms)
+  useEffect(() => {
+    if (!mounted) return;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setState(calculateState(window.innerWidth, window.innerHeight));
+      }, 150);
+    };
 
     window.addEventListener('resize', handleResize);
-
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener('resize', handleResize);
-      if (resizeTimer.current) {
-        clearTimeout(resizeTimer.current);
-      }
     };
-  }, [handleResize]);
+  }, [mounted]);
 
-  // SSR 단계에서는 데스크톱 기본값 반환 (Hydration mismatch 방지)
-  if (!mounted) {
-    return {
-      width: 1200,
-      height: 800,
-      isMobile: false,
-      isTablet: false,
-      isDesktop: true,
-      isWide: false,
-    };
-  }
-
-  return {
-    width: windowSize.width,
-    height: windowSize.height,
-    isMobile: windowSize.width < BREAKPOINTS.tablet,
-    isTablet: windowSize.width >= BREAKPOINTS.tablet && windowSize.width < BREAKPOINTS.desktop,
-    isDesktop: windowSize.width >= BREAKPOINTS.desktop,
-    isWide: windowSize.width >= BREAKPOINTS.wide,
-  };
+  return state;
 };
 
-// ============================================
-// 반응형 스타일 헬퍼
-// ============================================
-
-/**
- * 디바이스별 값 선택 헬퍼
- * 사용법: getResponsiveValue(isMobile, isTablet, '16px', '20px', '24px')
- */
-export const getResponsiveValue = <T,>(
+// ── 헬퍼 함수: 반응형 값 선택 ──
+export const getResponsiveValue = <T>(
   isMobile: boolean,
   isTablet: boolean,
   mobileVal: T,
@@ -101,39 +78,15 @@ export const getResponsiveValue = <T,>(
   return desktopVal;
 };
 
-/**
- * 차트 너비 계산 헬퍼
- * SellSignalApp.tsx 365줄의 인라인 계산을 대체합니다.
- * 기존: Math.min(typeof window !== 'undefined' ? window.innerWidth - 64 : 350, 500)
- * 개선: padding을 고려한 안전한 너비 계산
- *
- * @param screenWidth - useResponsive()의 width 값
- * @param isMobile - useResponsive()의 isMobile 값
- * @param padding - 좌우 패딩 합계 (기본 64px = 좌32 + 우32)
- * @param maxWidth - 데스크탑 최대 너비 (기본 500px)
- */
-export const getChartWidth = (
-  screenWidth: number,
-  isMobile: boolean,
-  padding: number = 64,
-  maxWidth: number = 500
-): number => {
-  if (isMobile) {
-    return Math.min(screenWidth - padding, maxWidth);
-  }
-  return maxWidth;
+// ── 헬퍼: 차트 크기 계산 ──
+export const getChartWidth = (screenWidth: number, isMobile: boolean, isTablet: boolean): number => {
+  if (isMobile) return Math.min(screenWidth - 32, 400);  // 좌우 패딩 16px * 2
+  if (isTablet) return Math.min(screenWidth - 80, 600);
+  return Math.min(screenWidth * 0.5, 700);
 };
 
-/**
- * 차트 높이 계산 헬퍼
- * 모바일에서는 더 낮은 차트, 데스크탑에서는 표준 높이
- */
-export const getChartHeight = (
-  isMobile: boolean,
-  isTablet: boolean,
-  mobileHeight: number = 200,
-  tabletHeight: number = 250,
-  desktopHeight: number = 280
-): number => {
-  return getResponsiveValue(isMobile, isTablet, mobileHeight, tabletHeight, desktopHeight);
+export const getChartHeight = (isMobile: boolean, isTablet: boolean): number => {
+  if (isMobile) return 200;
+  if (isTablet) return 260;
+  return 300;
 };
