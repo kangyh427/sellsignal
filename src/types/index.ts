@@ -5,6 +5,7 @@
 // ✅ 프로젝트 전체에서 사용하는 타입의 유일한 정의 소스
 // ✅ PositionCard 내부 타입도 여기서 관리 (중복 제거)
 // ✅ 원본 JSX 호환성 유지
+// ✅ 세션3: VisibleLines 인덱스 시그니처 추가, candle3 키 추가
 
 // ── 매도 프리셋 타입 ──
 export interface SellPreset {
@@ -35,12 +36,15 @@ export interface SellPrices {
   candle3_50?: number;    // 3봉 매도법 기준가
 }
 
-// ── 차트 라인 표시 옵션 (PositionCard에서 사용) ──
+// ── 차트 라인 표시 옵션 ──
+// 프리셋 ID를 키로 사용하므로 인덱스 시그니처 추가
 export interface VisibleLines {
   stopLoss?: boolean;
   twoThird?: boolean;
   maSignal?: boolean;
-  candle3_50?: boolean;
+  candle3?: boolean;        // 프리셋 ID 기준 (candle3)
+  candle3_50?: boolean;     // SellPrices 키 기준 (하위 호환)
+  [key: string]: boolean | undefined;  // 동적 키 접근 허용
 }
 
 // ── 주식 종목 타입 ──
