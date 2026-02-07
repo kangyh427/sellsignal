@@ -1,13 +1,13 @@
 'use client';
 // ============================================
 // ResponsiveHeader - 반응형 헤더 컴포넌트
-// 세션1 분리: 모바일/태블릿/데스크톱 헤더
+// 경로: src/components/ResponsiveHeader.tsx
 // ============================================
-// 개선사항:
-// - 모바일 터치타겟 최소 44px (기존 36px → 44px)
-// - 모바일 헤더 요소 간격 정리 (밀집 해소)
-// - 태블릿/데스크톱 버튼 높이 통일 (44px)
-// - 섹션 경계선 대비 강화 (0.08 → 0.15)
+// 세션6 [A1] 모바일 리디자인:
+//   - 헤더 버튼 밀집 해소: 로그인/프리미엄 → ☰ 메뉴로 이동
+//   - CTA 우선순위: [+종목] > [🔔] > [☰]
+//   - backdrop-filter 통일 (blur 16px)
+//   - 드롭다운 외부 클릭 닫기 처리
 // ============================================
 
 import React, { useState } from 'react';
@@ -31,105 +31,111 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // ──────────────────────────────────────────
-  // 모바일 헤더
+  // [A1] 모바일 헤더 - 간소화 리디자인
   // ──────────────────────────────────────────
   if (isMobile) {
     return (
       <header style={{
-        background: 'rgba(15, 23, 42, 0.98)',
-        borderBottom: '1px solid rgba(255,255,255,0.15)',
+        background: 'rgba(10, 10, 15, 0.98)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        backdropFilter: 'blur(10px)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }}>
         <div style={{
-          padding: '10px 16px',
+          padding: '12px 16px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          {/* 로고 영역 */}
+          {/* 로고 영역 - 컴팩트 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <CrestLogo size={36} />
             <div>
               <h1 style={{
-                fontSize: '16px',
-                fontWeight: '700',
+                fontSize: '17px',
+                fontWeight: '800',
                 margin: 0,
                 letterSpacing: '2px',
                 color: '#fff',
+                lineHeight: '1.1',
               }}>CREST</h1>
               <p style={{
-                fontSize: '11px',
-                color: '#94a3b8',
+                fontSize: '10px',
+                color: '#64748b',
                 margin: 0,
-              }}>
-                {isPremium ? '👑 Premium' : 'Ride the Peak'}
-              </p>
+                letterSpacing: '0.5px',
+              }}>매도 타이밍 분석</p>
             </div>
           </div>
 
-          {/* 우측 버튼들 - 터치타겟 44px 보장 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {/* 알림 배지 */}
-            {alerts.length > 0 && (
-              <div style={{
-                position: 'relative',
-                width: '44px',
-                height: '44px',
-                background: 'rgba(239,68,68,0.15)',
-                borderRadius: '12px',
+          {/* 우측 버튼: +종목(CTA) → 알림 → 메뉴 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* [A1] 종목 추가 - 가장 중요한 CTA */}
+            <button
+              onClick={onShowAddModal}
+              style={{
+                height: '38px',
+                padding: '0 14px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                border: 'none',
+                borderRadius: '10px',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: '20px' }}>🔔</span>
+                gap: '4px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ fontSize: '16px', lineHeight: '1' }}>+</span> 종목
+            </button>
+
+            {/* [A1] 알림 아이콘 */}
+            <div style={{
+              width: '38px',
+              height: '38px',
+              background: alerts.length > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+            }}>
+              <span style={{ fontSize: '18px' }}>🔔</span>
+              {alerts.length > 0 && (
                 <span style={{
                   position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
+                  top: '-3px',
+                  right: '-3px',
                   background: '#ef4444',
                   color: '#fff',
                   fontSize: '10px',
                   fontWeight: '700',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  minWidth: '18px',
+                  padding: '1px 5px',
+                  borderRadius: '7px',
+                  minWidth: '16px',
                   textAlign: 'center',
+                  lineHeight: '1.4',
                 }}>{alerts.length}</span>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* 종목 추가 버튼 */}
-            <button
-              onClick={onShowAddModal}
-              style={{
-                width: '44px',
-                height: '44px',
-                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                border: 'none',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '22px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >+</button>
-
-            {/* 햄버거 메뉴 (프리미엄 업그레이드 + 로그인) */}
+            {/* [A1] 햄버거 메뉴 (로그인/프리미엄 이동) */}
             <button
               onClick={() => setShowMobileMenu(!showMobileMenu)}
               style={{
-                width: '44px',
-                height: '44px',
-                background: 'rgba(255,255,255,0.1)',
+                width: '38px',
+                height: '38px',
+                background: 'rgba(255,255,255,0.06)',
                 border: 'none',
-                borderRadius: '12px',
-                color: '#fff',
-                fontSize: '20px',
+                borderRadius: '10px',
+                color: '#94a3b8',
+                fontSize: '18px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -139,73 +145,85 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
           </div>
         </div>
 
-        {/* 모바일 드롭다운 메뉴 */}
+        {/* [A1] 드롭다운 메뉴 */}
         {showMobileMenu && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            background: 'rgba(15, 23, 42, 0.98)',
-            borderBottom: '1px solid rgba(255,255,255,0.15)',
-            padding: '12px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            backdropFilter: 'blur(10px)',
-            zIndex: 99,
-          }}>
-            {/* 로그인 버튼 */}
-            <button
+          <>
+            {/* 외부 클릭 오버레이 */}
+            <div
               onClick={() => setShowMobileMenu(false)}
               style={{
-                padding: '14px 16px',
-                background: 'rgba(16,185,129,0.12)',
-                border: '1px solid rgba(16,185,129,0.3)',
-                borderRadius: '12px',
-                color: '#10b981',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                textAlign: 'center',
-                minHeight: '48px',
+                position: 'fixed',
+                inset: 0,
+                zIndex: 98,
               }}
-            >👤 로그인</button>
-
-            {!isPremium && (
+            />
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'rgba(15, 23, 42, 0.98)',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              zIndex: 99,
+            }}>
+              {/* 로그인 버튼 */}
               <button
-                onClick={() => { onShowUpgrade(); setShowMobileMenu(false); }}
+                onClick={() => setShowMobileMenu(false)}
                 style={{
                   padding: '14px 16px',
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                  border: 'none',
+                  background: 'rgba(16,185,129,0.1)',
+                  border: '1px solid rgba(16,185,129,0.25)',
                   borderRadius: '12px',
-                  color: '#fff',
+                  color: '#10b981',
                   fontSize: '14px',
                   fontWeight: '600',
                   cursor: 'pointer',
                   textAlign: 'center',
                   minHeight: '48px',
                 }}
-              >👑 프리미엄 업그레이드</button>
-            )}
+              >👤 로그인</button>
 
-            <button
-              onClick={() => { onShowAddModal(); setShowMobileMenu(false); }}
-              style={{
-                padding: '14px 16px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '12px',
-                color: '#60a5fa',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                textAlign: 'center',
-                minHeight: '48px',
-              }}
-            >+ 종목 추가</button>
-          </div>
+              {!isPremium && (
+                <button
+                  onClick={() => { onShowUpgrade(); setShowMobileMenu(false); }}
+                  style={{
+                    padding: '14px 16px',
+                    background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: '#fff',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    minHeight: '48px',
+                  }}
+                >👑 프리미엄 업그레이드</button>
+              )}
+
+              <button
+                onClick={() => { onShowAddModal(); setShowMobileMenu(false); }}
+                style={{
+                  padding: '14px 16px',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: '12px',
+                  color: '#60a5fa',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  minHeight: '48px',
+                }}
+              >+ 종목 추가</button>
+            </div>
+          </>
         )}
       </header>
     );
@@ -218,7 +236,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
     return (
       <header style={{
         background: 'rgba(15, 23, 42, 0.95)',
-        borderBottom: '1px solid rgba(255,255,255,0.15)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         position: 'sticky',
         top: 0,
         zIndex: 100,
@@ -252,7 +270,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
             </div>
           </div>
 
-          {/* 알림 + 버튼들 - 높이 44px 통일 */}
+          {/* 알림 + 버튼들 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {alerts.length > 0 && (
               <div style={{
@@ -260,8 +278,8 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
                 alignItems: 'center',
                 gap: '6px',
                 padding: '8px 14px',
-                height: '44px',
-                background: 'rgba(239,68,68,0.2)',
+                height: '40px',
+                background: 'rgba(239,68,68,0.15)',
                 borderRadius: '10px',
                 animation: 'pulse 2s infinite',
               }}>
@@ -274,7 +292,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
                 onClick={onShowUpgrade}
                 style={{
                   padding: '0 16px',
-                  height: '44px',
+                  height: '40px',
                   background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
                   border: 'none',
                   borderRadius: '10px',
@@ -289,7 +307,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
               onClick={onShowAddModal}
               style={{
                 padding: '0 18px',
-                height: '44px',
+                height: '40px',
                 background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
                 border: 'none',
                 borderRadius: '10px',
@@ -311,7 +329,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   return (
     <header style={{
       background: 'rgba(15, 23, 42, 0.95)',
-      borderBottom: '1px solid rgba(255,255,255,0.15)',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
       position: 'sticky',
       top: 0,
       zIndex: 100,
@@ -333,7 +351,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
               gap: '8px',
               padding: '10px 16px',
               height: '44px',
-              background: 'rgba(239,68,68,0.2)',
+              background: 'rgba(239,68,68,0.15)',
               borderRadius: '10px',
               animation: 'pulse 2s infinite',
             }}>
@@ -371,7 +389,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
           </div>
         </div>
 
-        {/* 우측: 버튼들 - 높이 44px 통일 */}
+        {/* 우측: 버튼들 */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
