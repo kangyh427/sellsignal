@@ -2,7 +2,12 @@
 // ============================================
 // PositionCard - 보유 종목 카드 (완전판)
 // 경로: src/components/PositionCard.tsx
-// 세션 18A: 캔들차트 + 매도전략 + AI뉴스 + 수정/삭제
+// 세션 21 Part B: 실시간 주가(stockPrice) prop 추가
+// 변경사항:
+//   - stockPrice prop 추가 (StockPrice 타입)
+//   - 현재가: stockPrice.price > 차트 마지막 종가 > 매수가 순으로 사용
+//   - 전일 대비 변동률/변동금액 표시
+//   - 장 상태(marketState) 뱃지 표시
 // ============================================
 
 import React, { useState, useMemo } from 'react';
@@ -10,19 +15,37 @@ import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact, generat
 import EnhancedMiniChart from './EnhancedMiniChart';
 import PositionEditModal from './PositionEditModal';
 import AINewsSummary from './AINewsSummary';
-import type { Position, Alert } from '@/types';
+import type { Position, Alert, StockPrice } from '@/types';
 
 interface PositionCardProps {
   position: Position;
+  priceData: any[] | undefined;
   isMobile: boolean;
   isTablet: boolean;
   isPremium: boolean;
   onUpdate: (updated: Position) => void;
   onDelete: (id: number) => void;
-  onAlert: (alert: Alert) => void;
+  stockPrice?: StockPrice | null;  // ★ 세션 21 추가
+  aiNewsUsedCount?: number;
+  maxFreeAINews?: number;
+  onUseAINews?: () => void;
+  onShowUpgrade?: () => void;
 }
 
-const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDelete, isPremium, aiNewsUsedCount = 0, maxFreeAINews = 3, onUseAINews, onShowUpgrade }) => {
+const PositionCard = ({
+  position,
+  priceData,
+  isMobile,
+  isTablet,
+  onUpdate,
+  onDelete,
+  isPremium,
+  stockPrice,           // ★ 세션 21 추가
+  aiNewsUsedCount = 0,
+  maxFreeAINews = 3,
+  onUseAINews,
+  onShowUpgrade,
+}: PositionCardProps) => {
   const [isExpanded, setIsExpanded] = useState(!isMobile);
   const [showChart, setShowChart] = useState(!isMobile);
   const [showPresets, setShowPresets] = useState(!isMobile);
@@ -40,17 +63,40 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
     if (!isPremium && onUseAINews) onUseAINews();
     setShowAI(true);
   };
+
   const [visibleLines, setVisibleLines] = useState(() => {
-    const lines = {};
+    const lines: Record<string, boolean> = {};
     CHART_LINE_PRESETS.forEach((p) => { lines[p] = true; });
     return lines;
   });
 
-  const cur = priceData?.[priceData.length - 1]?.close || position.buyPrice;
+  // ★ 세션 21: 현재가 — 실시간 가격 우선, 차트 종가 fallback, 최종 매수가
+  const cur = stockPrice?.price
+    || priceData?.[priceData.length - 1]?.close
+    || position.buyPrice;
+
   const profitRate = ((cur - position.buyPrice) / position.buyPrice) * 100;
   const profitAmount = (cur - position.buyPrice) * position.quantity;
   const totalValue = cur * position.quantity;
   const isProfit = profitRate >= 0;
+
+  // ★ 세션 21: 전일 대비 변동 (Yahoo Finance 데이터)
+  const dayChange = stockPrice?.change ?? null;        // 전일 대비 변동률 (%)
+  const dayChangeAmt = stockPrice?.changeAmount ?? null; // 전일 대비 변동 금액
+  const hasRealPrice = stockPrice?.price != null;
+
+  // ★ 장 상태 라벨
+  const getMarketStateLabel = (): { text: string; color: string } | null => {
+    if (!stockPrice?.marketState) return null;
+    switch (stockPrice.marketState) {
+      case 'REGULAR': return { text: '장중', color: '#10b981' };
+      case 'PRE': return { text: '장전', color: '#f59e0b' };
+      case 'POST': return { text: '장후', color: '#8b5cf6' };
+      case 'CLOSED': return { text: '마감', color: '#64748b' };
+      default: return null;
+    }
+  };
+  const marketLabel = getMarketStateLabel();
 
   const getStage = () => {
     if (profitRate < 0) return { label: "손실 구간", color: "#ef4444" };
@@ -61,7 +107,7 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
   const stage = getStage();
 
   // 매도가 계산
-  const sellPrices = {};
+  const sellPrices: Record<string, number> = {};
   (position.selectedPresets || []).forEach((pid) => {
     const setting = position.presetSettings?.[pid]?.value;
     switch (pid) {
@@ -72,10 +118,10 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
         break;
       }
       case "maSignal": {
-        if (priceData?.length > 0) {
+        if (priceData?.length) {
           const mp = setting || 20;
           const rd = priceData.slice(-mp);
-          sellPrices.maSignal = Math.round(rd.reduce((s, d) => s + d.close, 0) / rd.length);
+          sellPrices.maSignal = Math.round(rd.reduce((s: number, d: any) => s + d.close, 0) / rd.length);
         }
         break;
       }
@@ -96,6 +142,46 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
     return p ? { color: p.color, name: p.name.replace(" 매도법", "") } : null;
   }).filter(Boolean);
 
+  // ★ 세션 21: 전일 대비 변동 표시 컴포넌트 (재사용)
+  const DayChangeIndicator = ({ compact = false }: { compact?: boolean }) => {
+    if (dayChange == null || !hasRealPrice) return null;
+    const isUp = dayChange >= 0;
+    const arrow = isUp ? '▲' : '▼';
+    const color = isUp ? '#10b981' : '#ef4444';
+
+    if (compact) {
+      return (
+        <span style={{ fontSize: '10px', color, fontWeight: '600' }}>
+          {arrow} {isUp ? '+' : ''}{dayChange.toFixed(1)}%
+        </span>
+      );
+    }
+
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '4px',
+        fontSize: '11px', color,
+      }}>
+        <span>{arrow}</span>
+        <span style={{ fontWeight: '600' }}>
+          {isUp ? '+' : ''}{dayChangeAmt != null ? `₩${Math.abs(dayChangeAmt).toLocaleString()}` : ''}
+        </span>
+        <span style={{ opacity: 0.8 }}>
+          ({isUp ? '+' : ''}{dayChange.toFixed(2)}%)
+        </span>
+        {marketLabel && (
+          <span style={{
+            fontSize: '9px', padding: '1px 4px', borderRadius: '3px',
+            background: marketLabel.color + '20', color: marketLabel.color,
+            fontWeight: '600',
+          }}>
+            {marketLabel.text}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   // ── 접힌 상태 (모바일) ──
   if (isMobile && !isExpanded) {
     return (
@@ -114,7 +200,7 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
                 <span style={{ background: stage.color + "22", color: stage.color, padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "600" }}>{stage.label}</span>
               </div>
               <div style={{ display: "flex", gap: "4px", marginTop: "4px", alignItems: "center" }}>
-                {presetDots.map((d, i) => (
+                {presetDots.map((d: any, i: number) => (
                   <span key={i} style={{ width: "8px", height: "8px", borderRadius: "50%", background: d.color }} />
                 ))}
                 <span style={{ fontSize: "10px", color: "#64748b", marginLeft: "2px" }}>{presetDots.length}개 모니터링</span>
@@ -128,13 +214,15 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
             <div style={{ fontSize: "11px", color: isProfit ? "rgba(16,185,129,0.7)" : "rgba(239,68,68,0.7)" }}>
               {isProfit ? "+" : ""}₩{formatCompact(Math.round(profitAmount))}
             </div>
+            {/* ★ 접힌 상태에서도 전일 대비 표시 */}
+            <DayChangeIndicator compact />
           </div>
         </button>
         {showEditModal && (
           <PositionEditModal position={position} onSave={onUpdate} onClose={() => setShowEditModal(false)} onDelete={() => setShowDeleteConfirm(true)} isMobile={isMobile} />
         )}
         {showDeleteConfirm && (
-          <div onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(false)} style={{
+          <div onClick={(e: React.MouseEvent) => e.target === e.currentTarget && setShowDeleteConfirm(false)} style={{
             position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
             display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100,
           }}>
@@ -185,10 +273,22 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
               <span style={{ fontSize: isMobile ? "17px" : "18px", fontWeight: "700", color: "#fff" }}>{position.name}</span>
               <span style={{ fontSize: "11px", color: "#64748b" }}>{position.code}</span>
               <span style={{ background: stage.color + "20", color: stage.color, padding: "2px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "600" }}>{stage.label}</span>
+              {/* ★ 장 상태 뱃지 */}
+              {marketLabel && (
+                <span style={{
+                  padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: '700',
+                  background: marketLabel.color + '20', color: marketLabel.color,
+                  border: `1px solid ${marketLabel.color}30`,
+                }}>
+                  {marketLabel.text}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: "800", color: isProfit ? "#10b981" : "#ef4444", marginTop: "2px" }}>
               {isProfit ? "+" : ""}{profitRate.toFixed(2)}%
             </div>
+            {/* ★ 전일 대비 변동 표시 */}
+            <DayChangeIndicator />
           </div>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             {!isMobile && (
@@ -215,13 +315,25 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px", marginBottom: "10px" }}>
               {[
                 { label: "매수가", value: "₩" + position.buyPrice.toLocaleString() },
-                { label: "현재가", value: "₩" + Math.round(cur).toLocaleString(), color: isProfit ? "#10b981" : "#ef4444" },
+                {
+                  label: hasRealPrice ? "현재가 (실시간)" : "현재가",
+                  value: "₩" + Math.round(cur).toLocaleString(),
+                  color: isProfit ? "#10b981" : "#ef4444",
+                  // ★ 실시간 가격일 경우 점 표시
+                  badge: hasRealPrice ? '●' : undefined,
+                  badgeColor: '#10b981',
+                },
                 { label: "수량", value: position.quantity + "주" },
                 { label: "평가금액", value: "₩" + formatCompact(Math.round(totalValue)) },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(0,0,0,0.35)", borderRadius: "8px", padding: isMobile ? "8px 10px" : "10px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "2px" }}>{item.label}</div>
-                  <div style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: item.color || "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.value}</div>
+                  <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "2px", display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {item.label}
+                    {(item as any).badge && (
+                      <span style={{ color: (item as any).badgeColor, fontSize: '6px' }}>{(item as any).badge}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: isMobile ? "14px" : "16px", fontWeight: "700", color: (item as any).color || "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.value}</div>
                 </div>
               ))}
             </div>
@@ -262,7 +374,7 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   {!showPresets && (
                     <div style={{ display: "flex", gap: "3px" }}>
-                      {presetDots.slice(0, 3).map((d, i) => (
+                      {presetDots.slice(0, 3).map((d: any, i: number) => (
                         <div key={i} style={{ width: "8px", height: "8px", borderRadius: "50%", background: d.color }} />
                       ))}
                     </div>
@@ -387,7 +499,7 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
 
       {/* 삭제 확인 팝업 */}
       {showDeleteConfirm && (
-        <div onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(false)} style={{
+        <div onClick={(e: React.MouseEvent) => e.target === e.currentTarget && setShowDeleteConfirm(false)} style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100,
         }}>
@@ -422,7 +534,5 @@ const PositionCard = ({ position, priceData, isMobile, isTablet, onUpdate, onDel
     </>
   );
 };
-
-// ============================================
 
 export default PositionCard;
