@@ -1,171 +1,105 @@
 'use client';
 // ============================================
-// 매도법 가이드 - 아코디언 스타일
+// SellMethodGuide - 8가지 매도법 아코디언 가이드
+// 경로: src/components/SellMethodGuide.tsx
 // ============================================
+
 import React, { useState } from 'react';
-import { SELL_PRESETS, PROFIT_STAGES } from '../constants';
+import { SELL_PRESETS } from '@/constants';
 
 interface SellMethodGuideProps {
   isMobile: boolean;
-  activeTab: string;
 }
 
-/** 매도법 상세 설명 */
+/** 매도법별 간단 설명 */
 const METHOD_DESCRIPTIONS: Record<string, string> = {
-  candle3: '최근 양봉의 50% 이상을 덮는 음봉 발생 시 절반 매도, 100% 덮으면 전량 매도',
-  stopLoss: '매수가 대비 설정한 손실률(-3~-5%)에 도달하면 기계적으로 손절',
-  twoThird: '최고 수익 대비 1/3이 빠지면 남은 2/3 수익이라도 확보하여 익절',
-  maSignal: '이동평균선을 하향 돌파하거나, 이평선이 저항선으로 작용할 때 매도',
-  volumeZone: '상단 매물대(저항대)에서 주가가 하락 반전할 때 매도',
-  trendline: '지지선을 깨고 하락하거나, 저항선 돌파 실패 시 매도',
-  fundamental: '실적 악화, 업황 반전 등 기업 펀더멘털에 변화가 생길 때',
-  cycle: '금리 고점 근처(4-5단계)에서 시장 전체 매도 관점 유지',
+  candle3:     '3일 연속 음봉 발생 시 추세 전환 가능성을 감지하여 알림을 보냅니다.',
+  stopLoss:    '설정한 손실 한도(-5% 등)에 도달하면 즉시 알림을 보냅니다.',
+  twoThird:    '최고점 대비 1/3 하락 시 부분 매도, 2/3 하락 시 전량 매도를 안내합니다.',
+  maSignal:    '주가가 이동평균선(20일/60일)을 하향 돌파하면 알림을 보냅니다.',
+  volumeZone:  '주요 매물대(거래 집중 구간)에 진입하면 저항 가능성을 알립니다.',
+  trendline:   '상승 추세선을 하향 이탈하면 추세 전환 가능성을 알립니다.',
+  fundamental: '기업 실적 악화, PER 과열 등 기본적 분석 지표 변화를 감지합니다.',
+  cycle:       '코스톨라니 달걀모형 기반 경기순환 단계 변화를 모니터링합니다.',
 };
 
-const SellMethodGuide: React.FC<SellMethodGuideProps> = ({ isMobile, activeTab }) => {
-  const [expandedStage, setExpandedStage] = useState<string | null>(null);
-  const [showAllMethods, setShowAllMethods] = useState(false);
-  
-  const toggleStage = (key: string) => {
-    setExpandedStage(expandedStage === key ? null : key);
-  };
-  
+const SellMethodGuide: React.FC<SellMethodGuideProps> = ({ isMobile }) => {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const methods = Object.values(SELL_PRESETS);
+
   return (
-    <div style={{ 
-      display: isMobile && activeTab !== 'guide' ? 'none' : 'block',
-      background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)', 
-      borderRadius: '14px', 
-      padding: isMobile ? '14px' : '16px', 
-      border: '1px solid rgba(255,255,255,0.08)', 
-      marginBottom: '12px' 
-    }}>
-      {/* 헤더 */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '12px' 
-      }}>
-        <h3 style={{ 
-          fontSize: isMobile ? '14px' : '15px', 
-          fontWeight: '600', 
-          color: '#fff', 
-          margin: 0 
-        }}>📚 수익 단계별 매도법</h3>
-        <button 
-          onClick={() => setShowAllMethods(!showAllMethods)}
-          style={{
-            background: 'rgba(59,130,246,0.15)',
-            border: '1px solid rgba(59,130,246,0.3)',
-            borderRadius: '6px',
-            padding: '4px 10px',
-            color: '#60a5fa',
-            fontSize: '11px',
-            cursor: 'pointer'
-          }}
-        >
-          {showAllMethods ? '간략히' : '전체보기'}
-        </button>
-      </div>
-      
-      {/* 수익 단계별 아코디언 */}
-      {Object.entries(PROFIT_STAGES).map(([key, stage]) => (
-        <div key={key} style={{ marginBottom: '8px' }}>
-          {/* 단계 헤더 (클릭 가능) */}
-          <div 
-            onClick={() => toggleStage(key)}
-            style={{ 
-              padding: isMobile ? '12px' : '14px', 
-              background: stage.color + '10', 
-              borderRadius: expandedStage === key ? '10px 10px 0 0' : '10px', 
-              borderLeft: '4px solid ' + stage.color,
-              cursor: 'pointer',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              transition: 'background 0.15s'
-            }}
-          >
-            <div>
-              <div style={{ 
-                fontSize: isMobile ? '13px' : '14px', 
-                fontWeight: '600', 
-                color: stage.color
-              }}>{stage.label}</div>
-              <div style={{ 
-                fontSize: isMobile ? '11px' : '12px', 
-                color: '#94a3b8',
-                marginTop: '2px'
-              }}>수익률 {stage.range} · {stage.methods.length}개 매도법</div>
-            </div>
-            <span style={{ 
-              color: '#64748b', 
-              fontSize: '14px',
-              transition: 'transform 0.2s',
-              transform: expandedStage === key ? 'rotate(180deg)' : 'rotate(0deg)'
-            }}>▼</span>
+    <div
+      style={{
+        background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+        borderRadius: '14px',
+        padding: isMobile ? '14px' : '16px',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: '12px',
+      }}
+    >
+      <h3
+        style={{
+          fontSize: '15px',
+          fontWeight: '700',
+          color: '#fff',
+          margin: '0 0 12px',
+        }}
+      >
+        📚 8가지 매도법 가이드
+      </h3>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {methods.map((m) => (
+          <div key={m.id}>
+            {/* 아코디언 헤더 */}
+            <button
+              onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background:
+                  expanded === m.id
+                    ? 'rgba(255,255,255,0.05)'
+                    : 'rgba(255,255,255,0.02)',
+                border: 'none',
+                borderRadius: '8px',
+                borderLeft: `3px solid ${m.color}`,
+                color: '#e2e8f0',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                minHeight: '44px',
+              }}
+            >
+              <span>
+                {m.icon} {m.name}
+              </span>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>
+                {expanded === m.id ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {/* 아코디언 바디 */}
+            {expanded === m.id && (
+              <div
+                style={{
+                  padding: '10px 12px 10px 18px',
+                  fontSize: '12px',
+                  color: '#94a3b8',
+                  lineHeight: '1.6',
+                }}
+              >
+                {METHOD_DESCRIPTIONS[m.id] ||
+                  `${m.icon} ${m.name}: 설정한 조건에 도달하면 알림을 보내드립니다.`}
+              </div>
+            )}
           </div>
-          
-          {/* 확장된 내용 */}
-          {(expandedStage === key || showAllMethods) && (
-            <div style={{ 
-              padding: isMobile ? '12px' : '14px', 
-              background: 'rgba(0,0,0,0.2)', 
-              borderRadius: '0 0 10px 10px',
-              borderLeft: '4px solid ' + stage.color + '50'
-            }}>
-              {stage.methods.map(methodId => { 
-                const method = SELL_PRESETS[methodId]; 
-                if (!method) return null;
-                return (
-                  <div key={methodId} style={{ 
-                    marginBottom: '10px',
-                    paddingBottom: '10px',
-                    borderBottom: '1px solid rgba(255,255,255,0.05)'
-                  }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px',
-                      marginBottom: '4px'
-                    }}>
-                      <span style={{ fontSize: '16px' }}>{method.icon}</span>
-                      <span style={{ 
-                        fontSize: isMobile ? '12px' : '13px', 
-                        fontWeight: '600',
-                        color: '#fff'
-                      }}>{method.name}</span>
-                    </div>
-                    <p style={{ 
-                      fontSize: isMobile ? '11px' : '12px', 
-                      color: '#94a3b8',
-                      margin: 0,
-                      lineHeight: '1.5',
-                      paddingLeft: '24px'
-                    }}>
-                      {METHOD_DESCRIPTIONS[methodId] || method.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ))}
-      
-      {/* 빠른 참조 */}
-      {!showAllMethods && !expandedStage && (
-        <div style={{ 
-          marginTop: '12px',
-          padding: '10px',
-          background: 'rgba(59,130,246,0.1)',
-          borderRadius: '8px',
-          fontSize: isMobile ? '11px' : '12px',
-          color: '#60a5fa'
-        }}>
-          💡 각 단계를 탭하면 상세 매도법을 확인할 수 있습니다
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };
