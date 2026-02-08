@@ -2,6 +2,7 @@
 // ============================================
 // AlertCard - 조건 도달 알림 카드
 // 경로: src/components/AlertCard.tsx
+// 세션 18A: 17f 시그니처 정확 반영
 // ============================================
 
 import React from 'react';
@@ -13,65 +14,26 @@ interface AlertCardProps {
 }
 
 const AlertCard: React.FC<AlertCardProps> = ({ alert, onDismiss }) => (
-  <div
-    style={{
-      background: `rgba(${alert.preset.color === '#ef4444' ? '239,68,68' : '234,179,8'},0.06)`,
-      border: `1px solid ${alert.preset.color}30`,
-      borderRadius: '10px',
-      padding: '12px',
-      marginBottom: '8px',
-    }}
-  >
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '6px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ fontSize: '14px' }}>{alert.preset.icon}</span>
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            color: alert.preset.color,
-          }}
-        >
-          {alert.stockName}
-        </span>
+  <div style={{
+    background: 'rgba(239,68,68,0.06)', borderRadius: '10px',
+    padding: '12px', marginBottom: '8px',
+    borderLeft: `3px solid ${alert.preset?.color || '#ef4444'}`,
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div>
+        <div style={{ fontSize: '14px', fontWeight: '600', color: '#fff', marginBottom: '2px' }}>
+          {alert.preset?.icon} {alert.stockName}
+        </div>
+        <div style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>{alert.message}</div>
+        <div style={{ fontSize: '10px', color: '#64748b' }}>
+          목표가: ₩{alert.targetPrice?.toLocaleString()} | 현재가: ₩{alert.currentPrice?.toLocaleString()}
+        </div>
       </div>
-      <button
-        onClick={() => onDismiss(alert.id)}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#475569',
-          fontSize: '14px',
-          cursor: 'pointer',
-          padding: '4px',
-          minWidth: '28px',
-          minHeight: '28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        ✕
-      </button>
-    </div>
-    <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>
-      {alert.message}
-    </div>
-    <div
-      style={{
-        fontSize: '11px',
-        color: '#475569',
-        marginTop: '4px',
-      }}
-    >
-      현재 ₩{alert.currentPrice.toLocaleString()} → 목표 ₩{alert.targetPrice.toLocaleString()}
+      <button onClick={() => onDismiss(alert.id)} style={{
+        background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
+        width: '28px', height: '28px', color: '#64748b', fontSize: '14px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>✕</button>
     </div>
   </div>
 );
