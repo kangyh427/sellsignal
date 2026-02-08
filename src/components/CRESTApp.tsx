@@ -2,8 +2,13 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 19: usePositions 연동 (DB CRUD + localStorage)
-// 변경사항: 데모 데이터 하드코딩 → usePositions 훅으로 전환
+// 세션 21: useStockPrices 연동 (Yahoo Finance 실시간 주가)
+// 변경사항:
+//   - useStockPrices 훅 추가
+//   - Mock 가격 시뮬레이션 → 실제 API 전환
+//   - 총 평가금액/수익률을 실시간 가격 기반으로 계산
+//   - 마지막 갱신 시각 표시 + 수동 새로고침 버튼
+//   - generateMockPriceData는 차트용으로만 유지 (Part B에서 교체 예정)
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -11,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
+import useStockPrices from '@/hooks/useStockPrices'; // ★ 세션 21 추가
 import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants';
 import type { Position, Alert } from '@/types';
 
@@ -42,7 +48,7 @@ export default function CRESTApp() {
   const { isMobile, isTablet, width } = useResponsive();
   const { user, isLoggedIn, isLoading: authLoading, signOut } = useAuth();
 
-  // ★ 핵심 변경: usePositions 훅으로 DB 연동
+  // ★ 포지션 CRUD
   const {
     positions,
     isLoading: positionsLoading,
@@ -51,6 +57,16 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
+  // ★ 세션 21: 실시간 주가 훅
+  const {
+    prices: stockPrices,
+    isLoading: pricesLoading,
+    error: pricesError,
+    lastUpdated: pricesLastUpdated,
+    getCurrentPrice,
+    refresh: refreshPrices,
+  } = useStockPrices(positions);
+
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -58,19 +74,18 @@ export default function CRESTApp() {
   // 알림 상태 (추후 DB 연동 예정)
   const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
-  // 차트 데이터 (모의)
+  // 차트 데이터 (모의 — Part B에서 Yahoo Finance 과거 데이터로 교체 예정)
   const [priceDataMap, setPriceDataMap] = useState<Record<number, any[]>>({});
   const isPremium = false;
   const MAX_FREE_POSITIONS = 3;
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // 포지션 변경 시 차트 데이터 재생성
+  // 차트 데이터 생성 (차트용 Mock — 추후 Part B에서 교체)
   useEffect(() => {
     if (positions.length === 0) return;
     const d: Record<number, any[]> = {};
     positions.forEach((p) => {
-      // 이미 데이터가 있으면 재생성하지 않음
       if (!priceDataMap[p.id]) {
         d[p.id] = generateMockPriceData(p.buyPrice, 60);
       } else {
@@ -80,25 +95,28 @@ export default function CRESTApp() {
     setPriceDataMap(d);
   }, [positions]);
 
-  // 실시간 가격 시뮬레이션
+  // ★ 세션 21: 실시간 가격을 차트 마지막 캔들에 반영
+  // (차트 전체를 실제 데이터로 바꾸기 전까지의 과도기 처리)
   useEffect(() => {
-    const iv = setInterval(() => {
-      setPriceDataMap((prev) => {
-        const u = { ...prev };
-        Object.keys(u).forEach((id) => {
-          const data = [...u[Number(id)]];
-          if (!data.length) return;
-          const last = data[data.length - 1];
-          const change = (Math.random() - 0.48) * last.close * 0.008;
-          const nc = Math.max(last.close + change, last.close * 0.95);
-          data[data.length - 1] = { ...last, close: nc, high: Math.max(last.high, nc), low: Math.min(last.low, nc) };
-          u[Number(id)] = data;
-        });
-        return u;
+    if (Object.keys(stockPrices).length === 0) return;
+
+    setPriceDataMap((prev) => {
+      const updated = { ...prev };
+      positions.forEach((p) => {
+        const realPrice = stockPrices[p.code]?.price;
+        if (realPrice && updated[p.id]?.length > 0) {
+          const data = [...updated[p.id]];
+          const lastCandle = { ...data[data.length - 1] };
+          lastCandle.close = realPrice;
+          lastCandle.high = Math.max(lastCandle.high, realPrice);
+          lastCandle.low = Math.min(lastCandle.low, realPrice);
+          data[data.length - 1] = lastCandle;
+          updated[p.id] = data;
+        }
       });
-    }, 3000);
-    return () => clearInterval(iv);
-  }, []);
+      return updated;
+    });
+  }, [stockPrices, positions]);
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
@@ -127,14 +145,31 @@ export default function CRESTApp() {
     }
   };
 
-  // 요약 통계
+  // ★ 세션 21: 요약 통계 — 실시간 가격 기반으로 계산
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
-    const pr = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice;
-    return s + pr * p.quantity;
+    // 1순위: 실시간 주가, 2순위: 차트 마지막 종가, 3순위: 매수가
+    const realPrice = getCurrentPrice(p.code, 0);
+    const chartPrice = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close;
+    const price = realPrice || chartPrice || p.buyPrice;
+    return s + price * p.quantity;
   }, 0);
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+  // ★ 마지막 갱신 시각 포맷
+  const formatLastUpdated = (): string => {
+    if (!pricesLastUpdated) return '';
+    const now = Date.now();
+    const diff = Math.floor((now - pricesLastUpdated) / 1000);
+    if (diff < 10) return '방금 전';
+    if (diff < 60) return `${diff}초 전`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+    return new Date(pricesLastUpdated).toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   // 로딩 스켈레톤
   if (authLoading || positionsLoading) {
@@ -227,22 +262,85 @@ export default function CRESTApp() {
               <MarketMiniSummary onClick={() => setActiveTab('market')} />
             )}
 
+            {/* ★ 세션 21: 보유 종목 헤더 + 갱신 상태 */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
-                보유 종목 ({positions.length})
-              </h2>
-              <button onClick={() => {
-                if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
-                  setShowUpgrade(true);
-                } else {
-                  setShowAddModal(true);
-                }
-              }} style={{
-                padding: '6px 14px', height: '34px',
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                border: 'none', borderRadius: '8px', color: '#fff',
-                fontSize: '12px', fontWeight: '600', cursor: 'pointer',
-              }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
+                  보유 종목 ({positions.length})
+                </h2>
+                {/* 실시간 가격 상태 표시 */}
+                {positions.length > 0 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 8px', borderRadius: '6px',
+                    background: pricesError
+                      ? 'rgba(239,68,68,0.1)'
+                      : pricesLoading
+                      ? 'rgba(59,130,246,0.1)'
+                      : 'rgba(16,185,129,0.1)',
+                    border: `1px solid ${
+                      pricesError
+                        ? 'rgba(239,68,68,0.2)'
+                        : pricesLoading
+                        ? 'rgba(59,130,246,0.2)'
+                        : 'rgba(16,185,129,0.2)'
+                    }`,
+                  }}>
+                    {/* 상태 점 */}
+                    <div style={{
+                      width: '6px', height: '6px', borderRadius: '50%',
+                      background: pricesError ? '#ef4444' : pricesLoading ? '#3b82f6' : '#10b981',
+                      animation: pricesLoading ? 'pulse 1.5s infinite' : 'none',
+                    }} />
+                    <span style={{
+                      fontSize: '10px',
+                      color: pricesError ? '#ef4444' : pricesLoading ? '#60a5fa' : '#10b981',
+                    }}>
+                      {pricesError ? '연결 오류' : pricesLoading ? '갱신중' : formatLastUpdated()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {/* 수동 새로고침 버튼 */}
+                {positions.length > 0 && (
+                  <button
+                    onClick={refreshPrices}
+                    disabled={pricesLoading}
+                    style={{
+                      width: '34px', height: '34px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px', cursor: pricesLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: pricesLoading ? 0.5 : 1,
+                      transition: 'opacity 0.2s',
+                    }}
+                    title="주가 새로고침"
+                  >
+                    <span style={{
+                      fontSize: '14px',
+                      display: 'inline-block',
+                      animation: pricesLoading ? 'spin 1s linear infinite' : 'none',
+                    }}>🔄</span>
+                  </button>
+                )}
+
+                {/* 종목 추가 버튼 */}
+                <button onClick={() => {
+                  if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
+                    setShowUpgrade(true);
+                  } else {
+                    setShowAddModal(true);
+                  }
+                }} style={{
+                  padding: '6px 14px', height: '34px',
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  border: 'none', borderRadius: '8px', color: '#fff',
+                  fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
+              </div>
             </div>
 
             {/* 인증 상태 배너 */}
@@ -382,7 +480,7 @@ export default function CRESTApp() {
       {/* 모바일 하단 네비게이션 */}
       {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
 
-      {/* ★ 종목 추가 모달 (새 props 전달) */}
+      {/* ★ 종목 추가 모달 */}
       {showAddModal && (
         <AddStockModal
           isMobile={isMobile}
@@ -406,6 +504,9 @@ export default function CRESTApp() {
 
       {/* 푸터 */}
       <Footer isMobile={isMobile} />
+
+      {/* ★ 세션 21: spin 애니메이션 (새로고침 버튼용) */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
