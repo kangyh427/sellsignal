@@ -1,7 +1,7 @@
 // ============================================
 // CREST 전체 타입 정의
 // 경로: src/types/index.ts
-// 세션 18A: 17f 기반 전면 재정의
+// 세션 21: StockPrice 타입 추가 (Yahoo Finance 연동)
 // ============================================
 
 /** 매도 프리셋 단일 항목 */
@@ -43,6 +43,26 @@ export interface Position {
   highestPrice: number;
   selectedPresets: string[];
   presetSettings: Record<string, PresetSetting>;
+}
+
+/** ★ 세션 21 신규: 실시간 주가 데이터 (Yahoo Finance) */
+export interface StockPrice {
+  price: number;           // 현재가
+  change: number;          // 전일 대비 변동률 (%)
+  changeAmount: number;    // 전일 대비 변동 금액
+  previousClose: number;   // 전일 종가
+  high: number;            // 당일 고가
+  low: number;             // 당일 저가
+  volume: number;          // 거래량
+  updatedAt: number;       // 조회 타임스탬프 (Date.now())
+  marketState: 'PRE' | 'REGULAR' | 'POST' | 'CLOSED'; // 장 상태
+}
+
+/** ★ 세션 21 신규: 주가 API 응답 전체 */
+export interface StockPriceResponse {
+  prices: Record<string, StockPrice>;  // key: 종목코드
+  fetchedAt: number;                    // API 응답 시각
+  error?: string;
 }
 
 /** 조건 도달 알림 */
