@@ -2,11 +2,14 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 18A: 17f 기반 분리, 모든 하위 컴포넌트 import
+// 세션 18B(Phase3A): Supabase 인증 연동
+// 변경사항: useAuth 훅 도입, 로그인 버튼 → /login 라우팅
 // ============================================
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
+import useAuth from '@/hooks/useAuth';
 import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants';
 import type { Position, Alert } from '@/types';
 
@@ -25,28 +28,36 @@ import AddStockModal from './AddStockModal';
 import UpgradePopup from './UpgradePopup';
 import Footer from './Footer';
 
+// ── 데모 포지션 (비로그인 사용자용) ──
+const DEMO_POSITIONS: Position[] = [
+  { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78000,
+    selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
+  { id: 2, name: '현대차', code: '005380', buyPrice: 50000, quantity: 100, highestPrice: 55000,
+    selectedPresets: ['candle3', 'stopLoss', 'twoThird'], presetSettings: { stopLoss: { value: -5 } } },
+  { id: 3, name: '한화에어로스페이스', code: '012450', buyPrice: 350000, quantity: 10, highestPrice: 380000,
+    selectedPresets: ['twoThird', 'maSignal', 'volumeZone'], presetSettings: { maSignal: { value: 20 } } },
+];
+
+const DEMO_ALERTS: Alert[] = [
+  { id: 1, stockName: '삼성전자', code: '005930', preset: SELL_PRESETS.stopLoss,
+    message: '손절 기준가(-5%) 근접! 현재 -4.2%', currentPrice: 68500, targetPrice: 67925, timestamp: Date.now() - 300000 },
+  { id: 2, stockName: '한화에어로스페이스', code: '012450', preset: SELL_PRESETS.twoThird,
+    message: '최고점 대비 1/3 하락 근접', currentPrice: 365000, targetPrice: 369600, timestamp: Date.now() - 1800000 },
+];
+
 export default function CRESTApp() {
+  const router = useRouter();
   const { isMobile, isTablet, width } = useResponsive();
+  const { user, isLoggedIn, isLoading, signOut } = useAuth();
+
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const [positions, setPositions] = useState<Position[]>([
-    { id: 1, name: '삼성전자', code: '005930', buyPrice: 71500, quantity: 100, highestPrice: 78000,
-      selectedPresets: ['candle3', 'stopLoss', 'maSignal'], presetSettings: { stopLoss: { value: -5 }, maSignal: { value: 20 } } },
-    { id: 2, name: '현대차', code: '005380', buyPrice: 50000, quantity: 100, highestPrice: 55000,
-      selectedPresets: ['candle3', 'stopLoss', 'twoThird'], presetSettings: { stopLoss: { value: -5 } } },
-    { id: 3, name: '한화에어로스페이스', code: '012450', buyPrice: 350000, quantity: 10, highestPrice: 380000,
-      selectedPresets: ['twoThird', 'maSignal', 'volumeZone'], presetSettings: { maSignal: { value: 20 } } },
-  ]);
-
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: 1, stockName: '삼성전자', code: '005930', preset: SELL_PRESETS.stopLoss,
-      message: '손절 기준가(-5%) 근접! 현재 -4.2%', currentPrice: 68500, targetPrice: 67925, timestamp: Date.now() - 300000 },
-    { id: 2, stockName: '한화에어로스페이스', code: '012450', preset: SELL_PRESETS.twoThird,
-      message: '최고점 대비 1/3 하락 근접', currentPrice: 365000, targetPrice: 369600, timestamp: Date.now() - 1800000 },
-  ]);
+  // ── 포지션 & 알림 상태 ──
+  // Phase 3C에서 Supabase DB 연동 예정. 현재는 로그인 여부와 무관하게 데모 데이터 사용.
+  const [positions, setPositions] = useState<Position[]>(DEMO_POSITIONS);
+  const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
   const [priceDataMap, setPriceDataMap] = useState<Record<number, any[]>>({});
   const isPremium = false;
@@ -88,6 +99,15 @@ export default function CRESTApp() {
     setPositions((prev) => prev.filter((p) => p.id !== id));
   };
 
+  /** 로그인/로그아웃 핸들러 */
+  const handleAuthAction = () => {
+    if (isLoggedIn) {
+      signOut();
+    } else {
+      router.push('/login');
+    }
+  };
+
   // 요약 통계
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
@@ -96,6 +116,27 @@ export default function CRESTApp() {
   }, 0);
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+  // 로딩 중 스켈레톤
+  if (isLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <svg width={48} height={48} viewBox="0 0 40 40" fill="none">
+            <rect width="40" height="40" rx="10" fill="#1e293b" />
+            <path d="M10 28 L16 14 L20 22 L24 12 L30 28" stroke="#3b82f6" strokeWidth="2.5"
+              fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="24" cy="12" r="3" fill="#10b981" />
+          </svg>
+          <div style={{ color: '#64748b', fontSize: '14px', marginTop: '12px' }}>로딩 중...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -118,7 +159,7 @@ export default function CRESTApp() {
             setShowAddModal(true);
           }
         }}
-        onLogin={() => setIsLoggedIn(!isLoggedIn)}
+        onLogin={handleAuthAction}
         isMobile={isMobile} isTablet={isTablet}
       />
 
@@ -139,7 +180,7 @@ export default function CRESTApp() {
             ? { display: 'grid', gridTemplateColumns: '1fr 360px', gap: '16px', padding: '0 20px' }
             : { display: 'grid', gridTemplateColumns: isPremium ? '1fr 440px' : '160px 1fr 440px', gap: '20px' }
         }>
-          {/* 좌측 광고 (데스크탑, 비프리미엄) */}
+          {/* 좌측 광고 (데스크톱, 비프리미엄) */}
           {!isMobile && !isTablet && !isPremium && (
             <div style={{ position: 'sticky', top: '80px', alignSelf: 'start' }}>
               <div style={{
@@ -185,21 +226,30 @@ export default function CRESTApp() {
               }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
             </div>
 
-            {/* 데모 모드 배너 */}
+            {/* 인증 상태 배너 */}
             <div style={{
-              background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
+              background: isLoggedIn ? 'rgba(16,185,129,0.06)' : 'rgba(59,130,246,0.06)',
+              border: `1px solid ${isLoggedIn ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)'}`,
               borderRadius: '10px', padding: '10px 14px', marginBottom: '12px',
               display: 'flex', alignItems: 'center', gap: '8px',
             }}>
               <span style={{ fontSize: '16px' }}>{isLoggedIn ? '✅' : '💡'}</span>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '12px', color: isLoggedIn ? '#10b981' : '#60a5fa', fontWeight: '600' }}>
-                  {isLoggedIn ? '로그인 완료' : '데모 모드'}
+                  {isLoggedIn ? `로그인 완료 (${user?.email})` : '데모 모드'}
                 </div>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>
                   {isLoggedIn ? '내 종목이 자동 저장됩니다' : '로그인하면 내 종목을 저장/관리할 수 있습니다'}
                 </div>
               </div>
+              {!isLoggedIn && (
+                <button onClick={() => router.push('/login')} style={{
+                  padding: '6px 12px', background: 'rgba(59,130,246,0.15)',
+                  border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px',
+                  color: '#60a5fa', fontSize: '11px', fontWeight: '600', cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}>로그인</button>
+              )}
             </div>
 
             {positions.map((pos) => (
