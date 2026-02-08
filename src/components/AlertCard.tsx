@@ -1,156 +1,79 @@
 'use client';
 // ============================================
-// 알림 카드 컴포넌트
+// AlertCard - 조건 도달 알림 카드
+// 경로: src/components/AlertCard.tsx
 // ============================================
+
 import React from 'react';
-import type { Alert } from '../types';
-import { useResponsive } from '../hooks/useResponsive';
+import type { Alert } from '@/types';
 
 interface AlertCardProps {
   alert: Alert;
   onDismiss: (id: number) => void;
 }
 
-const AlertCard: React.FC<AlertCardProps> = ({ alert, onDismiss }) => {
-  const { isMobile } = useResponsive();
-  const severityColors: Record<string, { bg: string; label: string }> = { 
-    critical: { bg: '#ef4444', label: '긴급' }, 
-    high: { bg: '#f97316', label: '높음' }, 
-    medium: { bg: '#eab308', label: '보통' }, 
-    low: { bg: '#3b82f6', label: '참고' } 
-  };
-  const severity = severityColors[alert?.preset?.severity] || { bg: '#64748b', label: '알림' };
-  
-  // 알림 시간 표시
-  const formatTime = (timestamp: number) => {
-    if (!timestamp) return '방금 전';
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    if (minutes < 1) return '방금 전';
-    if (minutes < 60) return `${minutes}분 전`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}시간 전`;
-    return '1일 이상';
-  };
-  
-  return (
-    <div style={{ 
-      background: `linear-gradient(135deg, ${severity.bg}15 0%, ${severity.bg}08 100%)`, 
-      border: `1px solid ${severity.bg}30`, 
-      borderRadius: isMobile ? '12px' : '14px', 
-      padding: isMobile ? '14px' : '16px', 
-      marginBottom: '10px',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      {/* 좌측 강조선 */}
-      <div style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: '4px',
-        background: severity.bg,
-        borderRadius: '4px 0 0 4px'
-      }} />
-      
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+const AlertCard: React.FC<AlertCardProps> = ({ alert, onDismiss }) => (
+  <div
+    style={{
+      background: `rgba(${alert.preset.color === '#ef4444' ? '239,68,68' : '234,179,8'},0.06)`,
+      border: `1px solid ${alert.preset.color}30`,
+      borderRadius: '10px',
+      padding: '12px',
+      marginBottom: '8px',
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'flex-start',
-        paddingLeft: '8px'
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* 헤더: 아이콘 + 매도법 이름 + 심각도 배지 */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            marginBottom: '8px',
-            flexWrap: 'wrap'
-          }}>
-            <span style={{ fontSize: isMobile ? '18px' : '20px' }}>{alert?.preset?.icon || '🔔'}</span>
-            <span style={{ 
-              fontSize: isMobile ? '13px' : '14px', 
-              fontWeight: '700', 
-              color: severity.bg 
-            }}>{alert?.preset?.name || '알림'}</span>
-            <span style={{
-              fontSize: '10px',
-              fontWeight: '600',
-              color: '#fff',
-              background: severity.bg,
-              padding: '2px 8px',
-              borderRadius: '4px'
-            }}>{severity.label}</span>
-          </div>
-          
-          {/* 종목명 */}
-          <div style={{ 
-            fontSize: isMobile ? '15px' : '16px', 
-            fontWeight: '600', 
-            color: '#fff', 
-            marginBottom: '6px' 
-          }}>{alert?.stockName || '종목'}</div>
-          
-          {/* 메시지 */}
-          <div style={{ 
-            fontSize: isMobile ? '13px' : '14px', 
-            color: '#e2e8f0',
-            lineHeight: '1.4',
-            marginBottom: '8px'
-          }}>
-            {alert?.message || '설정한 조건에 도달했습니다'}
-          </div>
-          
-          {/* 가격 정보 (있는 경우) */}
-          {alert?.currentPrice && (
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              fontSize: '12px',
-              color: '#94a3b8'
-            }}>
-              <span>현재가: <strong style={{ color: '#fff' }}>₩{alert.currentPrice.toLocaleString()}</strong></span>
-              {alert?.targetPrice && (
-                <span>기준가: <strong style={{ color: severity.bg }}>₩{alert.targetPrice.toLocaleString()}</strong></span>
-              )}
-            </div>
-          )}
-          
-          {/* 시간 */}
-          <div style={{ 
-            fontSize: '11px', 
-            color: '#64748b',
-            marginTop: '8px'
-          }}>
-            {formatTime(alert?.timestamp)}
-          </div>
-        </div>
-        
-        {/* 확인 버튼 */}
-        <button 
-          onClick={() => onDismiss(alert?.id)} 
-          style={{ 
-            background: 'rgba(255,255,255,0.1)', 
-            border: 'none', 
-            borderRadius: '8px', 
-            padding: isMobile ? '10px 16px' : '8px 14px', 
-            color: '#fff', 
+        marginBottom: '6px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ fontSize: '14px' }}>{alert.preset.icon}</span>
+        <span
+          style={{
             fontSize: '13px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            minHeight: isMobile ? '44px' : '36px',
-            transition: 'background 0.15s'
+            fontWeight: '600',
+            color: alert.preset.color,
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
         >
-          확인
-        </button>
+          {alert.stockName}
+        </span>
       </div>
+      <button
+        onClick={() => onDismiss(alert.id)}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#475569',
+          fontSize: '14px',
+          cursor: 'pointer',
+          padding: '4px',
+          minWidth: '28px',
+          minHeight: '28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        ✕
+      </button>
     </div>
-  );
-};
+    <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>
+      {alert.message}
+    </div>
+    <div
+      style={{
+        fontSize: '11px',
+        color: '#475569',
+        marginTop: '4px',
+      }}
+    >
+      현재 ₩{alert.currentPrice.toLocaleString()} → 목표 ₩{alert.targetPrice.toLocaleString()}
+    </div>
+  </div>
+);
 
 export default AlertCard;
