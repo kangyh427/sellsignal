@@ -1,45 +1,35 @@
 'use client';
 // ============================================
-// 반응형 훅 - 화면 크기 감지
+// CREST 반응형 훅
+// 경로: src/hooks/useResponsive.ts
 // ============================================
+
 import { useState, useEffect } from 'react';
-import { BREAKPOINTS } from '../constants';
+import { BREAKPOINTS } from '@/constants';
+import type { ResponsiveState } from '@/types';
 
-export interface ResponsiveState {
-  width: number;
-  height: number;
-  isMobile: boolean;
-  isTablet: boolean;
-  isDesktop: boolean;
-  isWide: boolean;
-}
-
+/**
+ * 화면 너비에 따라 isMobile / isTablet / isDesktop 반환
+ * - mobile:  < 768px
+ * - tablet:  768px ~ 1024px
+ * - desktop: >= 1024px
+ */
 export const useResponsive = (): ResponsiveState => {
-  const [windowSize, setWindowSize] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
-    height: typeof window !== 'undefined' ? window.innerHeight : 800,
-  });
+  const [width, setWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 390
+  );
 
   useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-
+    const handleResize = () => setWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     handleResize();
-    
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   return {
-    width: windowSize.width,
-    height: windowSize.height,
-    isMobile: windowSize.width < BREAKPOINTS.tablet,
-    isTablet: windowSize.width >= BREAKPOINTS.tablet && windowSize.width < BREAKPOINTS.desktop,
-    isDesktop: windowSize.width >= BREAKPOINTS.desktop,
-    isWide: windowSize.width >= BREAKPOINTS.wide,
+    width,
+    isMobile: width < BREAKPOINTS.tablet,
+    isTablet: width >= BREAKPOINTS.tablet && width < BREAKPOINTS.desktop,
+    isDesktop: width >= BREAKPOINTS.desktop,
   };
 };
