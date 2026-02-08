@@ -1,6 +1,6 @@
 {
   "name": "sell-signal-app",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.1",
     "next": "14.2.25",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
