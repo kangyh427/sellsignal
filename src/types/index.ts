@@ -1,6 +1,7 @@
 // ============================================
 // CREST 전체 타입 정의
 // 경로: src/types/index.ts
+// 세션 18A: 17f 기반 전면 재정의
 // ============================================
 
 /** 매도 프리셋 단일 항목 */
@@ -9,6 +10,7 @@ export interface SellPreset {
   name: string;
   icon: string;
   color: string;
+  desc: string;
 }
 
 /** 매도 프리셋 설정값 */
@@ -61,4 +63,44 @@ export interface ResponsiveState {
   isMobile: boolean;
   isTablet: boolean;
   isDesktop: boolean;
+}
+
+/** 코스톨라니 경기순환 6단계 */
+export interface CycleStage {
+  num: number;
+  name: string;
+  action: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  detail: string;
+  recommendation: string;
+  desc: string;
+}
+
+/** AI 뉴스 요약 항목 */
+export interface AINewsSummaryItem {
+  id: number;
+  title: string;
+  summary: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  source: string;
+  date: string;
+}
+
+/** 매도법 가이드 단계 */
+export interface GuideStage {
+  label: string;
+  range: string;
+  color: string;
+  emoji: string;
+  desc: string;
+  methods: string[];
+}
+
+/** 매도법 상세 정보 */
+export interface SellMethodDetail {
+  fullDesc: string;
+  when: string;
+  tip: string;
 }
