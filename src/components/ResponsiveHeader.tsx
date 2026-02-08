@@ -2,7 +2,7 @@
 // ============================================
 // ResponsiveHeader - 상단 헤더 (로고+PRO+종목추가+로그인)
 // 경로: src/components/ResponsiveHeader.tsx
-// 세션 18B: 로고/텍스트 크기 확대 (데스크톱 42px/22px, 모바일 34px/17px)
+// 세션 18B: 로고 확대 + Supabase 인증 연동 (로그아웃 버튼)
 // ============================================
 
 import React from 'react';
@@ -72,11 +72,12 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
         )}
         <button onClick={onLogin} style={{
           padding: isMobile ? "6px 10px" : "8px 14px", height: isMobile ? "32px" : "36px",
-          background: isLoggedIn ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.06)",
-          border: `1px solid ${isLoggedIn ? "rgba(16,185,129,0.3)" : "rgba(255,255,255,0.1)"}`,
-          borderRadius: "8px", color: isLoggedIn ? "#10b981" : "#94a3b8",
+          background: isLoggedIn ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.06)",
+          border: `1px solid ${isLoggedIn ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)"}`,
+          borderRadius: "8px",
+          color: isLoggedIn ? "#f87171" : "#94a3b8",
           fontSize: isMobile ? "11px" : "13px", fontWeight: "600", cursor: "pointer",
-        }}>{isLoggedIn ? "✅ 로그인됨" : "로그인"}</button>
+        }}>{isLoggedIn ? "로그아웃" : "로그인"}</button>
       </div>
     </div>
   </header>
