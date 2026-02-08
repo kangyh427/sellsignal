@@ -398,6 +398,7 @@ export default function CRESTApp() {
                 isMobile={isMobile} isTablet={isTablet}
                 onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
                 isPremium={isPremium}
+                stockPrice={stockPrices[pos.code] || null}  // ★ 세션 21 Part B
                 aiNewsUsedCount={aiNewsUsedCount}
                 maxFreeAINews={MAX_FREE_AI_NEWS}
                 onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
