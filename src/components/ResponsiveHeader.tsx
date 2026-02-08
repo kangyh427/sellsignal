@@ -2,6 +2,7 @@
 // ============================================
 // ResponsiveHeader - 상단 헤더 (로고+PRO+종목추가+로그인)
 // 경로: src/components/ResponsiveHeader.tsx
+// 세션 18B: 로고/텍스트 크기 확대 (데스크톱 42px/22px, 모바일 34px/17px)
 // ============================================
 
 import React from 'react';
@@ -27,19 +28,31 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
     background: "linear-gradient(180deg, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.92) 100%)",
     backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
     borderBottom: "1px solid rgba(255,255,255,0.06)",
-    padding: isMobile ? "10px 16px" : "12px 24px",
+    padding: isMobile ? "10px 16px" : "14px 24px",
   }}>
     <div style={{
       maxWidth: "1600px", margin: "0 auto",
       display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "12px" }}>
-        <CrestLogo size={isMobile ? 30 : 36} />
+      {/* 로고 영역 — 크기 확대 */}
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "14px" }}>
+        <CrestLogo size={isMobile ? 34 : 42} />
         <div>
-          <div style={{ fontSize: isMobile ? "15px" : "18px", fontWeight: "800", color: "#fff", lineHeight: "1.1" }}>CREST</div>
-          <div style={{ fontSize: isMobile ? "9px" : "10px", color: "#64748b", letterSpacing: "0.5px" }}>매도의 기술</div>
+          <div style={{
+            fontSize: isMobile ? "17px" : "22px",
+            fontWeight: "800",
+            color: "#fff",
+            lineHeight: "1.1",
+            letterSpacing: "-0.3px",
+          }}>CREST</div>
+          <div style={{
+            fontSize: isMobile ? "10px" : "12px",
+            color: "#64748b",
+            letterSpacing: "0.5px",
+          }}>매도의 기술</div>
         </div>
       </div>
+      {/* 우측 버튼 그룹 */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "6px" : "10px" }}>
         {!isMobile && (
           <button onClick={onShowAddModal} style={{
