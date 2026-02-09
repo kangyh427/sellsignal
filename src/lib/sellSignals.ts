@@ -2,6 +2,7 @@
 // CREST 매도 시그널 계산 엔진
 // 경로: src/lib/sellSignals.ts
 // 세션 24: 8종 매도법 기반 자동 시그널 판정
+// 세션 32: 타입 중복 제거 (@/types에서 통합 import) + 한글 복원
 // ============================================
 //
 // 사용법:
@@ -11,33 +12,10 @@
 // 반환값: PositionSignals (positionId, signals[], maxLevel, activeCount, totalScore)
 // ============================================
 
-import type { Position, CandleData } from '@/types';
+// ★ 세션 32: @/types에서 통합 import (sellSignals 내 중복 타입 제거)
+import type { Position, CandleData, SignalLevel, SignalResult, PositionSignals } from '@/types';
 
-// ── 타입 정의 ──
-
-/** 시그널 위험 수준 (4단계 + 비활성) */
-export type SignalLevel = 'danger' | 'warning' | 'caution' | 'safe' | 'inactive';
-
-/** 개별 매도 시그널 결과 */
-export interface SignalResult {
-  presetId: string;
-  level: SignalLevel;
-  score: number;           // 0~100
-  message: string;
-  detail: string;
-  triggeredAt?: number;
-}
-
-/** 포지션별 전체 시그널 결과 */
-export interface PositionSignals {
-  positionId: number;
-  signals: SignalResult[];
-  maxLevel: SignalLevel;
-  activeCount: number;
-  totalScore: number;
-}
-
-/** 계산 입력 */
+// ── 계산 입력 (이 파일 내부에서만 사용) ──
 interface SignalInput {
   position: Position;
   candles: CandleData[];
@@ -496,7 +474,6 @@ function checkTrendline(
 
   // 추세선 최신 값
   const trendValue = slope * (n - 1) + intercept;
-  const trendPrevious = slope * (n - 2) + intercept;
 
   // 추세가 상승인지 확인
   const isUptrend = slope > 0;
@@ -573,30 +550,31 @@ function checkCycle(cycleStage?: number): SignalResult {
     };
   }
 
-  // 코스톨라니 달걀 6단계: 1-2(매수), 3(보유), 4-5(매도), 6(관망)
-  if (cycleStage >= 4 && cycleStage <= 5) {
-    return {
-      presetId: id, level: 'warning', score: 55,
-      message: `경기순환 ${cycleStage}단계 — 매도 구간`,
-      detail: `코스톨라니 달걀 모형 기준 ${cycleStage}단계(과열/침체 시작)입니다. 시장 전체에 대한 매도 관점을 유지하세요.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  if (cycleStage === 6) {
+  // 코스톨라니 달걀 6단계 (세션 30 기준):
+  // 1,6=매수(하단) / 2,5=관망(중간) / 3,4=매도(상단)
+  if (cycleStage >= 3 && cycleStage <= 4) {
     return {
       presetId: id, level: 'danger', score: 75,
-      message: '경기순환 6단계 — 약세장 진입',
-      detail: '코스톨라니 달걀 모형 기준 6단계(하락기)입니다. 포지션 축소를 강력히 권장합니다.',
+      message: `경기순환 ${cycleStage}단계 — 매도 구간`,
+      detail: `코스톨라니 달걀 모형 기준 ${cycleStage}단계(과열/조정)입니다. 포지션 축소를 강력히 권장합니다.`,
       triggeredAt: Date.now(),
     };
   }
 
-  if (cycleStage === 3) {
+  if (cycleStage === 5) {
+    return {
+      presetId: id, level: 'warning', score: 55,
+      message: `경기순환 ${cycleStage}단계 — 관망 구간`,
+      detail: `코스톨라니 달걀 모형 기준 ${cycleStage}단계(동행 하락)입니다. 시장 전체에 대한 관망 관점을 유지하세요.`,
+      triggeredAt: Date.now(),
+    };
+  }
+
+  if (cycleStage === 2) {
     return {
       presetId: id, level: 'caution', score: 25,
-      message: '경기순환 3단계 — 고점 주의',
-      detail: '경기 확장 후반부입니다. 과열 신호를 주시하세요.',
+      message: `경기순환 ${cycleStage}단계 — 관망/보유`,
+      detail: '경기 확장 동행 구간입니다. 보유 유지하되 과열 신호를 주시하세요.',
     };
   }
 
