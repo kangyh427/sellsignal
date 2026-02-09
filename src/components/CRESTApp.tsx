@@ -34,14 +34,6 @@ import UpgradePopup from './UpgradePopup';
 import InstallPrompt from './InstallPrompt';
 import Footer from './Footer';
 
-// ── 데모 알림 ──
-const DEMO_ALERTS: Alert[] = [
-  { id: 1, stockName: '삼성전자', code: '005930', preset: SELL_PRESETS.stopLoss,
-    message: '손절 기준가(-5%) 근접! 현재 -4.2%', currentPrice: 68500, targetPrice: 67925, timestamp: Date.now() - 300000 },
-  { id: 2, stockName: '한화에어로스페이스', code: '012450', preset: SELL_PRESETS.twoThird,
-    message: '최고점 대비 1/3 하락 근접', currentPrice: 365000, targetPrice: 369600, timestamp: Date.now() - 1800000 },
-];
-
 export default function CRESTApp() {
   const router = useRouter();
   const { isMobile, isTablet, width } = useResponsive();
@@ -64,8 +56,8 @@ export default function CRESTApp() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // 알림 상태 (추후 DB 연동 예정)
-  const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
+  // ★ 세션 25: 사용자가 수동으로 닫은 알림 ID 추적
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<number>>(new Set());
 
   const isPremium = false;
   const MAX_FREE_POSITIONS = 3;
@@ -87,6 +79,35 @@ export default function CRESTApp() {
   const totalActiveSignals = useMemo(() => {
     return Object.values(signalsMap).reduce((sum, s) => sum + s.activeCount, 0);
   }, [signalsMap]);
+
+  // ★ 세션 25: 시그널 기반 알림 자동 생성 (danger + warning → Alert[])
+  const alerts = useMemo<Alert[]>(() => {
+    const result: Alert[] = [];
+    let alertId = 1;
+    positions.forEach((pos) => {
+      const posSignals = signalsMap[pos.id];
+      if (!posSignals) return;
+      posSignals.signals
+        .filter(s => s.level === 'danger' || s.level === 'warning')
+        .forEach(signal => {
+          const id = alertId++;
+          if (dismissedAlertIds.has(id)) return; // 닫은 알림 제외
+          const preset = SELL_PRESETS[signal.presetId];
+          if (!preset) return;
+          result.push({
+            id,
+            stockName: pos.name,
+            code: pos.code,
+            preset,
+            message: signal.message,
+            currentPrice: getCurrentPrice(pos.code, pos.buyPrice),
+            targetPrice: pos.buyPrice, // 참고값
+            timestamp: signal.triggeredAt || Date.now(),
+          });
+        });
+    });
+    return result;
+  }, [signalsMap, positions, dismissedAlertIds, getCurrentPrice]);
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
@@ -358,7 +379,7 @@ export default function CRESTApp() {
                     {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
                   </h3>
                   {alerts.length > 0 && (
-                    <button onClick={() => setAlerts([])} style={{
+                    <button onClick={() => setDismissedAlertIds(new Set(alerts.map(a => a.id)))} style={{
                       background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
                       padding: '6px 10px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
                     }}>모두 지우기</button>
@@ -370,7 +391,7 @@ export default function CRESTApp() {
                     <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
                   </div>
                 ) : alerts.map((a) => (
-                  <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
+                  <AlertCard key={a.id} alert={a} onDismiss={(id) => setDismissedAlertIds(prev => new Set([...prev, id]))} />
                 ))}
               </div>
 
