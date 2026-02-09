@@ -1,8 +1,8 @@
 'use client';
 // ============================================
-// PositionEditModal - 포지션 수정/삭제 모달
+// PositionEditModal v2 - 포지션 수정/삭제 모달
 // 경로: src/components/PositionEditModal.tsx
-// 세션 18A: 바텀시트(모바일) / 센터모달(데스크톱)
+// 세션 29: 모바일 최적화 — 토글 44x26, 버튼 52px, 인풋 48px
 // ============================================
 
 import React, { useState } from 'react';
@@ -17,13 +17,13 @@ interface PositionEditModalProps {
   onDelete: (id: number) => void;
 }
 
-const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) => {
+const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }: PositionEditModalProps) => {
   const [editQuantity, setEditQuantity] = useState(String(position.quantity));
   const [editBuyPrice, setEditBuyPrice] = useState(String(position.buyPrice));
   const [editPresets, setEditPresets] = useState([...(position.selectedPresets || [])]);
   const [editSettings, setEditSettings] = useState({ ...position.presetSettings });
 
-  const togglePreset = (presetId) => {
+  const togglePreset = (presetId: string) => {
     setEditPresets((prev) =>
       prev.includes(presetId) ? prev.filter((p) => p !== presetId) : [...prev, presetId]
     );
@@ -40,10 +40,14 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
     onClose();
   };
 
-  const inputStyle = {
-    width: "100%", padding: "10px 12px", fontSize: "15px", fontWeight: "600",
+  // ★ 세션29: 모바일 인풋 minHeight 48px
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: isMobile ? "12px" : "10px 12px",
+    fontSize: "15px", fontWeight: "600",
     background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: "8px", color: "#fff", outline: "none",
+    minHeight: isMobile ? '48px' : 'auto',
   };
 
   return (
@@ -59,6 +63,7 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
         width: "100%", maxWidth: isMobile ? "100%" : "480px",
         maxHeight: isMobile ? "85vh" : "80vh", overflowY: "auto",
         border: "1px solid rgba(255,255,255,0.08)",
+        WebkitOverflowScrolling: 'touch' as any,
       }}>
         {/* 드래그 핸들 */}
         {isMobile && (
@@ -67,14 +72,14 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
           </div>
         )}
 
-        {/* 헤더 */}
+        {/* 헤더 — 세션29: 닫기 버튼 44x44 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#fff", margin: 0 }}>
+          <h2 style={{ fontSize: isMobile ? "17px" : "18px", fontWeight: "700", color: "#fff", margin: 0 }}>
             ✏️ {position.name} 수정
           </h2>
           <button onClick={onClose} style={{
             background: "rgba(255,255,255,0.08)", border: "none", borderRadius: "8px",
-            width: "36px", height: "36px", minHeight: "44px", minWidth: "44px",
+            width: "44px", height: "44px",
             color: "#94a3b8", fontSize: "18px", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>✕</button>
@@ -83,18 +88,18 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
         {/* 수량 & 매수가 편집 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
           <div>
-            <label style={{ fontSize: "11px", color: "#64748b", display: "block", marginBottom: "4px" }}>보유 수량</label>
+            <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>보유 수량</label>
             <input type="number" inputMode="numeric" value={editQuantity}
               onChange={(e) => setEditQuantity(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: "11px", color: "#64748b", display: "block", marginBottom: "4px" }}>매수 단가 (₩)</label>
+            <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "4px" }}>매수 단가 (₩)</label>
             <input type="number" inputMode="numeric" value={editBuyPrice}
               onChange={(e) => setEditBuyPrice(e.target.value)} style={inputStyle} />
           </div>
         </div>
 
-        {/* 매도법 ON/OFF 토글 */}
+        {/* 매도법 ON/OFF 토글 — 세션29: 토글 44x26, 버튼 48px */}
         <div style={{ marginBottom: "16px" }}>
           <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
             📊 매도 조건 선택 ({editPresets.length}개)
@@ -105,7 +110,8 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
               return (
                 <button key={preset.id} onClick={() => togglePreset(preset.id)} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "10px 12px", minHeight: "44px",
+                  padding: isMobile ? "12px" : "10px 12px",
+                  minHeight: "48px",
                   background: isActive ? `${preset.color}12` : "rgba(255,255,255,0.02)",
                   border: `1px solid ${isActive ? preset.color + "40" : "rgba(255,255,255,0.06)"}`,
                   borderRadius: "8px", cursor: "pointer", width: "100%", textAlign: "left",
@@ -116,16 +122,17 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
                       <div style={{ fontSize: "13px", fontWeight: "600", color: isActive ? preset.color : "#94a3b8" }}>
                         {preset.name}
                       </div>
-                      <div style={{ fontSize: "10px", color: "#64748b" }}>{preset.desc}</div>
+                      <div style={{ fontSize: isMobile ? "11px" : "10px", color: "#64748b" }}>{preset.desc}</div>
                     </div>
                   </div>
+                  {/* ★ 세션29: 토글 스위치 확대 44x26px */}
                   <div style={{
-                    width: "40px", height: "22px", borderRadius: "11px",
+                    width: "44px", height: "26px", borderRadius: "13px",
                     background: isActive ? preset.color : "rgba(255,255,255,0.1)",
-                    position: "relative", transition: "background 0.2s",
+                    position: "relative", transition: "background 0.2s", flexShrink: 0,
                   }}>
                     <div style={{
-                      width: "18px", height: "18px", borderRadius: "50%",
+                      width: "22px", height: "22px", borderRadius: "50%",
                       background: "#fff", position: "absolute", top: "2px",
                       left: isActive ? "20px" : "2px", transition: "left 0.2s",
                       boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
@@ -137,16 +144,16 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
           </div>
         </div>
 
-        {/* 저장 & 삭제 버튼 */}
+        {/* ★ 세션29: 저장 & 삭제 버튼 52px */}
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={handleSave} style={{
-            flex: 1, padding: "14px", minHeight: "48px",
+            flex: 1, padding: "14px", minHeight: "52px",
             background: "linear-gradient(135deg, #3b82f6, #2563eb)",
             border: "none", borderRadius: "12px", color: "#fff",
             fontSize: "15px", fontWeight: "700", cursor: "pointer",
           }}>💾 저장</button>
           <button onClick={() => { onDelete(position.id); onClose(); }} style={{
-            padding: "14px 20px", minHeight: "48px",
+            padding: "14px 20px", minHeight: "52px",
             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: "12px", color: "#ef4444",
             fontSize: "15px", fontWeight: "700", cursor: "pointer",
@@ -156,7 +163,5 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }) =>
     </div>
   );
 };
-
-// ============================================
 
 export default PositionEditModal;
