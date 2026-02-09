@@ -3,6 +3,7 @@
 // PositionEditModal v2 - 포지션 수정/삭제 모달
 // 경로: src/components/PositionEditModal.tsx
 // 세션 29: 모바일 최적화 — 토글 44x26, 버튼 52px, 인풋 48px
+// 세션 36: 한글 인코딩 복구 (UTF-8)
 // ============================================
 
 import React, { useState } from 'react';
