@@ -1,14 +1,13 @@
 'use client';
 // ============================================
-// BuffettIndicatorWidget v8 - 한미 이중 반원 게이지 (실데이터)
+// BuffettIndicatorWidget v9 - 한미 이중 반원 게이지 (실데이터)
 // 경로: src/components/BuffettIndicatorWidget.tsx
-// 세션 29: 모바일 최적화 — 게이지 크기, 범례 2x2 그리드
 // 세션 40: 실데이터 연동
-//   - useBuffettIndicator 훅 연결
-//   - 로딩/에러 상태 UI 추가
-//   - 마지막 업데이트 시각 표시
-//   - 시가총액/GDP 세부 수치 표시
-//   - 데이터 소스 표시 (실데이터 vs 폴백)
+// 세션 40B: 무료/PRO 분리 안내 + 데스크탑 레이아웃 수정
+//   - PRO 뱃지 → 무료 뱃지 (무료버전일 때)
+//   - 하단 안내 문구 무료/PRO 분리
+//   - 에러 메시지 + 범례 + 안내 데스크탑 줄바꿈 수정
+//   - GDP 기준연도 명확 표시
 // ============================================
 
 import React from 'react';
@@ -32,11 +31,12 @@ const formatTime = (isoString: string | null): string => {
   if (!isoString) return '-';
   try {
     const d = new Date(isoString);
+    const yy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${mm}/${dd} ${hh}:${mi}`;
+    return `${yy}.${mm}.${dd} ${hh}:${mi}`;
   } catch {
     return '-';
   }
@@ -54,7 +54,6 @@ const GaugeChart = ({
   const pct = Math.min(data.ratio / maxR, 1);
   const col = getColor(data.ratio);
 
-  // ★ 세션29: 모바일 게이지 크기 조정
   const sw = isMobile ? 150 : 160;
   const sh = isMobile ? 100 : 105;
   const gcx = sw / 2;
@@ -80,28 +79,23 @@ const GaugeChart = ({
       {/* SVG 반원 게이지 */}
       <svg width={sw} height={sh} viewBox={`0 0 ${sw} ${sh}`}
         style={{ display: 'block', margin: '0 auto' }}>
-        {/* 배경 트랙 */}
         <path
           d={`M ${gcx - r} ${gcy} A ${r} ${r} 0 0 1 ${gcx + r} ${gcy}`}
           fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="12" strokeLinecap="round" />
-        {/* 값 트랙 */}
         <path
           d={`M ${gcx - r} ${gcy} A ${r} ${r} 0 0 1 ${fX} ${fY}`}
           fill="none" stroke={col} strokeWidth="12" strokeLinecap="round" />
-        {/* 비율 숫자 */}
         <text x={gcx} y={gcy - 20} textAnchor="middle"
           fill="#fff" fontSize={isMobile ? '22' : '26'} fontWeight="800">{data.ratio}%</text>
-        {/* 레벨 라벨 */}
         <text x={gcx} y={gcy - 2} textAnchor="middle"
           fill={col} fontSize="11" fontWeight="600">{data.label}</text>
-        {/* 범위 라벨 */}
         <text x={gcx - r} y={gcy + 16} textAnchor="middle"
           fill="#64748b" fontSize="9">0%</text>
         <text x={gcx + r} y={gcy + 16} textAnchor="middle"
           fill="#64748b" fontSize="9">250%</text>
       </svg>
 
-      {/* ★ 세션40: 세부 수치 (시가총액/GDP) */}
+      {/* 세부 수치 (실데이터일 때만) */}
       {data.indexLevel && (
         <div style={{ fontSize: '9px', color: '#475569', marginTop: '2px', lineHeight: '1.4' }}>
           {name === '한국'
@@ -139,9 +133,20 @@ const LoadingSkeleton = ({ isMobile }: { isMobile: boolean }) => (
   </div>
 );
 
+// ── 범례 아이템 ──
+const LEGEND_ITEMS = [
+  { label: '저평가', range: '<70%', color: '#10b981' },
+  { label: '적정', range: '70-100%', color: '#eab308' },
+  { label: '고평가', range: '100-150%', color: '#f97316' },
+  { label: '극단적', range: '>150%', color: '#ef4444' },
+];
+
 // ── 메인 위젯 ──
 const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetProps) => {
   const { korea, usa, isLoading, error, updatedAt, gdpNote, refresh } = useBuffettIndicator();
+
+  // GDP 기준연도 (표시용)
+  const gdpYear = korea.gdpYear ?? 2024;
 
   return (
     <div style={{
@@ -149,25 +154,35 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
       borderRadius: '14px', padding: isMobile ? '14px' : '20px',
       border: '1px solid rgba(255,255,255,0.06)', marginBottom: '14px',
     }}>
-      {/* 헤더 */}
+      {/* ── 헤더 ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '14px',
+        marginBottom: '14px', gap: '8px',
       }}>
         <h3 style={{
           fontSize: isMobile ? '15px' : '16px', fontWeight: '700', color: '#fff',
           margin: 0, display: 'flex', alignItems: 'center', gap: '8px',
+          whiteSpace: 'nowrap',
         }}>
           버핏지수 (시가총액/GDP)
-          {!isPremium && (
+          {/* ★ 무료/PRO 뱃지 분리 */}
+          {isPremium ? (
             <span style={{
               fontSize: '10px', color: '#a78bfa',
               background: 'rgba(139,92,246,0.15)',
               padding: '2px 6px', borderRadius: '4px',
+              fontWeight: '600',
             }}>PRO</span>
+          ) : (
+            <span style={{
+              fontSize: '10px', color: '#64748b',
+              background: 'rgba(255,255,255,0.06)',
+              padding: '2px 6px', borderRadius: '4px',
+              fontWeight: '600',
+            }}>무료</span>
           )}
         </h3>
-        {/* ★ 세션40: 새로고침 버튼 */}
+        {/* 새로고침 버튼 */}
         <button
           onClick={refresh}
           disabled={isLoading}
@@ -175,19 +190,19 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
             background: 'none', border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '6px', padding: '4px 8px', cursor: 'pointer',
             color: '#64748b', fontSize: '11px', display: 'flex',
-            alignItems: 'center', gap: '4px',
+            alignItems: 'center', gap: '4px', flexShrink: 0,
             opacity: isLoading ? 0.5 : 1,
           }}
         >
           <span style={{
             display: 'inline-block',
-            animation: isLoading ? 'spin 1s linear infinite' : 'none',
+            animation: isLoading ? 'buffett-spin 1s linear infinite' : 'none',
           }}>🔄</span>
           {!isMobile && '갱신'}
         </button>
       </div>
 
-      {/* 게이지 영역 */}
+      {/* ── 게이지 영역 ── */}
       {isLoading && !updatedAt ? (
         <LoadingSkeleton isMobile={isMobile} />
       ) : (
@@ -201,36 +216,37 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
         </div>
       )}
 
-      {/* ★ 에러 메시지 (있을 경우) */}
+      {/* ── 에러 메시지 ── */}
       {error && (
         <div style={{
-          padding: '6px 10px', marginBottom: '8px', borderRadius: '6px',
+          padding: '10px 14px', marginBottom: '10px', borderRadius: '8px',
           background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)',
-          fontSize: '10px', color: '#f87171', textAlign: 'center',
+          textAlign: 'center', lineHeight: '1.6',
+          maxWidth: '100%',
         }}>
-          ⚠️ {error} (이전 데이터를 표시합니다)
+          <div style={{ fontSize: '11px', color: '#f87171', fontWeight: '600' }}>
+            ⚠️ 버핏지수 데이터를 불러올 수 없습니다
+          </div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+            이전 데이터를 표시합니다
+          </div>
         </div>
       )}
 
-      {/* 범례 — 모바일 2x2 그리드 */}
+      {/* ── 범례 ── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, auto)',
-        gap: isMobile ? '6px' : '8px',
-        justifyContent: isMobile ? 'stretch' : 'center',
-        padding: '8px 12px',
+        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+        gap: isMobile ? '6px' : '10px',
+        padding: '10px 14px',
         background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
       }}>
-        {[
-          { label: '저평가', range: '<70%', color: '#10b981' },
-          { label: '적정', range: '70-100%', color: '#eab308' },
-          { label: '고평가', range: '100-150%', color: '#f97316' },
-          { label: '극단적', range: '>150%', color: '#ef4444' },
-        ].map((item) => (
+        {LEGEND_ITEMS.map((item) => (
           <div key={item.label} style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            fontSize: '10px', color: '#94a3b8',
-            justifyContent: isMobile ? 'center' : 'flex-start',
+            display: 'flex', alignItems: 'center', gap: '5px',
+            fontSize: isMobile ? '10px' : '11px', color: '#94a3b8',
+            justifyContent: 'center',
+            whiteSpace: 'nowrap',
           }}>
             <span style={{
               width: '8px', height: '8px', borderRadius: '2px',
@@ -242,28 +258,41 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
         ))}
       </div>
 
-      {/* ★ 세션40: 마지막 업데이트 시각 + 데이터 소스 */}
+      {/* ── 하단 안내 — 무료/PRO 분리 ── */}
       <div style={{
-        marginTop: '10px', textAlign: 'center', padding: '8px 12px',
-        background: 'rgba(139,92,246,0.06)', borderRadius: '8px',
-        border: '1px solid rgba(139,92,246,0.12)',
-        display: 'flex', flexDirection: 'column', gap: '4px',
+        marginTop: '10px', textAlign: 'center',
+        padding: '10px 14px',
+        borderRadius: '8px',
+        background: isPremium ? 'rgba(139,92,246,0.06)' : 'rgba(255,255,255,0.03)',
+        border: isPremium ? '1px solid rgba(139,92,246,0.12)' : '1px solid rgba(255,255,255,0.06)',
+        lineHeight: '1.6',
       }}>
-        <span style={{ fontSize: '11px', color: '#a78bfa' }}>
-          {korea.source === 'fallback'
-            ? 'PRO — 실시간 업데이트 + 역사적 추이 비교 (데이터 로드 중)'
-            : `마지막 갱신: ${formatTime(updatedAt)} · GDP 기준 ${korea.gdpYear ?? '-'}년`}
-        </span>
-        {!isPremium && korea.source !== 'fallback' && (
-          <span style={{ fontSize: '9px', color: '#64748b' }}>
-            PRO 구독 시 역사적 추이 비교 제공 (추후 출시)
-          </span>
+        {isPremium ? (
+          /* ★ PRO 사용자: 실시간 갱신 시각 표시 */
+          <>
+            <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '600' }}>
+              📡 실시간 데이터 · 마지막 갱신 {formatTime(updatedAt)}
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+              Yahoo Finance 지수 기반 실시간 계산 · GDP {gdpYear}년 기준
+            </div>
+          </>
+        ) : (
+          /* ★ 무료 사용자: 기준연도 + PRO 유도 */
+          <>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              📊 {gdpYear}년 GDP 기준 데이터입니다
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
+              PRO 구독 시 실시간 업데이트 + 역사적 추이 비교 제공
+            </div>
+          </>
         )}
       </div>
 
-      {/* CSS 애니메이션 (spin for refresh icon) */}
+      {/* CSS 애니메이션 */}
       <style>{`
-        @keyframes spin {
+        @keyframes buffett-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
