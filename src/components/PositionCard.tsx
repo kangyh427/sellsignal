@@ -3,14 +3,14 @@
 // PositionCard v2 - 보유 종목 카드 (서브컴포넌트 분리)
 // 경로: src/components/PositionCard.tsx
 // 세션 33: 648줄 → ~320줄 (서브컴포넌트 3개 분리)
+// 세션 34: 데스크탑 차트 너비 동적 계산 (컨테이너 기반)
 // 변경사항:
-//   - CardHeader: 접힌/펼친 상단 헤더 분리
-//   - CardPresets: 매도법 프리셋 목록 분리
-//   - CardActions: 모바일 액션 바 분리
-//   - 본체: 스와이프, 차트, 모달 오케스트레이션
+//   - chartW: 하드코딩 380px → useRef로 컨테이너 너비 측정
+//   - 데스크탑 캔들 수: 40 → 55개 (넓은 화면 활용)
+//   - 데스크탑 차트 높이: 260 → 280px
 // ============================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact } from '@/constants';
 import EnhancedMiniChart from './EnhancedMiniChart';
 import PositionEditModal from './PositionEditModal';
@@ -127,8 +127,25 @@ const PositionCard = ({
     : `https://finance.naver.com/item/fchart.naver?code=${position.code}`;
   const naverNewsUrl = `https://finance.naver.com/item/news.naver?code=${position.code}`;
 
-  // ── 차트 크기 계산 ──
-  const chartW = isMobile ? Math.min(window?.innerWidth - 60 || 320, 400) : isTablet ? 300 : 380;
+  // ── 차트 컨테이너 너비 동적 측정 ──
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = useState(isMobile ? 320 : 380);
+
+  useEffect(() => {
+    const measure = () => {
+      if (chartContainerRef.current) {
+        const containerW = chartContainerRef.current.clientWidth;
+        // 패딩(8px*2) 제외한 실제 차트 영역
+        setChartW(Math.max(280, containerW - 16));
+      } else {
+        // fallback
+        setChartW(isMobile ? Math.min(window?.innerWidth - 60 || 320, 400) : isTablet ? 300 : 380);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isMobile, isTablet]);
 
   // ── 핸들러 ──
   const handleCardToggle = () => {
@@ -232,15 +249,15 @@ const PositionCard = ({
                   onClick={() => window.open(naverChartUrl, '_blank')}
                   style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', marginTop: '8px' }}
                 >
-                  <div style={{
+                  <div ref={chartContainerRef} style={{
                     background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '4px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <EnhancedMiniChart
-                      data={priceData?.slice(isMobile ? -30 : -40) || null}
+                      data={priceData?.slice(isMobile ? -30 : isTablet ? -40 : -55) || null}
                       buyPrice={position.buyPrice}
                       width={chartW}
-                      height={isMobile ? 200 : 260}
+                      height={isMobile ? 200 : isTablet ? 260 : 280}
                       sellPrices={sellPrices}
                       visibleLines={visibleLines}
                     />
