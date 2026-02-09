@@ -1,8 +1,8 @@
 'use client';
 // ============================================
-// SellMethodGuide - 수익 단계별 매도법 가이드
+// SellMethodGuide v2 - 수익 단계별 매도법 가이드
 // 경로: src/components/SellMethodGuide.tsx
-// 세션 18A: 17f 기반 분리, GUIDE_STAGES + METHOD_DETAILS 내장
+// 세션 29: 모바일 최적화 — 탭 44px, 아코디언 52px, 폰트 확대
 // ============================================
 
 import React, { useState } from 'react';
@@ -10,7 +10,8 @@ import { SELL_PRESETS } from '@/constants';
 
 interface SellMethodGuideProps {
   isMobile: boolean;
-  isPremium: boolean;
+  activeTab?: string;
+  isPremium?: boolean;
 }
 
 const GUIDE_STAGES = {
@@ -31,7 +32,7 @@ const GUIDE_STAGES = {
   },
 };
 
-const METHOD_DETAILS = {
+const METHOD_DETAILS: Record<string, { fullDesc: string; when: string; tip: string }> = {
   candle3: {
     fullDesc: "직전 양봉의 50% 이상을 음봉이 덮으면 절반 매도, 100% 덮으면 전량 매도합니다. 3일 연속 하락봉은 추세 전환의 강한 신호입니다.",
     when: "매수 직후 ~ 5% 수익 구간",
@@ -74,10 +75,10 @@ const METHOD_DETAILS = {
   },
 };
 
-const SellMethodGuide = ({ isMobile, activeTab }) => {
-  const [expandedStage, setExpandedStage] = useState(null);
-  const [expandedMethod, setExpandedMethod] = useState(null);
-  const [viewMode, setViewMode] = useState("stages"); // "stages" | "methods" | "flow"
+const SellMethodGuide = ({ isMobile, activeTab }: SellMethodGuideProps) => {
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [expandedMethod, setExpandedMethod] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState("stages");
 
   return (
     <div style={{
@@ -88,12 +89,12 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
     }}>
       {/* 헤더 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-        <h3 style={{ fontSize: isMobile ? "14px" : "15px", fontWeight: "700", color: "#fff", margin: 0 }}>
+        <h3 style={{ fontSize: isMobile ? "15px" : "15px", fontWeight: "700", color: "#fff", margin: 0 }}>
           📚 매도의 기술 가이드
         </h3>
       </div>
 
-      {/* 탭 전환 */}
+      {/* ★ 세션29: 탭 전환 — minHeight 44px 터치타겟 */}
       <div style={{ display: "flex", gap: "4px", marginBottom: "12px", background: "rgba(0,0,0,0.3)", borderRadius: "10px", padding: "3px" }}>
         {[
           { id: "stages", label: "수익 단계별" },
@@ -101,11 +102,14 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
           { id: "flow", label: "투자 흐름도" },
         ].map((tab) => (
           <button key={tab.id} onClick={() => setViewMode(tab.id)} style={{
-            flex: 1, padding: isMobile ? "8px 4px" : "8px 12px", borderRadius: "8px",
+            flex: 1,
+            padding: isMobile ? "10px 4px" : "8px 12px",
+            minHeight: isMobile ? '44px' : 'auto',
+            borderRadius: "8px",
             background: viewMode === tab.id ? "rgba(59,130,246,0.2)" : "transparent",
             border: viewMode === tab.id ? "1px solid rgba(59,130,246,0.3)" : "1px solid transparent",
             color: viewMode === tab.id ? "#60a5fa" : "#64748b",
-            fontSize: isMobile ? "11px" : "12px", fontWeight: "600", cursor: "pointer",
+            fontSize: isMobile ? "12px" : "12px", fontWeight: "600", cursor: "pointer",
           }}>{tab.label}</button>
         ))}
       </div>
@@ -115,9 +119,11 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {Object.entries(GUIDE_STAGES).map(([key, stage]) => (
             <div key={key}>
-              {/* 단계 헤더 */}
+              {/* ★ 세션29: minHeight 52px 터치타겟 */}
               <button onClick={() => setExpandedStage(expandedStage === key ? null : key)} style={{
-                width: "100%", padding: isMobile ? "12px" : "14px",
+                width: "100%",
+                padding: isMobile ? "14px 12px" : "14px",
+                minHeight: isMobile ? '52px' : 'auto',
                 background: expandedStage === key ? `${stage.color}15` : "rgba(255,255,255,0.03)",
                 borderRadius: expandedStage === key ? "10px 10px 0 0" : "10px",
                 borderLeft: `4px solid ${stage.color}`,
@@ -127,7 +133,7 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                 textAlign: "left",
               }}>
                 <div>
-                  <div style={{ fontSize: isMobile ? "13px" : "14px", fontWeight: "700", color: stage.color, display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div style={{ fontSize: isMobile ? "14px" : "14px", fontWeight: "700", color: stage.color, display: "flex", alignItems: "center", gap: "6px" }}>
                     {stage.emoji} {stage.label}
                   </div>
                   <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
@@ -138,10 +144,10 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                   color: "#64748b", fontSize: "12px",
                   transform: expandedStage === key ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s",
+                  padding: '8px',
                 }}>▼</span>
               </button>
 
-              {/* 확장 내용 */}
               {expandedStage === key && (
                 <div style={{
                   padding: isMobile ? "12px" : "14px",
@@ -159,18 +165,18 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                       const detail = METHOD_DETAILS[mid];
                       return (
                         <div key={mid} style={{
-                          padding: "10px 12px", borderRadius: "8px",
+                          padding: isMobile ? "12px" : "10px 12px", borderRadius: "8px",
                           background: "rgba(255,255,255,0.03)", borderLeft: `3px solid ${preset.color}`,
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                             <span style={{ fontSize: "14px" }}>{preset.icon}</span>
-                            <span style={{ fontSize: isMobile ? "12px" : "13px", fontWeight: "600", color: "#e2e8f0" }}>{preset.name}</span>
+                            <span style={{ fontSize: isMobile ? "13px" : "13px", fontWeight: "600", color: "#e2e8f0" }}>{preset.name}</span>
                           </div>
-                          <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: "1.5", paddingLeft: "22px" }}>
+                          <div style={{ fontSize: isMobile ? "12px" : "11px", color: "#94a3b8", lineHeight: "1.6", paddingLeft: "22px" }}>
                             {detail?.fullDesc || preset.desc}
                           </div>
                           {detail?.tip && (
-                            <div style={{ fontSize: "10px", color: "#60a5fa", marginTop: "6px", paddingLeft: "22px", fontStyle: "italic" }}>
+                            <div style={{ fontSize: isMobile ? "11px" : "10px", color: "#60a5fa", marginTop: "6px", paddingLeft: "22px", fontStyle: "italic" }}>
                               💡 {detail.tip}
                             </div>
                           )}
@@ -194,7 +200,9 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
             return (
               <div key={id}>
                 <button onClick={() => setExpandedMethod(isOpen ? null : id)} style={{
-                  width: "100%", padding: "10px 12px",
+                  width: "100%",
+                  padding: isMobile ? "12px" : "10px 12px",
+                  minHeight: isMobile ? '52px' : 'auto',
                   background: isOpen ? `${preset.color}15` : "rgba(255,255,255,0.03)",
                   borderRadius: isOpen ? "10px 10px 0 0" : "10px",
                   border: isOpen ? `1px solid ${preset.color}30` : "1px solid rgba(255,255,255,0.04)",
@@ -205,13 +213,14 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                     <span style={{ fontSize: "16px" }}>{preset.icon}</span>
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: "600", color: isOpen ? preset.color : "#e2e8f0" }}>{preset.name}</div>
-                      <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>{preset.desc}</div>
+                      <div style={{ fontSize: isMobile ? "11px" : "10px", color: "#64748b", marginTop: "1px" }}>{preset.desc}</div>
                     </div>
                   </div>
                   <span style={{
                     fontSize: "12px", color: "#64748b",
                     transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
                     transition: "transform 0.2s",
+                    padding: '8px',
                   }}>▼</span>
                 </button>
                 {isOpen && detail && (
@@ -224,7 +233,7 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                       {detail.fullDesc}
                     </p>
                     <div style={{ display: "flex", gap: isMobile ? "6px" : "12px", flexWrap: "wrap", marginBottom: "8px" }}>
-                      <div style={{ fontSize: "11px", color: "#94a3b8", background: "rgba(255,255,255,0.04)", padding: "4px 8px", borderRadius: "6px" }}>
+                      <div style={{ fontSize: "11px", color: "#94a3b8", background: "rgba(255,255,255,0.04)", padding: "6px 10px", borderRadius: "6px" }}>
                         ⏰ 적용 시점: {detail.when}
                       </div>
                     </div>
@@ -242,7 +251,6 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
       {/* === 투자 흐름도 뷰 === */}
       {viewMode === "flow" && (
         <div style={{ padding: "4px 0" }}>
-          {/* 단계별 흐름 */}
           {[
             { step: "1", title: "종목 검색과 분석", emoji: "🔍", desc: "기본적 분석(PER/PBR)과 기술적 분석(차트)으로 종목 선정", color: "#94a3b8" },
             { step: "2", title: "주식 매수", emoji: "💰", desc: "매수가 기록, 손절선·목표가 사전 설정", color: "#3b82f6" },
@@ -252,7 +260,6 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
             { step: "6", title: "매도 실행", emoji: "🎯", desc: "사전 설정한 조건 도달 시 기계적 매도", color: "#ef4444" },
           ].map((item, i, arr) => (
             <div key={i} style={{ display: "flex", gap: "12px", marginBottom: i < arr.length - 1 ? "4px" : "0" }}>
-              {/* 좌측 타임라인 */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "28px", flexShrink: 0 }}>
                 <div style={{
                   width: "28px", height: "28px", borderRadius: "50%",
@@ -264,16 +271,15 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
                   <div style={{ width: "2px", flex: 1, minHeight: "20px", background: `linear-gradient(${item.color}50, ${arr[i+1].color}50)` }} />
                 )}
               </div>
-              {/* 우측 콘텐츠 */}
               <div style={{ flex: 1, paddingBottom: i < arr.length - 1 ? "12px" : "0" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
                   <span style={{ fontSize: "14px" }}>{item.emoji}</span>
-                  <span style={{ fontSize: isMobile ? "12px" : "13px", fontWeight: "700", color: item.color }}>{item.title}</span>
+                  <span style={{ fontSize: isMobile ? "13px" : "13px", fontWeight: "700", color: item.color }}>{item.title}</span>
                 </div>
-                <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: "1.5", paddingLeft: "22px" }}>{item.desc}</div>
+                <div style={{ fontSize: isMobile ? "12px" : "11px", color: "#94a3b8", lineHeight: "1.5", paddingLeft: "22px" }}>{item.desc}</div>
                 {item.methods && (
                   <div style={{ marginTop: "4px", paddingLeft: "22px" }}>
-                    <span style={{ fontSize: "10px", color: "#60a5fa", background: "rgba(59,130,246,0.1)", padding: "2px 8px", borderRadius: "4px" }}>
+                    <span style={{ fontSize: isMobile ? "11px" : "10px", color: "#60a5fa", background: "rgba(59,130,246,0.1)", padding: "2px 8px", borderRadius: "4px" }}>
                       적용 매도법: {item.methods}
                     </span>
                   </div>
@@ -282,7 +288,6 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
             </div>
           ))}
 
-          {/* 핵심 원칙 */}
           <div style={{
             marginTop: "14px", padding: "12px",
             background: "linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08))",
@@ -303,7 +308,5 @@ const SellMethodGuide = ({ isMobile, activeTab }) => {
     </div>
   );
 };
-
-// ============================================
 
 export default SellMethodGuide;
