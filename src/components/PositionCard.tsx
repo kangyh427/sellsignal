@@ -4,11 +4,12 @@
 // 경로: src/components/PositionCard.tsx
 // 세션 21 Part B: 실시간 주가(stockPrice) prop 추가
 // 세션 22B: generateMockPriceData import 제거 + 한글 인코딩 복원
+// 세션 25: 시그널 연동 (SignalSection + SignalBadgeCompact) + 한글 재복원
 // 변경사항:
-//   - stockPrice prop 추가 (StockPrice 타입)
-//   - 현재가: stockPrice.price > 차트 마지막 종가 > 매수가 순으로 사용
-//   - 전일 대비 변동률/변동금액 표시
-//   - 장 상태(marketState) 뱃지 표시
+//   - signals prop 추가 (PositionSignals 타입)
+//   - 접힌 카드: SignalBadgeCompact 삽입
+//   - 펼친 카드: SignalSection 삽입 (매도 조건 아코디언 위)
+//   - 한글 인코딩 UTF-8 완전 복원
 // ============================================
 
 import React, { useState, useMemo } from 'react';
@@ -16,7 +17,8 @@ import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact } from '
 import EnhancedMiniChart from './EnhancedMiniChart';
 import PositionEditModal from './PositionEditModal';
 import AINewsSummary from './AINewsSummary';
-import type { Position, Alert, StockPrice } from '@/types';
+import SignalSection, { SignalBadgeCompact } from './SignalSection';  // ★ 세션 25 추가
+import type { Position, Alert, StockPrice, PositionSignals } from '@/types';  // ★ 세션 25: PositionSignals 추가
 
 interface PositionCardProps {
   position: Position;
@@ -26,7 +28,8 @@ interface PositionCardProps {
   isPremium: boolean;
   onUpdate: (updated: Position) => void;
   onDelete: (id: number) => void;
-  stockPrice?: StockPrice | null;  // ★ 세션 21 추가
+  stockPrice?: StockPrice | null;       // ★ 세션 21 추가
+  signals?: PositionSignals | null;     // ★ 세션 25 추가
   aiNewsUsedCount?: number;
   maxFreeAINews?: number;
   onUseAINews?: () => void;
@@ -41,7 +44,8 @@ const PositionCard = ({
   onUpdate,
   onDelete,
   isPremium,
-  stockPrice,           // ★ 세션 21 추가
+  stockPrice,
+  signals,               // ★ 세션 25 추가
   aiNewsUsedCount = 0,
   maxFreeAINews = 3,
   onUseAINews,
@@ -82,8 +86,8 @@ const PositionCard = ({
   const isProfit = profitRate >= 0;
 
   // ★ 세션 21: 전일 대비 변동 (Yahoo Finance 데이터)
-  const dayChange = stockPrice?.change ?? null;        // 전일 대비 변동률 (%)
-  const dayChangeAmt = stockPrice?.changeAmount ?? null; // 전일 대비 변동 금액
+  const dayChange = stockPrice?.change ?? null;
+  const dayChangeAmt = stockPrice?.changeAmount ?? null;
   const hasRealPrice = stockPrice?.price != null;
 
   // ★ 장 상태 라벨
@@ -199,6 +203,8 @@ const PositionCard = ({
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>{position.name}</span>
                 <span style={{ background: stage.color + "22", color: stage.color, padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "600" }}>{stage.label}</span>
+                {/* ★ 세션 25: 접힌 카드 시그널 배지 */}
+                <SignalBadgeCompact signals={signals} />
               </div>
               <div style={{ display: "flex", gap: "4px", marginTop: "4px", alignItems: "center" }}>
                 {presetDots.map((d: any, i: number) => (
@@ -213,7 +219,7 @@ const PositionCard = ({
               {isProfit ? "+" : ""}{profitRate.toFixed(1)}%
             </div>
             <div style={{ fontSize: "11px", color: isProfit ? "rgba(16,185,129,0.7)" : "rgba(239,68,68,0.7)" }}>
-              {isProfit ? "+" : ""}\u20A9{formatCompact(Math.round(profitAmount))}
+              {isProfit ? "+" : ""}{'\u20A9'}{formatCompact(Math.round(profitAmount))}
             </div>
             {/* ★ 접힌 상태에서도 전일 대비 표시 */}
             <DayChangeIndicator compact />
@@ -315,16 +321,16 @@ const PositionCard = ({
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px", marginBottom: "10px" }}>
               {[
-                { label: "매수가", value: "\u20A9" + position.buyPrice.toLocaleString() },
+                { label: "매수가", value: '\u20A9' + position.buyPrice.toLocaleString() },
                 {
                   label: hasRealPrice ? "현재가 (실시간)" : "현재가",
-                  value: "\u20A9" + Math.round(cur).toLocaleString(),
+                  value: '\u20A9' + Math.round(cur).toLocaleString(),
                   color: isProfit ? "#10b981" : "#ef4444",
                   badge: hasRealPrice ? '\u25C9' : undefined,
                   badgeColor: '#10b981',
                 },
                 { label: "수량", value: position.quantity + "주" },
-                { label: "평가금액", value: "\u20A9" + formatCompact(Math.round(totalValue)) },
+                { label: "평가금액", value: '\u20A9' + formatCompact(Math.round(totalValue)) },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(0,0,0,0.35)", borderRadius: "8px", padding: isMobile ? "8px 10px" : "10px", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "2px", display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -348,7 +354,7 @@ const PositionCard = ({
               <div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px" }}>평가손익</div>
                 <div style={{ fontSize: isMobile ? "17px" : "22px", fontWeight: "700", color: isProfit ? "#10b981" : "#ef4444" }}>
-                  {isProfit ? "+" : ""}\u20A9{formatCompact(Math.round(profitAmount))}
+                  {isProfit ? "+" : ""}{'\u20A9'}{formatCompact(Math.round(profitAmount))}
                 </div>
               </div>
               <div style={{
@@ -360,6 +366,9 @@ const PositionCard = ({
                 {isProfit ? "+" : ""}{profitRate.toFixed(2)}%
               </div>
             </div>
+
+            {/* ★ 세션 25: 매도 시그널 섹션 (매도 조건 위에 배치) */}
+            <SignalSection signals={signals} isMobile={isMobile} />
 
             {/* 매도 조건 아코디언 */}
             <div style={{ background: "rgba(0,0,0,0.35)", borderRadius: "10px", marginBottom: "10px", border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
@@ -402,11 +411,11 @@ const PositionCard = ({
                       // 매도 기준가격 텍스트
                       let priceText = "모니터링 중";
                       let priceColor = "#94a3b8";
-                      if (pid === "stopLoss" && sellPrices.stopLoss) { priceText = "\u20A9" + sellPrices.stopLoss.toLocaleString(); priceColor = cur <= sellPrices.stopLoss ? "#ef4444" : "#94a3b8"; }
-                      else if (pid === "twoThird" && sellPrices.twoThird) { priceText = "\u20A9" + sellPrices.twoThird.toLocaleString(); priceColor = cur <= sellPrices.twoThird ? "#f59e0b" : "#94a3b8"; }
-                      else if (pid === "maSignal" && sellPrices.maSignal) { priceText = "\u20A9" + sellPrices.maSignal.toLocaleString(); priceColor = cur < sellPrices.maSignal ? "#f59e0b" : "#94a3b8"; }
-                      else if (pid === "volumeZone" && sellPrices.volumeZone) { priceText = "\u20A9" + sellPrices.volumeZone.toLocaleString(); }
-                      else if (pid === "trendline" && sellPrices.trendline) { priceText = "\u20A9" + sellPrices.trendline.toLocaleString(); }
+                      if (pid === "stopLoss" && sellPrices.stopLoss) { priceText = '\u20A9' + sellPrices.stopLoss.toLocaleString(); priceColor = cur <= sellPrices.stopLoss ? "#ef4444" : "#94a3b8"; }
+                      else if (pid === "twoThird" && sellPrices.twoThird) { priceText = '\u20A9' + sellPrices.twoThird.toLocaleString(); priceColor = cur <= sellPrices.twoThird ? "#f59e0b" : "#94a3b8"; }
+                      else if (pid === "maSignal" && sellPrices.maSignal) { priceText = '\u20A9' + sellPrices.maSignal.toLocaleString(); priceColor = cur < sellPrices.maSignal ? "#f59e0b" : "#94a3b8"; }
+                      else if (pid === "volumeZone" && sellPrices.volumeZone) { priceText = '\u20A9' + sellPrices.volumeZone.toLocaleString(); }
+                      else if (pid === "trendline" && sellPrices.trendline) { priceText = '\u20A9' + sellPrices.trendline.toLocaleString(); }
 
                       return (
                         <div key={pid} style={{
@@ -443,7 +452,7 @@ const PositionCard = ({
                 color: "#60a5fa", fontSize: "13px", fontWeight: "600", cursor: "pointer",
                 marginBottom: showChart ? "8px" : "0",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-              }}>{'\uD83D\uDCCA'} 차트 {showChart ? "접기 \u25B2" : "보기 \u25BC"}</button>
+              }}>{'\uD83D\uDCCA'} 차트 {showChart ? '접기 \u25B2' : '보기 \u25BC'}</button>
             )}
           </div>
 
