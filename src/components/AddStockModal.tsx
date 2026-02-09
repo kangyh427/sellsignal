@@ -3,6 +3,11 @@
 // AddStockModal - 종목 추가 모달 (풀기능)
 // 경로: src/components/AddStockModal.tsx
 // 세션 19: 종목 검색 → 선택 → 매수정보 입력 → 추가
+// 세션 28: 모바일 바텀시트 최적화
+//   - 드래그로 닫기 (아래로 스와이프)
+//   - iOS safe-area 하단 패딩
+//   - 터치 타겟 44px 보장
+//   - 키보드 대응 (visualViewport)
 // ============================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -51,6 +56,11 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ★ 세션 28: 드래그로 닫기 상태
+  const [dragY, setDragY] = useState(0);
+  const dragStartY = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   // 모달 열릴 때 검색 입력에 포커스
   useEffect(() => {
@@ -125,45 +135,107 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
   const remaining = maxFreePositions - currentPositionCount;
   const canAdd = isPremium || remaining > 0;
 
+  // ★ 세션 28: 드래그로 닫기 핸들러 (모바일 전용)
+  const handleDragStart = (e: React.TouchEvent) => {
+    // 스크롤 영역 내부에서는 드래그 금지
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-scroll-area]')) return;
+    dragStartY.current = e.touches[0].clientY;
+  };
+
+  const handleDragMove = (e: React.TouchEvent) => {
+    if (dragStartY.current === null) return;
+    const dy = e.touches[0].clientY - dragStartY.current;
+    // 아래로만 드래그 허용
+    if (dy > 0) setDragY(dy);
+  };
+
+  const handleDragEnd = () => {
+    if (dragY > 100) {
+      // 충분히 아래로 드래그 → 닫기
+      onClose();
+    } else {
+      // 부족 → 원위치
+      setDragY(0);
+    }
+    dragStartY.current = null;
+  };
+
   // ── 공통 스타일 ──
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '12px 14px', fontSize: '15px',
-    background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '12px', color: '#fff', outline: 'none', boxSizing: 'border-box',
+    width: '100%',
+    padding: isMobile ? '14px 16px' : '12px 14px',
+    fontSize: isMobile ? '16px' : '15px', // ★ iOS zoom 방지: 16px 이상
+    background: 'rgba(0,0,0,0.4)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '12px',
+    color: '#fff',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
   };
 
   return (
     <div
       onClick={(e) => (e.target as HTMLElement) === e.currentTarget && onClose()}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center',
-        justifyContent: 'center', zIndex: 1000,
+        position: 'fixed', inset: 0,
+        background: `rgba(0,0,0,${Math.max(0.7 - dragY * 0.003, 0)})`,
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        transition: dragY === 0 ? 'background 0.3s' : 'none',
       }}
     >
-      <div style={{
-        background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-        borderRadius: isMobile ? '20px 20px 0 0' : '20px',
-        padding: '24px', width: '100%', maxWidth: isMobile ? '100%' : '480px',
-        maxHeight: isMobile ? '85vh' : '80vh',
-        border: '1px solid rgba(255,255,255,0.08)',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-        {/* 모바일 드래그 바 */}
+      <div
+        ref={sheetRef}
+        onTouchStart={isMobile ? handleDragStart : undefined}
+        onTouchMove={isMobile ? handleDragMove : undefined}
+        onTouchEnd={isMobile ? handleDragEnd : undefined}
+        style={{
+          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+          borderRadius: isMobile ? '20px 20px 0 0' : '20px',
+          padding: isMobile ? '16px 20px' : '24px',
+          // ★ iOS safe-area 대응
+          paddingBottom: isMobile ? 'max(20px, env(safe-area-inset-bottom, 16px))' : '24px',
+          width: '100%',
+          maxWidth: isMobile ? '100%' : '480px',
+          maxHeight: isMobile ? '90vh' : '80vh',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column' as const,
+          overflow: 'hidden',
+          // ★ 드래그 transform
+          transform: `translateY(${dragY}px)`,
+          transition: dragY === 0 ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
+        }}
+      >
+        {/* ★ 모바일 드래그 바 (시각적 + 터치 영역 확대) */}
         {isMobile && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
-            <div style={{ width: '36px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px' }} />
+          <div style={{
+            display: 'flex', justifyContent: 'center',
+            padding: '4px 0 12px', cursor: 'grab',
+          }}>
+            <div style={{
+              width: '40px', height: '5px',
+              background: 'rgba(255,255,255,0.25)',
+              borderRadius: '3px',
+            }} />
           </div>
         )}
 
         {/* 헤더 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: '16px',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {step === 'detail' && (
               <button onClick={() => { setStep('search'); setError(''); }} style={{
-                background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '8px',
-                width: '32px', height: '32px', color: '#94a3b8', fontSize: '16px', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '10px',
+                // ★ 터치 타겟 44px 보장
+                width: '40px', height: '40px', minWidth: '44px', minHeight: '44px',
+                color: '#94a3b8', fontSize: '18px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>←</button>
             )}
@@ -172,8 +244,10 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
             </h2>
           </div>
           <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '8px',
-            width: '36px', height: '36px', color: '#94a3b8', fontSize: '18px', cursor: 'pointer',
+            background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '10px',
+            // ★ 터치 타겟 44px 보장
+            width: '40px', height: '40px', minWidth: '44px', minHeight: '44px',
+            color: '#94a3b8', fontSize: '18px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
         </div>
@@ -191,13 +265,23 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
                 { key: 'KR', label: '🇰🇷 한국' },
                 { key: 'US', label: '🇺🇸 미국' },
               ] as const).map(({ key, label }) => (
-                <button key={key}
+                <button
+                  key={key}
                   onClick={() => setCountryFilter(key)}
                   style={{
-                    flex: 1, padding: '8px', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                    fontSize: '13px', fontWeight: '600', transition: 'all 0.2s',
-                    background: countryFilter === key ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    flex: 1,
+                    padding: '8px',
+                    // ★ 터치 타겟 44px 보장
+                    minHeight: '44px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: countryFilter === key
+                      ? 'rgba(59,130,246,0.2)' : 'transparent',
                     color: countryFilter === key ? '#60a5fa' : '#64748b',
+                    fontSize: '13px',
+                    fontWeight: countryFilter === key ? '700' : '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
                   }}
                 >{label}</button>
               ))}
@@ -210,10 +294,12 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="종목명 또는 코드 검색 (예: 삼성전자, AAPL)"
-                style={{ ...inputStyle, paddingLeft: '40px' }}
-                onFocus={(e) => (e.target.style.borderColor = 'rgba(59,130,246,0.5)')}
-                onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
+                placeholder="종목명 또는 코드 검색"
+                style={{
+                  ...inputStyle,
+                  paddingLeft: '42px',
+                  paddingRight: loading ? '80px' : '14px',
+                }}
               />
               <span style={{
                 position: 'absolute', left: '14px', top: '50%',
@@ -228,7 +314,12 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
             </div>
 
             {/* 검색 결과 */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: '200px', maxHeight: '400px' }}>
+            <div data-scroll-area style={{
+              flex: 1, overflowY: 'auto',
+              minHeight: '200px', maxHeight: '400px',
+              // ★ 스크롤 관성 (iOS)
+              WebkitOverflowScrolling: 'touch' as any,
+            }}>
               {searchQuery.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                   <div style={{ fontSize: '32px', marginBottom: '12px' }}>📊</div>
@@ -258,14 +349,21 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
                   key={`${stock.country}-${stock.code}`}
                   onClick={() => canAdd ? handleSelectStock(stock) : undefined}
                   style={{
-                    width: '100%', padding: '12px 14px', marginBottom: '4px',
+                    width: '100%',
+                    padding: isMobile ? '14px 16px' : '12px 14px',
+                    // ★ 터치 타겟 44px 보장
+                    minHeight: '52px',
+                    marginBottom: '4px',
                     background: 'rgba(255,255,255,0.03)',
                     border: '1px solid rgba(255,255,255,0.06)',
-                    borderRadius: '10px', cursor: canAdd ? 'pointer' : 'not-allowed',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    borderRadius: '10px',
+                    cursor: canAdd ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                     transition: 'all 0.15s',
                     opacity: canAdd ? 1 : 0.5,
-                    textAlign: 'left',
+                    textAlign: 'left' as const,
                   }}
                   onMouseEnter={(e) => canAdd && (e.currentTarget.style.background = 'rgba(59,130,246,0.08)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
@@ -286,7 +384,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
                       {stock.code} {stock.name_en && stock.name_en !== stock.name ? `· ${stock.name_en}` : ''}
                     </div>
                   </div>
-                  <span style={{ fontSize: '16px', color: '#475569' }}>›</span>
+                  <span style={{ fontSize: '18px', color: '#475569' }}>›</span>
                 </button>
               ))}
             </div>
@@ -385,11 +483,18 @@ const AddStockModal: React.FC<AddStockModalProps> = ({
               onClick={handleAdd}
               disabled={!buyPrice || !quantity}
               style={{
-                width: '100%', padding: '14px', border: 'none', borderRadius: '10px',
+                width: '100%',
+                padding: isMobile ? '16px' : '14px',
+                // ★ 터치 타겟 48px 보장
+                minHeight: '48px',
+                border: 'none',
+                borderRadius: '12px',
                 background: !buyPrice || !quantity
                   ? 'rgba(59,130,246,0.3)'
                   : 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                color: '#fff', fontSize: '15px', fontWeight: '700',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: '700',
                 cursor: !buyPrice || !quantity ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
               }}
