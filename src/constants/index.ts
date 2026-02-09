@@ -1,7 +1,7 @@
 // ============================================
 // CREST 전역 상수
 // 경로: src/constants/index.ts
-// 세션 22B: generateMockPriceData 제거 (실제 데이터로 전환 완료)
+// 세션 22B: generateMockPriceData 제거 → 세션 27: CRESTApp 데모용으로 복원
 // ============================================
 
 import type { SellPreset, ProfitStage, CycleStage } from '@/types';
@@ -55,4 +55,60 @@ export const formatCompact = (v: number): string => {
   if (abs >= 1e8) return (v / 1e8).toFixed(1) + '억';
   if (abs >= 1e4) return (v / 1e4).toFixed(0) + '만';
   return Math.round(v).toLocaleString();
+};
+
+/**
+ * 모의 주가 데이터 생성 (데모/차트 표시용)
+ * - 세션 22B에서 제거되었으나, CRESTApp 데모 모드에서 필요하여 세션 27에서 복원
+ * - 실제 API 연동 후에는 이 함수 대신 실시간 데이터 사용 예정
+ * @param basePrice 기준 매수가
+ * @param days 생성할 일 수
+ * @returns 일별 OHLC 데이터 배열
+ */
+export const generateMockPriceData = (basePrice: number, days: number = 60): Array<{
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}> => {
+  const data: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }> = [];
+
+  let price = basePrice;
+  const now = new Date();
+
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+
+    // 랜덤 변동 (-3% ~ +4%) - 약간의 상승 바이어스
+    const changePercent = (Math.random() - 0.45) * 0.06;
+    const open = price;
+    const close = price * (1 + changePercent);
+    const high = Math.max(open, close) * (1 + Math.random() * 0.02);
+    const low = Math.min(open, close) * (1 - Math.random() * 0.02);
+    const volume = Math.floor(50000 + Math.random() * 200000);
+
+    data.push({
+      date: dateStr,
+      open: Math.round(open),
+      high: Math.round(high),
+      low: Math.round(low),
+      close: Math.round(close),
+      volume,
+    });
+
+    price = close;
+  }
+
+  return data;
 };
