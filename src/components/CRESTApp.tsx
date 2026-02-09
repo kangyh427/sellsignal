@@ -3,11 +3,11 @@
 // CRESTApp - 메인 앱 컴포넌트 (Zustand 리팩토링)
 // 경로: src/components/CRESTApp.tsx
 // 세션 33: Zustand 스토어 도입 → props drilling 제거
+// 세션 34: 좌측 AdSense 배너 복원, onLogin prop 수정, 3컬럼 레이아웃
 // 변경사항:
-//   - 6개 useState → usePositionStore + useUIStore로 통합
-//   - usePositions 훅 데이터 → positionStore에 동기화
-//   - PositionCard에 전달하던 8개 props → 3개로 축소
-//   - 알림/가격데이터 스토어 직접 관리
+//   - onAuthAction → onLogin (ResponsiveHeader prop 이름 일치)
+//   - 데스크탑 3컬럼: 좌측광고(160px) + 메인(1fr) + 사이드바(440px)
+//   - maxWidth 1200 → 1400px (3컬럼 수용)
 // ============================================
 
 import React, { useEffect } from 'react';
@@ -20,9 +20,7 @@ import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants'
 import type { Position, Alert } from '@/types';
 
 // 컴포넌트 import
-import CrestLogo from './CrestLogo';
 import ResponsiveHeader from './ResponsiveHeader';
-import ResponsiveSummaryCards from './ResponsiveSummaryCards';
 import MobileBottomNav from './MobileBottomNav';
 import MarketMiniSummary from './MarketMiniSummary';
 import MarketCycleWidget from './MarketCycleWidget';
@@ -204,27 +202,46 @@ export default function CRESTApp() {
         isLoggedIn={isLoggedIn}
         onShowUpgrade={() => uiStore.setShowUpgrade(true)}
         onShowAddModal={handleAddButtonClick}
-        onAuthAction={handleAuthAction}
-        user={user}
+        onLogin={handleAuthAction}
         isMobile={isMobile}
         isTablet={isTablet}
-        totalCost={totalCost}
-        totalValue={totalValue}
-        totalProfit={totalProfit}
-        totalProfitRate={totalProfitRate}
       />
 
       <main style={{
-        maxWidth: '1200px',
+        maxWidth: '1400px',
         margin: '0 auto',
         padding: isMobile ? '0' : '20px',
       }}>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 320px' : '1fr 380px',
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : isTablet
+            ? '1fr 320px'
+            : uiStore.isPremium
+            ? '1fr 440px'
+            : '160px 1fr 440px',
           gap: isMobile ? '0' : '20px',
           alignItems: 'start',
         }}>
+          {/* ★ 좌측 광고 (데스크탑, 비프리미엄) */}
+          {!isMobile && !isTablet && !uiStore.isPremium && (
+            <div style={{ position: 'sticky', top: '80px', alignSelf: 'start' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                borderRadius: '12px', padding: '12px 8px',
+                border: '1px dashed rgba(255,255,255,0.08)',
+                textAlign: 'center', minHeight: '600px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
+                <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
+                  📢 Google<br/>AdSense<br/>(160×600)
+                  <div style={{ fontSize: '9px', color: '#475569', marginTop: '8px' }}>PRO 구독 시<br/>광고 제거</div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* ★ 좌측: 보유 종목 */}
           <div style={{
             display: isMobile && uiStore.activeTab !== 'positions' ? 'none' : 'block',
