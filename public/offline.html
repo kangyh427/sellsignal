@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CREST - 오프라인</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      text-align: center;
+      max-width: 380px;
+    }
+    .icon-wrapper {
+      width: 80px; height: 80px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    .retry-btn {
+      display: inline-block;
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      min-height: 44px;
+      line-height: 20px;
+    }
+    .retry-btn:active {
+      opacity: 0.85;
+    }
+    .info {
+      margin-top: 24px;
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon-wrapper">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <path d="M10 28 L16 14 L20 22 L24 12 L30 28" stroke="#3b82f6" stroke-width="2.5"
+          fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="24" cy="12" r="3" fill="#475569"/>
+      </svg>
+    </div>
+
+    <h1>인터넷 연결 없음</h1>
+    <p class="subtitle">
+      CREST 매도의 기술을 이용하려면<br>
+      인터넷 연결이 필요합니다.
+    </p>
+
+    <a href="/" class="retry-btn" onclick="window.location.reload(); return false;">
+      다시 시도
+    </a>
+
+    <p class="info">
+      Wi-Fi 또는 모바일 데이터를 확인해 주세요.<br>
+      연결되면 자동으로 최신 데이터를 불러옵니다.
+    </p>
+  </div>
+</body>
+</html>
