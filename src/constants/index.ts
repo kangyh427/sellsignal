@@ -1,10 +1,10 @@
 // ============================================
 // CREST 전역 상수
 // 경로: src/constants/index.ts
-// 세션 18A: 17f 기반 전면 재정의
+// 세션 22B: generateMockPriceData 제거 (실제 데이터로 전환 완료)
 // ============================================
 
-import type { SellPreset, ProfitStage, CycleStage, CandleData } from '@/types';
+import type { SellPreset, ProfitStage, CycleStage } from '@/types';
 
 // ── 브레이크포인트 ──
 export const BREAKPOINTS = {
@@ -55,20 +55,4 @@ export const formatCompact = (v: number): string => {
   if (abs >= 1e8) return (v / 1e8).toFixed(1) + '억';
   if (abs >= 1e4) return (v / 1e4).toFixed(0) + '만';
   return Math.round(v).toLocaleString();
-};
-
-/** 데모용 모의 캔들 데이터 생성 */
-export const generateMockPriceData = (basePrice: number, days: number = 60): CandleData[] => {
-  const data: CandleData[] = [];
-  let price = basePrice;
-  for (let i = 0; i < days; i++) {
-    const change = (Math.random() - 0.47) * basePrice * 0.025;
-    price = Math.max(price + change, basePrice * 0.7);
-    const high = price * (1 + Math.random() * 0.02);
-    const low = price * (1 - Math.random() * 0.02);
-    const open = low + Math.random() * (high - low);
-    const close = low + Math.random() * (high - low);
-    data.push({ date: new Date(Date.now() - (days - i) * 86400000), open, high, low, close });
-  }
-  return data;
 };
