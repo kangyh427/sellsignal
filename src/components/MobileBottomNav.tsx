@@ -1,9 +1,8 @@
 'use client';
 // ============================================
-// MobileBottomNav - 하단 탭 네비게이션
+// MobileBottomNav v2 - 하단 탭 네비게이션
 // 경로: src/components/MobileBottomNav.tsx
-// 세션 18A: 17f 시그니처 정확 반영 (4탭: 포지션/시장/알림/가이드)
-// 세션 26B: 활성 탭 scale(1.05) + 하단 인디케이터 바 추가
+// 세션 30: 아이콘 20px, 라벨 11px, 패딩 확대, 터치타겟 보강
 // ============================================
 
 import React from 'react';
@@ -33,8 +32,10 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onTabChang
       zIndex: 200,
       background: 'rgba(10,10,15,0.95)',
       backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
       borderTop: '1px solid rgba(255,255,255,0.06)',
-      padding: '6px 0 max(6px, env(safe-area-inset-bottom, 0px))',
+      // ★ 세션30: 상단 패딩 확대 (8px → safe area 포함)
+      padding: '8px 0 max(8px, env(safe-area-inset-bottom, 0px))',
       display: 'flex',
       justifyContent: 'space-around',
     }}>
@@ -49,27 +50,29 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onTabChang
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '2px',
-              padding: '6px 4px',
-              minHeight: '48px',
+              gap: '3px',
+              // ★ 세션30: padding 확대, minHeight 유지 48px
+              padding: '6px 4px 4px',
+              minHeight: '52px',
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
               position: 'relative',
-              // ★ 세션 26B: 활성 탭 scale 효과
               transform: isActive ? 'scale(1.05)' : 'scale(1)',
               transition: 'transform 0.2s ease',
             }}
           >
+            {/* ★ 세션30: 아이콘 18→20px */}
             <span style={{
-              fontSize: '18px',
+              fontSize: '20px',
               opacity: isActive ? 1 : 0.5,
               transition: 'opacity 0.2s ease',
             }}>
               {tab.icon}
             </span>
+            {/* ★ 세션30: 라벨 10→11px */}
             <span style={{
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: isActive ? '700' : '400',
               color: isActive ? '#60a5fa' : '#64748b',
               transition: 'color 0.2s ease',
@@ -97,7 +100,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onTabChang
               </span>
             )}
 
-            {/* ★ 세션 26B: 활성 탭 하단 인디케이터 바 */}
+            {/* 활성 탭 하단 인디케이터 바 */}
             {isActive && (
               <div style={{
                 position: 'absolute',
