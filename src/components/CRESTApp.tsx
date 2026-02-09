@@ -1,17 +1,21 @@
 'use client';
 // ============================================
-// CRESTApp - 메인 앱 컴포넌트
+// CRESTApp - 메인 앱 컴포넌트 (Zustand 리팩토링)
 // 경로: src/components/CRESTApp.tsx
-// 세션 19: usePositions 연동 (DB CRUD + localStorage)
-// 세션 31: 5개 버튼 터치타겟 44px 적용
-// 세션 32: 한글 인코딩 완전 복원
+// 세션 33: Zustand 스토어 도입 → props drilling 제거
+// 변경사항:
+//   - 6개 useState → usePositionStore + useUIStore로 통합
+//   - usePositions 훅 데이터 → positionStore에 동기화
+//   - PositionCard에 전달하던 8개 props → 3개로 축소
+//   - 알림/가격데이터 스토어 직접 관리
 // ============================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
+import { usePositionStore, useUIStore } from '@/stores';
 import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants';
 import type { Position, Alert } from '@/types';
 
@@ -32,10 +36,16 @@ import Footer from './Footer';
 
 // ── 데모 알림 ──
 const DEMO_ALERTS: Alert[] = [
-  { id: 1, stockName: '삼성전자', code: '005930', preset: SELL_PRESETS.stopLoss,
-    message: '손절 기준가(-5%) 근접! 현재 -4.2%', currentPrice: 68500, targetPrice: 67925, timestamp: Date.now() - 300000 },
-  { id: 2, stockName: '한화에어로스페이스', code: '012450', preset: SELL_PRESETS.twoThird,
-    message: '최고점 대비 1/3 하락 근접', currentPrice: 365000, targetPrice: 369600, timestamp: Date.now() - 1800000 },
+  {
+    id: 1, stockName: '삼성전자', code: '005930', preset: SELL_PRESETS.stopLoss,
+    message: '손절 기준가(-5%) 근접! 현재 -4.2%',
+    currentPrice: 68500, targetPrice: 67925, timestamp: Date.now() - 300000,
+  },
+  {
+    id: 2, stockName: '한화에어로스페이스', code: '012450', preset: SELL_PRESETS.twoThird,
+    message: '최고점 대비 1/3 하락 근접',
+    currentPrice: 365000, targetPrice: 369600, timestamp: Date.now() - 1800000,
+  },
 ];
 
 export default function CRESTApp() {
@@ -43,73 +53,87 @@ export default function CRESTApp() {
   const { isMobile, isTablet, width } = useResponsive();
   const { user, isLoggedIn, isLoading: authLoading, signOut } = useAuth();
 
-  // ★ 핵심 변경: usePositions 훅으로 DB 연동
+  // ★ 기존 usePositions 훅 (DB/localStorage CRUD 유지)
   const {
-    positions,
+    positions: hookPositions,
     isLoading: positionsLoading,
     addPosition,
     updatePosition,
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  const [activeTab, setActiveTab] = useState('positions');
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
+  // ★ Zustand 스토어
+  const posStore = usePositionStore();
+  const uiStore = useUIStore();
 
-  // 알림 상태 (추후 DB 연동 예정)
-  const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
-
-  // 차트 데이터 (모의)
-  const [priceDataMap, setPriceDataMap] = useState<Record<number, any[]>>({});
-  const isPremium = false;
-  const MAX_FREE_POSITIONS = 3;
-  const MAX_FREE_AI_NEWS = 3;
-  const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
-
-  // 포지션 변경 시 차트 데이터 재생성
+  // ── usePositions → positionStore 동기화 ──
   useEffect(() => {
-    if (positions.length === 0) return;
-    const d: Record<number, any[]> = {};
-    positions.forEach((p) => {
-      // 이미 데이터가 있으면 재생성하지 않음
-      if (!priceDataMap[p.id]) {
-        d[p.id] = generateMockPriceData(p.buyPrice, 60);
-      } else {
-        d[p.id] = priceDataMap[p.id];
-      }
-    });
-    setPriceDataMap(d);
-  }, [positions]);
+    posStore.setPositions(hookPositions);
+    posStore.setLoading(positionsLoading);
+  }, [hookPositions, positionsLoading]);
 
-  // 실시간 가격 시뮬레이션
+  // ── 초기 알림 설정 ──
+  useEffect(() => {
+    posStore.setAlerts(DEMO_ALERTS);
+  }, []);
+
+  // ── 포지션 변경 시 차트 데이터 재생성 ──
+  useEffect(() => {
+    if (posStore.positions.length === 0) return;
+    const currentMap = posStore.priceDataMap;
+    const newMap: Record<number, any[]> = {};
+
+    posStore.positions.forEach((p) => {
+      // 이미 데이터가 있으면 재생성하지 않음
+      newMap[p.id] = currentMap[p.id] || generateMockPriceData(p.buyPrice, 60);
+    });
+
+    posStore.setPriceDataMap(newMap);
+  }, [posStore.positions]);
+
+  // ── 실시간 가격 시뮬레이션 ──
   useEffect(() => {
     const iv = setInterval(() => {
-      setPriceDataMap((prev) => {
-        const u = { ...prev };
-        Object.keys(u).forEach((id) => {
-          const data = [...u[Number(id)]];
-          if (!data.length) return;
-          const last = data[data.length - 1];
-          const change = (Math.random() - 0.48) * last.close * 0.008;
-          const nc = Math.max(last.close + change, last.close * 0.95);
-          data[data.length - 1] = { ...last, close: nc, high: Math.max(last.high, nc), low: Math.min(last.low, nc) };
-          u[Number(id)] = data;
-        });
-        return u;
+      const currentMap = usePositionStore.getState().priceDataMap;
+      const updated = { ...currentMap };
+      let changed = false;
+
+      Object.keys(updated).forEach((idStr) => {
+        const id = Number(idStr);
+        const data = [...updated[id]];
+        if (!data.length) return;
+
+        const last = data[data.length - 1];
+        const change = (Math.random() - 0.48) * last.close * 0.008;
+        const nc = Math.max(last.close + change, last.close * 0.95);
+        data[data.length - 1] = {
+          ...last,
+          close: nc,
+          high: Math.max(last.high, nc),
+          low: Math.min(last.low, nc),
+        };
+        updated[id] = data;
+        changed = true;
       });
+
+      if (changed) {
+        usePositionStore.getState().setPriceDataMap(updated);
+      }
     }, 3000);
+
     return () => clearInterval(iv);
   }, []);
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
-    updatePosition(updated);
-  };
-  const handleDeletePosition = (id: number) => {
-    deletePosition(id);
+    updatePosition(updated); // DB/localStorage 저장
+    // hookPositions useEffect에서 자동 동기화됨
   };
 
-  /** 종목 추가 핸들러 (AddStockModal에서 호출) */
+  const handleDeletePosition = (id: number) => {
+    deletePosition(id); // DB/localStorage 삭제
+  };
+
   const handleAddStock = async (stock: {
     name: string;
     code: string;
@@ -119,7 +143,6 @@ export default function CRESTApp() {
     await addPosition(stock);
   };
 
-  /** 로그인/로그아웃 핸들러 */
   const handleAuthAction = () => {
     if (isLoggedIn) {
       signOut();
@@ -128,16 +151,22 @@ export default function CRESTApp() {
     }
   };
 
-  // 요약 통계
-  const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
-  const totalValue = positions.reduce((s, p) => {
-    const pr = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice;
-    return s + pr * p.quantity;
-  }, 0);
-  const totalProfit = totalValue - totalCost;
-  const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+  // ── 종목 추가 버튼 핸들러 (프리미엄 체크 통합) ──
+  const handleAddButtonClick = () => {
+    if (!uiStore.canAddPosition(posStore.positions.length)) {
+      uiStore.setShowUpgrade(true);
+    } else {
+      uiStore.setShowAddModal(true);
+    }
+  };
 
-  // 로딩 스켈레톤
+  // ── 요약 통계 (스토어 메서드 활용) ──
+  const totalCost = posStore.getTotalCost();
+  const totalValue = posStore.getTotalValue();
+  const totalProfit = posStore.getTotalProfit();
+  const totalProfitRate = posStore.getTotalProfitRate();
+
+  // ── 로딩 ──
   if (authLoading || positionsLoading) {
     return (
       <div style={{
@@ -170,81 +199,52 @@ export default function CRESTApp() {
       <style>{`@keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }`}</style>
 
       <ResponsiveHeader
-        alerts={alerts} isPremium={isPremium} isLoggedIn={isLoggedIn}
-        onShowUpgrade={() => setShowUpgrade(true)}
-        onShowAddModal={() => {
-          if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
-            setShowUpgrade(true);
-          } else {
-            setShowAddModal(true);
-          }
-        }}
-        onLogin={handleAuthAction}
-        isMobile={isMobile} isTablet={isTablet}
+        alerts={posStore.alerts}
+        isPremium={uiStore.isPremium}
+        isLoggedIn={isLoggedIn}
+        onShowUpgrade={() => uiStore.setShowUpgrade(true)}
+        onShowAddModal={handleAddButtonClick}
+        onAuthAction={handleAuthAction}
+        user={user}
+        isMobile={isMobile}
+        isTablet={isTablet}
+        totalCost={totalCost}
+        totalValue={totalValue}
+        totalProfit={totalProfit}
+        totalProfitRate={totalProfitRate}
       />
 
       <main style={{
-        maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
-        margin: '0 auto', padding: isMobile ? '0' : '24px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: isMobile ? '0' : '20px',
       }}>
-        <ResponsiveSummaryCards
-          totalCost={totalCost} totalValue={totalValue}
-          totalProfit={totalProfit} totalProfitRate={totalProfitRate}
-          isMobile={isMobile} isTablet={isTablet}
-        />
-
-        <div style={
-          isMobile
-            ? { display: 'flex', flexDirection: 'column' as const, gap: '0' }
-            : isTablet
-            ? { display: 'grid', gridTemplateColumns: '1fr 360px', gap: '16px', padding: '0 20px' }
-            : { display: 'grid', gridTemplateColumns: isPremium ? '1fr 440px' : '160px 1fr 440px', gap: '20px' }
-        }>
-          {/* 좌측 광고 (데스크톱, 비프리미엄) */}
-          {!isMobile && !isTablet && !isPremium && (
-            <div style={{ position: 'sticky', top: '80px', alignSelf: 'start' }}>
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
-                borderRadius: '12px', padding: '12px 8px',
-                border: '1px dashed rgba(255,255,255,0.08)',
-                textAlign: 'center', minHeight: '600px',
-                display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
-              }}>
-                <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
-                <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
-                  📢 Google<br />AdSense<br />(160×600)
-                  <div style={{ fontSize: '9px', color: '#475569', marginTop: '8px' }}>PRO 구독 시<br />광고 제거</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 포지션 목록 */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 320px' : '1fr 380px',
+          gap: isMobile ? '0' : '20px',
+          alignItems: 'start',
+        }}>
+          {/* ★ 좌측: 보유 종목 */}
           <div style={{
-            display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
+            display: isMobile && uiStore.activeTab !== 'positions' ? 'none' : 'block',
             padding: isMobile ? '0 16px' : '0',
           }}>
-            {isMobile && activeTab === 'positions' && (
-              <MarketMiniSummary onClick={() => setActiveTab('market')} />
+            {isMobile && uiStore.activeTab === 'positions' && (
+              <MarketMiniSummary onClick={() => uiStore.setActiveTab('market')} />
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
-                보유 종목 ({positions.length})
+                보유 종목 ({posStore.positions.length})
               </h2>
               {/* ★ 세션 31: + 추가 버튼 터치타겟 44px */}
-              <button onClick={() => {
-                if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
-                  setShowUpgrade(true);
-                } else {
-                  setShowAddModal(true);
-                }
-              }} style={{
+              <button onClick={handleAddButtonClick} style={{
                 padding: '6px 14px', height: '44px', minHeight: '44px',
                 background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                 border: 'none', borderRadius: '8px', color: '#fff',
                 fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-              }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
+              }}>+ 추가 {!uiStore.isPremium && `(${posStore.positions.length}/${uiStore.maxFreePositions})`}</button>
             </div>
 
             {/* 인증 상태 배너 */}
@@ -276,7 +276,7 @@ export default function CRESTApp() {
             </div>
 
             {/* 종목이 없을 때 */}
-            {positions.length === 0 && (
+            {posStore.positions.length === 0 && (
               <div style={{
                 textAlign: 'center', padding: '40px 20px',
                 background: 'linear-gradient(145deg, #1e293b, #0f172a)',
@@ -290,7 +290,7 @@ export default function CRESTApp() {
                   한국·미국 주식을 검색하고 매도 조건을 설정하세요
                 </div>
                 {/* ★ 세션 31: 첫 종목 추가하기 버튼 터치타겟 44px */}
-                <button onClick={() => setShowAddModal(true)} style={{
+                <button onClick={() => uiStore.setShowAddModal(true)} style={{
                   padding: '10px 24px', minHeight: '44px',
                   background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                   border: 'none', borderRadius: '10px', color: '#fff',
@@ -299,21 +299,27 @@ export default function CRESTApp() {
               </div>
             )}
 
-            {positions.map((pos) => (
+            {/* ★ PositionCard — props 최소화 (나머지는 스토어에서 직접 접근) */}
+            {posStore.positions.map((pos) => (
               <PositionCard key={pos.id}
-                position={pos} priceData={priceDataMap[pos.id]}
-                isMobile={isMobile} isTablet={isTablet}
-                onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
-                isPremium={isPremium}
-                aiNewsUsedCount={aiNewsUsedCount}
-                maxFreeAINews={MAX_FREE_AI_NEWS}
-                onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
-                onShowUpgrade={() => setShowUpgrade(true)}
+                position={pos}
+                priceData={posStore.priceDataMap[pos.id]}
+                isMobile={isMobile}
+                isTablet={isTablet}
+                onUpdate={handleUpdatePosition}
+                onDelete={handleDeletePosition}
+                isPremium={uiStore.isPremium}
+                stockPrice={posStore.stockPrices[pos.code] || null}
+                signals={posStore.signalsMap[pos.id] || null}
+                aiNewsUsedCount={uiStore.aiNewsUsedCount}
+                maxFreeAINews={uiStore.maxFreeAINews}
+                onUseAINews={() => uiStore.incrementAINewsUsed()}
+                onShowUpgrade={() => uiStore.setShowUpgrade(true)}
               />
             ))}
 
             {/* 카드 하단 광고 */}
-            {!isPremium && positions.length > 0 && (
+            {!uiStore.isPremium && posStore.positions.length > 0 && (
               <div style={{
                 background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))',
                 borderRadius: '12px', padding: '16px', marginTop: '8px',
@@ -326,12 +332,12 @@ export default function CRESTApp() {
             )}
           </div>
 
-          {/* 우측 사이드바 */}
-          {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
+          {/* ★ 우측 사이드바 */}
+          {(!isMobile || uiStore.activeTab === 'market' || uiStore.activeTab === 'alerts' || uiStore.activeTab === 'guide') && (
             <div style={{ padding: isMobile ? '0 16px' : '0', overflow: 'visible' }}>
-              <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
-                {isMobile && activeTab === 'market' && (
-                  <button onClick={() => setActiveTab('positions')} style={{
+              <div style={{ display: isMobile && uiStore.activeTab !== 'market' ? 'none' : 'block' }}>
+                {isMobile && uiStore.activeTab === 'market' && (
+                  <button onClick={() => uiStore.setActiveTab('positions')} style={{
                     width: '100%', padding: '10px 14px', marginBottom: '10px', minHeight: '44px',
                     background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03))',
                     border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', cursor: 'pointer',
@@ -344,13 +350,13 @@ export default function CRESTApp() {
                     </div>
                   </button>
                 )}
-                <MarketCycleWidget isMobile={isMobile} isTablet={isTablet} isPremium={isPremium} />
-                <BuffettIndicatorWidget isMobile={isMobile} isPremium={isPremium} />
+                <MarketCycleWidget isMobile={isMobile} isTablet={isTablet} isPremium={uiStore.isPremium} />
+                <BuffettIndicatorWidget isMobile={isMobile} isPremium={uiStore.isPremium} />
               </div>
 
               {/* 알림 섹션 */}
               <div style={{
-                display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
+                display: isMobile && uiStore.activeTab !== 'alerts' ? 'none' : 'block',
                 background: 'linear-gradient(145deg, #1e293b, #0f172a)',
                 borderRadius: '14px', padding: isMobile ? '14px' : '16px',
                 border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px',
@@ -358,56 +364,66 @@ export default function CRESTApp() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     🔔 조건 도달 알림
-                    {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
+                    {posStore.alerts.length > 0 && (
+                      <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>
+                        {posStore.alerts.length}
+                      </span>
+                    )}
                   </h3>
                   {/* ★ 세션 31: 모두 지우기 버튼 터치타겟 44px */}
-                  {alerts.length > 0 && (
-                    <button onClick={() => setAlerts([])} style={{
+                  {posStore.alerts.length > 0 && (
+                    <button onClick={() => posStore.clearAlerts()} style={{
                       background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
                       padding: '8px 12px', minHeight: '44px',
                       color: '#64748b', fontSize: '11px', cursor: 'pointer',
                     }}>모두 지우기</button>
                   )}
                 </div>
-                {alerts.length === 0 ? (
+                {posStore.alerts.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '24px' }}>
                     <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
                     <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
                   </div>
-                ) : alerts.map((a) => (
-                  <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
+                ) : posStore.alerts.map((a) => (
+                  <AlertCard key={a.id} alert={a} onDismiss={(id) => posStore.dismissAlert(id)} />
                 ))}
               </div>
 
               {/* 매도법 가이드 */}
-              <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
+              <SellMethodGuide isMobile={isMobile} activeTab={uiStore.activeTab} />
             </div>
           )}
         </div>
       </main>
 
       {/* 모바일 하단 네비게이션 */}
-      {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
+      {isMobile && (
+        <MobileBottomNav
+          activeTab={uiStore.activeTab}
+          onTabChange={uiStore.setActiveTab}
+          alertCount={posStore.alerts.length}
+        />
+      )}
 
-      {/* ★ 종목 추가 모달 (새 props 전달) */}
-      {showAddModal && (
+      {/* ★ 종목 추가 모달 */}
+      {uiStore.showAddModal && (
         <AddStockModal
           isMobile={isMobile}
-          maxFreePositions={MAX_FREE_POSITIONS}
-          currentPositionCount={positions.length}
-          isPremium={isPremium}
-          onClose={() => setShowAddModal(false)}
+          maxFreePositions={uiStore.maxFreePositions}
+          currentPositionCount={posStore.positions.length}
+          isPremium={uiStore.isPremium}
+          onClose={() => uiStore.setShowAddModal(false)}
           onAdd={handleAddStock}
         />
       )}
 
       {/* 업그레이드 팝업 */}
-      {showUpgrade && (
+      {uiStore.showUpgrade && (
         <UpgradePopup
           isMobile={isMobile}
-          maxFreePositions={MAX_FREE_POSITIONS}
-          maxFreeAINews={MAX_FREE_AI_NEWS}
-          onClose={() => setShowUpgrade(false)}
+          maxFreePositions={uiStore.maxFreePositions}
+          maxFreeAINews={uiStore.maxFreeAINews}
+          onClose={() => uiStore.setShowUpgrade(false)}
         />
       )}
 
