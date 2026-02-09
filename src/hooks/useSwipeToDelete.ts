@@ -47,22 +47,28 @@ export default function useSwipeToDelete(): SwipeToDeleteReturn {
       isHorizontal.current = Math.abs(dx) > Math.abs(dy);
     }
 
-    // 좌측 수평 스와이프만 처리
-    if (isHorizontal.current && dx < 0) {
-      setSwipeOffset(Math.max(dx * 0.6, -100));
+    // 수평 스와이프 처리
+    if (isHorizontal.current) {
+      if (dx < 0) {
+        // 좌측 스와이프 → 삭제 버튼 노출 방향
+        setSwipeOffset(Math.max(dx * 0.6, -100));
+      } else if (showDeleteBtn && dx > 0) {
+        // ★ 삭제 버튼 열린 상태에서 우측 스와이프 → 원위치 복귀
+        setSwipeOffset(Math.min(-80 + dx * 0.6, 0));
+      }
     }
-  }, [swiping]);
+  }, [swiping, showDeleteBtn]);
 
   const handleTouchEnd = useCallback(() => {
     setSwiping(false);
     isHorizontal.current = null;
 
     if (swipeOffset < -50) {
-      // 충분히 스와이프 → 삭제 버튼 고정
+      // 충분히 좌측 스와이프 → 삭제 버튼 고정
       setSwipeOffset(-80);
       setShowDeleteBtn(true);
     } else {
-      // 부족 → 원위치
+      // 부족하거나 우측으로 복귀 → 원위치
       setSwipeOffset(0);
       setShowDeleteBtn(false);
     }
