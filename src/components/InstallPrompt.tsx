@@ -3,6 +3,7 @@
 // InstallPrompt v2 - 홈화면 바로가기 설치 안내
 // 경로: src/components/InstallPrompt.tsx
 // 세션 30: 터치타겟 44px, 닫기 버튼 영역 확대
+// 세션 35: 한글 인코딩 복구 (UTF-8)
 // ============================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,10 +23,12 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
   useEffect(() => {
+    // 이미 PWA로 실행 중이면 표시 안 함
     if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) {
       return;
     }
 
+    // 이전에 닫은 적 있으면 일정 기간 표시 안 함
     const dismissed = localStorage.getItem(DISMISS_KEY);
     if (dismissed) {
       const dismissedAt = parseInt(dismissed, 10);
@@ -33,16 +36,19 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
       if (daysPassed < DISMISS_DAYS) return;
     }
 
+    // iOS 감지
     const ua = navigator.userAgent;
     const iosDevice = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     setIsIOS(iosDevice);
 
     if (iosDevice) {
+      // iOS Safari에서만 안내
       const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
       if (isSafari) {
         setShowBanner(true);
       }
     } else {
+      // Android/Chrome: beforeinstallprompt 이벤트 감지
       const handler = (e: Event) => {
         e.preventDefault();
         setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -53,6 +59,7 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
     }
   }, []);
 
+  // Android: 설치 프롬프트 실행
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -63,6 +70,7 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
+  // 닫기 (7일간 다시 표시 안 함)
   const handleDismiss = useCallback(() => {
     setShowBanner(false);
     setShowIOSGuide(false);
@@ -123,7 +131,7 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
           }}>✕</button>
         </div>
 
-        {/* ★ 세션30: 액션 버튼 minHeight 40→44px */}
+        {/* ★ 세션30: 액션 버튼 minHeight 44px */}
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
           <button onClick={handleDismiss} style={{
             flex: 1, padding: '10px', minHeight: '44px',
@@ -234,7 +242,7 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
                   background: 'rgba(16,185,129,0.15)', color: '#10b981',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '14px', fontWeight: '700', flexShrink: 0,
-                }}>✓</div>
+                }}>✔</div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>
                     "추가" 버튼 탭
@@ -246,7 +254,7 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
               </div>
             </div>
 
-            {/* ★ 세션30: 확인 버튼 minHeight 48→52px */}
+            {/* ★ 세션30: 확인 버튼 minHeight 52px */}
             <button onClick={handleDismiss} style={{
               width: '100%', padding: '14px', marginTop: '16px',
               background: 'rgba(255,255,255,0.06)',
