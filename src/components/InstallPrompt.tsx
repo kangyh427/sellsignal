@@ -1,20 +1,12 @@
 'use client';
 // ============================================
-// InstallPrompt - 홈화면 바로가기 설치 안내
+// InstallPrompt v2 - 홈화면 바로가기 설치 안내
 // 경로: src/components/InstallPrompt.tsx
-// 세션 22B: PWA 설치 프롬프트
-// ============================================
-//
-// 동작 방식:
-//   - Android Chrome: beforeinstallprompt → 네이티브 설치 프롬프트
-//   - iOS Safari: 자동 설치 불가 → "공유 → 홈 화면에 추가" 안내 가이드
-//   - 이미 standalone으로 실행 중 → 아무것도 표시하지 않음
-//   - 사용자가 닫으면 localStorage에 기록 → 7일간 재표시 안함
+// 세션 30: 터치타겟 44px, 닫기 버튼 영역 확대
 // ============================================
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-// 숨김 기간 (7일)
 const DISMISS_KEY = 'crest-install-dismissed';
 const DISMISS_DAYS = 7;
 
@@ -30,12 +22,10 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
   useEffect(() => {
-    // standalone 모드이면 이미 설치됨 → 표시 안함
     if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) {
       return;
     }
 
-    // 사용자가 이전에 닫았는지 확인
     const dismissed = localStorage.getItem(DISMISS_KEY);
     if (dismissed) {
       const dismissedAt = parseInt(dismissed, 10);
@@ -43,19 +33,16 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
       if (daysPassed < DISMISS_DAYS) return;
     }
 
-    // iOS 감지
     const ua = navigator.userAgent;
     const iosDevice = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     setIsIOS(iosDevice);
 
     if (iosDevice) {
-      // iOS: Safari에서만 표시 (Chrome 등은 설치 불가)
       const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
       if (isSafari) {
         setShowBanner(true);
       }
     } else {
-      // Android/Desktop: beforeinstallprompt 이벤트 대기
       const handler = (e: Event) => {
         e.preventDefault();
         setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -66,7 +53,6 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
     }
   }, []);
 
-  // Android: 네이티브 설치 프롬프트 실행
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -77,14 +63,12 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
-  // 배너 닫기
   const handleDismiss = useCallback(() => {
     setShowBanner(false);
     setShowIOSGuide(false);
     localStorage.setItem(DISMISS_KEY, String(Date.now()));
   }, []);
 
-  // 표시할 것이 없으면 렌더링 안함
   if (!showBanner) return null;
 
   return (
@@ -129,37 +113,39 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
             </div>
           </div>
 
-          {/* 닫기 버튼 */}
+          {/* ★ 세션30: 닫기 버튼 — 터치타겟 44x44 확보 */}
           <button onClick={handleDismiss} style={{
             background: 'none', border: 'none', color: '#64748b',
-            fontSize: '18px', cursor: 'pointer', padding: '4px',
-            flexShrink: 0,
+            fontSize: '18px', cursor: 'pointer',
+            width: '44px', height: '44px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, borderRadius: '8px',
           }}>✕</button>
         </div>
 
-        {/* 액션 버튼 */}
+        {/* ★ 세션30: 액션 버튼 minHeight 40→44px */}
         <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
           <button onClick={handleDismiss} style={{
-            flex: 1, padding: '10px', minHeight: '40px',
+            flex: 1, padding: '10px', minHeight: '44px',
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: '10px', color: '#94a3b8',
-            fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer',
           }}>나중에</button>
 
           {isIOS ? (
             <button onClick={() => setShowIOSGuide(true)} style={{
-              flex: 2, padding: '10px', minHeight: '40px',
+              flex: 2, padding: '10px', minHeight: '44px',
               background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
               border: 'none', borderRadius: '10px', color: '#fff',
-              fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
             }}>📲 추가 방법 보기</button>
           ) : (
             <button onClick={handleInstall} style={{
-              flex: 2, padding: '10px', minHeight: '40px',
+              flex: 2, padding: '10px', minHeight: '44px',
               background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
               border: 'none', borderRadius: '10px', color: '#fff',
-              fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
             }}>📲 홈 화면에 추가</button>
           )}
         </div>
@@ -194,11 +180,12 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
               </div>
             </div>
 
-            {/* 단계별 안내 */}
+            {/* 단계별 안내 — ★ 세션30: 각 단계 minHeight 52px */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '14px',
+                background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
+                padding: '14px', minHeight: '52px',
               }}>
                 <div style={{
                   width: '32px', height: '32px', borderRadius: '50%',
@@ -218,7 +205,8 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
 
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '14px',
+                background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
+                padding: '14px', minHeight: '52px',
               }}>
                 <div style={{
                   width: '32px', height: '32px', borderRadius: '50%',
@@ -238,7 +226,8 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
 
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '14px',
+                background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
+                padding: '14px', minHeight: '52px',
               }}>
                 <div style={{
                   width: '32px', height: '32px', borderRadius: '50%',
@@ -257,13 +246,14 @@ export default function InstallPrompt({ isMobile }: { isMobile: boolean }) {
               </div>
             </div>
 
+            {/* ★ 세션30: 확인 버튼 minHeight 48→52px */}
             <button onClick={handleDismiss} style={{
               width: '100%', padding: '14px', marginTop: '16px',
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '12px', color: '#94a3b8',
               fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-              minHeight: '48px',
+              minHeight: '52px',
             }}>확인</button>
           </div>
         </div>
