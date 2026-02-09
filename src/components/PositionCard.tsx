@@ -4,6 +4,7 @@
 // 경로: src/components/PositionCard.tsx
 // 세션 33: 648줄 → ~320줄 (서브컴포넌트 3개 분리)
 // 세션 34: 데스크탑 차트 너비 동적 계산 (컨테이너 기반)
+// 세션 39: 스와이프 삭제 버튼 아이콘/텍스트 분리
 // 변경사항:
 //   - chartW: 하드코딩 380px → useRef로 컨테이너 너비 측정
 //   - 데스크탑 캔들 수: 40 → 55개 (넓은 화면 활용)
@@ -175,17 +176,26 @@ const PositionCard = ({
           transition: swipe.isDragging ? 'none' : 'transform 0.3s ease',
         }}
       >
-        {/* 스와이프 삭제 버튼 (배경) */}
+        {/* ★ 세션 39: 스와이프 삭제 버튼 (아이콘/텍스트 분리) */}
         {isMobile && swipe.showDeleteBtn && (
           <div
             onClick={() => { setShowDeleteConfirm(true); swipe.resetSwipe(); }}
             style={{
               position: 'absolute', right: 0, top: 0, bottom: 0, width: '80px',
-              background: '#ef4444', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: '#fff', fontWeight: '700',
-              fontSize: '13px', cursor: 'pointer', borderRadius: '0 14px 14px 0',
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              color: '#fff',
+              cursor: 'pointer',
+              borderRadius: '0 14px 14px 0',
             }}
-          >🗑️ 삭제</div>
+          >
+            <span style={{ fontSize: '20px', lineHeight: 1 }}>🗑️</span>
+            <span style={{ fontSize: '11px', fontWeight: '700', lineHeight: 1 }}>삭제</span>
+          </div>
         )}
 
         {/* 카드 본체 */}
