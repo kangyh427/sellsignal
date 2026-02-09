@@ -3,6 +3,7 @@
 // PositionCard - 보유 종목 카드 (완전판)
 // 경로: src/components/PositionCard.tsx
 // 세션 21 Part B: 실시간 주가(stockPrice) prop 추가
+// 세션 22B: generateMockPriceData import 제거 + 한글 인코딩 복원
 // 변경사항:
 //   - stockPrice prop 추가 (StockPrice 타입)
 //   - 현재가: stockPrice.price > 차트 마지막 종가 > 매수가 순으로 사용
@@ -11,7 +12,7 @@
 // ============================================
 
 import React, { useState, useMemo } from 'react';
-import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact, generateMockPriceData } from '@/constants';
+import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact } from '@/constants';
 import EnhancedMiniChart from './EnhancedMiniChart';
 import PositionEditModal from './PositionEditModal';
 import AINewsSummary from './AINewsSummary';
@@ -146,7 +147,7 @@ const PositionCard = ({
   const DayChangeIndicator = ({ compact = false }: { compact?: boolean }) => {
     if (dayChange == null || !hasRealPrice) return null;
     const isUp = dayChange >= 0;
-    const arrow = isUp ? '▲' : '▼';
+    const arrow = isUp ? '\u25B2' : '\u25BC';
     const color = isUp ? '#10b981' : '#ef4444';
 
     if (compact) {
@@ -164,7 +165,7 @@ const PositionCard = ({
       }}>
         <span>{arrow}</span>
         <span style={{ fontWeight: '600' }}>
-          {isUp ? '+' : ''}{dayChangeAmt != null ? `₩${Math.abs(dayChangeAmt).toLocaleString()}` : ''}
+          {isUp ? '+' : ''}{dayChangeAmt != null ? `\u20A9${Math.abs(dayChangeAmt).toLocaleString()}` : ''}
         </span>
         <span style={{ opacity: 0.8 }}>
           ({isUp ? '+' : ''}{dayChange.toFixed(2)}%)
@@ -212,7 +213,7 @@ const PositionCard = ({
               {isProfit ? "+" : ""}{profitRate.toFixed(1)}%
             </div>
             <div style={{ fontSize: "11px", color: isProfit ? "rgba(16,185,129,0.7)" : "rgba(239,68,68,0.7)" }}>
-              {isProfit ? "+" : ""}₩{formatCompact(Math.round(profitAmount))}
+              {isProfit ? "+" : ""}\u20A9{formatCompact(Math.round(profitAmount))}
             </div>
             {/* ★ 접힌 상태에서도 전일 대비 표시 */}
             <DayChangeIndicator compact />
@@ -231,7 +232,7 @@ const PositionCard = ({
               borderRadius: "16px", padding: "24px", maxWidth: "340px", width: "90%",
               border: "1px solid rgba(239,68,68,0.3)", textAlign: "center",
             }}>
-              <div style={{ fontSize: "36px", marginBottom: "12px" }}>⚠️</div>
+              <div style={{ fontSize: "36px", marginBottom: "12px" }}>{'\u26A0\uFE0F'}</div>
               <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "8px" }}>
                 종목을 삭제합니다
               </div>
@@ -249,7 +250,7 @@ const PositionCard = ({
                   background: "linear-gradient(135deg, #ef4444, #dc2626)",
                   border: "none", borderRadius: "10px", color: "#fff",
                   fontSize: "14px", fontWeight: "700", cursor: "pointer",
-                }}>🗑️ 삭제</button>
+                }}>{'\uD83D\uDDD1\uFE0F'} 삭제</button>
               </div>
             </div>
           </div>
@@ -293,9 +294,9 @@ const PositionCard = ({
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
             {!isMobile && (
               <>
-                <button onClick={() => setShowEditModal(true)} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.06)", border: "none", borderRadius: "8px", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}>✏️ 수정</button>
-                <button onClick={() => window.open(naverNewsUrl, "_blank")} style={{ padding: "6px 12px", background: "rgba(16,185,129,0.08)", border: "none", borderRadius: "8px", color: "#10b981", fontSize: "12px", cursor: "pointer" }}>📰 뉴스</button>
-                <button onClick={handleToggleAI} style={{ padding: "6px 12px", background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.12))", border: "1px solid rgba(139,92,246,0.25)", borderRadius: "8px", color: "#a78bfa", fontSize: "12px", cursor: "pointer" }}>🤖 AI요약{!isPremium && ` (${maxFreeAINews - aiNewsUsedCount}회)`}</button>
+                <button onClick={() => setShowEditModal(true)} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.06)", border: "none", borderRadius: "8px", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}>{'\u270F\uFE0F'} 수정</button>
+                <button onClick={() => window.open(naverNewsUrl, "_blank")} style={{ padding: "6px 12px", background: "rgba(16,185,129,0.08)", border: "none", borderRadius: "8px", color: "#10b981", fontSize: "12px", cursor: "pointer" }}>{'\uD83D\uDCF0'} 뉴스</button>
+                <button onClick={handleToggleAI} style={{ padding: "6px 12px", background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.12))", border: "1px solid rgba(139,92,246,0.25)", borderRadius: "8px", color: "#a78bfa", fontSize: "12px", cursor: "pointer" }}>{'\uD83E\uDD16'} AI요약{!isPremium && ` (${maxFreeAINews - aiNewsUsedCount}회)`}</button>
               </>
             )}
             {isMobile && (
@@ -304,7 +305,7 @@ const PositionCard = ({
                 width: "36px", height: "36px", minHeight: "44px", minWidth: "44px",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#94a3b8", fontSize: "14px", cursor: "pointer",
-              }}>▲</button>
+              }}>{'\u25B2'}</button>
             )}
           </div>
         </div>
@@ -314,17 +315,16 @@ const PositionCard = ({
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px", marginBottom: "10px" }}>
               {[
-                { label: "매수가", value: "₩" + position.buyPrice.toLocaleString() },
+                { label: "매수가", value: "\u20A9" + position.buyPrice.toLocaleString() },
                 {
                   label: hasRealPrice ? "현재가 (실시간)" : "현재가",
-                  value: "₩" + Math.round(cur).toLocaleString(),
+                  value: "\u20A9" + Math.round(cur).toLocaleString(),
                   color: isProfit ? "#10b981" : "#ef4444",
-                  // ★ 실시간 가격일 경우 점 표시
-                  badge: hasRealPrice ? '●' : undefined,
+                  badge: hasRealPrice ? '\u25C9' : undefined,
                   badgeColor: '#10b981',
                 },
                 { label: "수량", value: position.quantity + "주" },
-                { label: "평가금액", value: "₩" + formatCompact(Math.round(totalValue)) },
+                { label: "평가금액", value: "\u20A9" + formatCompact(Math.round(totalValue)) },
               ].map((item, i) => (
                 <div key={i} style={{ background: "rgba(0,0,0,0.35)", borderRadius: "8px", padding: isMobile ? "8px 10px" : "10px", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "2px", display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -348,7 +348,7 @@ const PositionCard = ({
               <div>
                 <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px" }}>평가손익</div>
                 <div style={{ fontSize: isMobile ? "17px" : "22px", fontWeight: "700", color: isProfit ? "#10b981" : "#ef4444" }}>
-                  {isProfit ? "+" : ""}₩{formatCompact(Math.round(profitAmount))}
+                  {isProfit ? "+" : ""}\u20A9{formatCompact(Math.round(profitAmount))}
                 </div>
               </div>
               <div style={{
@@ -369,7 +369,7 @@ const PositionCard = ({
                 cursor: "pointer", minHeight: "44px",
               }}>
                 <span style={{ fontSize: isMobile ? "13px" : "15px", color: "#fff", fontWeight: "600" }}>
-                  📊 매도 조건 ({(position.selectedPresets || []).length}개)
+                  {'\uD83D\uDCCA'} 매도 조건 ({(position.selectedPresets || []).length}개)
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   {!showPresets && (
@@ -379,20 +379,20 @@ const PositionCard = ({
                       ))}
                     </div>
                   )}
-                  <span style={{ color: "#64748b", fontSize: "12px", transition: "transform 0.2s", transform: showPresets ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+                  <span style={{ color: "#64748b", fontSize: "12px", transition: "transform 0.2s", transform: showPresets ? "rotate(180deg)" : "rotate(0)" }}>{'\u25BC'}</span>
                 </div>
               </button>
               {showPresets && (
                 <div style={{ padding: "0 12px 12px" }}>
                   <div style={{ fontSize: "10px", color: "#f59e0b", marginBottom: "8px", background: "rgba(245,158,11,0.08)", padding: "5px 8px", borderRadius: "4px" }}>
-                    ⚠️ 수치는 예시입니다. 본인의 투자 원칙에 따라 수정하세요.
+                    {'\u26A0\uFE0F'} 수치는 예시입니다. 본인의 투자 원칙에 따라 수정하세요.
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "6px" }}>
                     <button onClick={() => setShowEditModal(true)} style={{
                       background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)",
                       borderRadius: "4px", padding: isMobile ? "6px 10px" : "4px 10px",
                       color: "#60a5fa", fontSize: isMobile ? "11px" : "12px", cursor: "pointer", minHeight: "32px",
-                    }}>✏️ 수정</button>
+                    }}>{'\u270F\uFE0F'} 수정</button>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
                     {(position.selectedPresets || []).map((pid) => {
@@ -402,11 +402,11 @@ const PositionCard = ({
                       // 매도 기준가격 텍스트
                       let priceText = "모니터링 중";
                       let priceColor = "#94a3b8";
-                      if (pid === "stopLoss" && sellPrices.stopLoss) { priceText = "₩" + sellPrices.stopLoss.toLocaleString(); priceColor = cur <= sellPrices.stopLoss ? "#ef4444" : "#94a3b8"; }
-                      else if (pid === "twoThird" && sellPrices.twoThird) { priceText = "₩" + sellPrices.twoThird.toLocaleString(); priceColor = cur <= sellPrices.twoThird ? "#f59e0b" : "#94a3b8"; }
-                      else if (pid === "maSignal" && sellPrices.maSignal) { priceText = "₩" + sellPrices.maSignal.toLocaleString(); priceColor = cur < sellPrices.maSignal ? "#f59e0b" : "#94a3b8"; }
-                      else if (pid === "volumeZone" && sellPrices.volumeZone) { priceText = "₩" + sellPrices.volumeZone.toLocaleString(); }
-                      else if (pid === "trendline" && sellPrices.trendline) { priceText = "₩" + sellPrices.trendline.toLocaleString(); }
+                      if (pid === "stopLoss" && sellPrices.stopLoss) { priceText = "\u20A9" + sellPrices.stopLoss.toLocaleString(); priceColor = cur <= sellPrices.stopLoss ? "#ef4444" : "#94a3b8"; }
+                      else if (pid === "twoThird" && sellPrices.twoThird) { priceText = "\u20A9" + sellPrices.twoThird.toLocaleString(); priceColor = cur <= sellPrices.twoThird ? "#f59e0b" : "#94a3b8"; }
+                      else if (pid === "maSignal" && sellPrices.maSignal) { priceText = "\u20A9" + sellPrices.maSignal.toLocaleString(); priceColor = cur < sellPrices.maSignal ? "#f59e0b" : "#94a3b8"; }
+                      else if (pid === "volumeZone" && sellPrices.volumeZone) { priceText = "\u20A9" + sellPrices.volumeZone.toLocaleString(); }
+                      else if (pid === "trendline" && sellPrices.trendline) { priceText = "\u20A9" + sellPrices.trendline.toLocaleString(); }
 
                       return (
                         <div key={pid} style={{
@@ -443,7 +443,7 @@ const PositionCard = ({
                 color: "#60a5fa", fontSize: "13px", fontWeight: "600", cursor: "pointer",
                 marginBottom: showChart ? "8px" : "0",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-              }}>📊 차트 {showChart ? "접기 ▲" : "보기 ▼"}</button>
+              }}>{'\uD83D\uDCCA'} 차트 {showChart ? "접기 \u25B2" : "보기 \u25BC"}</button>
             )}
           </div>
 
@@ -458,9 +458,9 @@ const PositionCard = ({
                 />
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", padding: "6px 0 2px", fontSize: "11px", color: "#64748b" }}>
-                <span>📈</span>
+                <span>{'\uD83D\uDCC8'}</span>
                 <span style={{ textDecoration: "underline", color: "#60a5fa" }}>네이버 증권 차트 보기</span>
-                <span style={{ fontSize: "10px" }}>→</span>
+                <span style={{ fontSize: "10px" }}>{'\u2192'}</span>
               </div>
             </div>
           )}
@@ -476,18 +476,18 @@ const PositionCard = ({
               flex: 1, padding: "10px", minHeight: "44px", background: "rgba(255,255,255,0.06)",
               border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px",
               color: "#94a3b8", fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            }}>✏️ 수정</button>
+            }}>{'\u270F\uFE0F'} 수정</button>
             <button onClick={() => window.open(naverNewsUrl, "_blank")} style={{
               flex: 1, padding: "10px", minHeight: "44px", background: "rgba(16,185,129,0.08)",
               border: "1px solid rgba(16,185,129,0.2)", borderRadius: "8px",
               color: "#10b981", fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            }}>📰 뉴스</button>
+            }}>{'\uD83D\uDCF0'} 뉴스</button>
             <button onClick={handleToggleAI} style={{
               flex: 1, padding: "10px", minHeight: "44px",
               background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.12))",
               border: "1px solid rgba(139,92,246,0.25)", borderRadius: "8px",
               color: "#a78bfa", fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            }}>🤖 AI{!isPremium && ` ${maxFreeAINews - aiNewsUsedCount}`}</button>
+            }}>{'\uD83E\uDD16'} AI{!isPremium && ` ${maxFreeAINews - aiNewsUsedCount}`}</button>
           </div>
         )}
       </div>
@@ -508,7 +508,7 @@ const PositionCard = ({
             borderRadius: "16px", padding: "24px", maxWidth: "340px", width: "90%",
             border: "1px solid rgba(239,68,68,0.3)", textAlign: "center",
           }}>
-            <div style={{ fontSize: "36px", marginBottom: "12px" }}>⚠️</div>
+            <div style={{ fontSize: "36px", marginBottom: "12px" }}>{'\u26A0\uFE0F'}</div>
             <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "8px" }}>
               종목을 삭제합니다
             </div>
@@ -526,7 +526,7 @@ const PositionCard = ({
                 background: "linear-gradient(135deg, #ef4444, #dc2626)",
                 border: "none", borderRadius: "10px", color: "#fff",
                 fontSize: "14px", fontWeight: "700", cursor: "pointer",
-              }}>🗑️ 삭제</button>
+              }}>{'\uD83D\uDDD1\uFE0F'} 삭제</button>
             </div>
           </div>
         </div>
