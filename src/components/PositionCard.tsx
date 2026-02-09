@@ -4,11 +4,11 @@
 // 경로: src/components/PositionCard.tsx
 // 세션 33: 648줄 → ~320줄 (서브컴포넌트 3개 분리)
 // 세션 34: 데스크탑 차트 너비 동적 계산 (컨테이너 기반)
-// 세션 39: 스와이프 삭제 버튼 아이콘/텍스트 분리
-// 변경사항:
-//   - chartW: 하드코딩 380px → useRef로 컨테이너 너비 측정
-//   - 데스크탑 캔들 수: 40 → 55개 (넓은 화면 활용)
-//   - 데스크탑 차트 높이: 260 → 280px
+// 세션 40: 스와이프 삭제 구조 수정
+//   - transform: 래퍼 → 카드본체로 이동 (▲▼ 삼각형 노출 버그 수정)
+//   - 삭제버튼: 래퍼에 position:absolute로 고정 (카드 뒤에 배치)
+//   - 삭제버튼: 스와이프 중에도 표시 (offsetX < 0 조건)
+//   - z-index: 카드본체(2) > 삭제버튼(1) 계층 명확화
 // ============================================
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -136,10 +136,8 @@ const PositionCard = ({
     const measure = () => {
       if (chartContainerRef.current) {
         const containerW = chartContainerRef.current.clientWidth;
-        // 패딩(8px*2) 제외한 실제 차트 영역
         setChartW(Math.max(280, containerW - 16));
       } else {
-        // fallback
         setChartW(isMobile ? Math.min(window?.innerWidth - 60 || 320, 400) : isTablet ? 300 : 380);
       }
     };
@@ -166,43 +164,56 @@ const PositionCard = ({
 
   return (
     <>
-      {/* ★ 스와이프 래퍼 */}
+      {/* ★ 스와이프 래퍼 — 세션40: transform 제거, 고정 컨테이너 역할만 */}
       <div
         {...(isMobile ? swipe.handlers : {})}
         style={{
-          position: 'relative', overflow: 'hidden', borderRadius: '14px',
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: '14px',
           marginBottom: '10px',
-          transform: isMobile ? `translateX(${swipe.offsetX}px)` : undefined,
-          transition: swipe.isDragging ? 'none' : 'transform 0.3s ease',
         }}
       >
-        {/* ★ 세션 39: 스와이프 삭제 버튼 (아이콘/텍스트 분리) */}
-        {isMobile && swipe.showDeleteBtn && (
+        {/* ★ 삭제 버튼 — 래퍼에 고정, 카드 뒤에 배치 (z-index: 1) */}
+        {/* 세션40: offsetX < 0일 때 표시 (드래그 중에도 보이도록) */}
+        {isMobile && swipe.offsetX < 0 && (
           <div
             onClick={() => { setShowDeleteConfirm(true); swipe.resetSwipe(); }}
             style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: '80px',
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: '80px',
               background: 'linear-gradient(135deg, #ef4444, #dc2626)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
               color: '#fff',
+              fontWeight: '700',
+              fontSize: '13px',
               cursor: 'pointer',
               borderRadius: '0 14px 14px 0',
+              gap: '4px',
+              zIndex: 1,
             }}
           >
             <span style={{ fontSize: '20px', lineHeight: 1 }}>🗑️</span>
-            <span style={{ fontSize: '11px', fontWeight: '700', lineHeight: 1 }}>삭제</span>
+            <span>삭제</span>
           </div>
         )}
 
-        {/* 카드 본체 */}
+        {/* ★ 카드 본체 — 세션40: transform을 여기에 적용 (z-index: 2) */}
         <div style={{
           background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-          borderRadius: '14px', border: getSignalBorder(),
+          borderRadius: '14px',
+          border: getSignalBorder(),
           overflow: 'hidden',
+          transform: isMobile ? `translateX(${swipe.offsetX}px)` : undefined,
+          transition: swipe.isDragging ? 'none' : 'transform 0.3s ease',
+          position: 'relative',
+          zIndex: 2,
         }}>
           {/* ★ CardHeader 서브컴포넌트 */}
           <CardHeader
