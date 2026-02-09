@@ -1,13 +1,12 @@
 'use client';
 // ============================================
-// BuffettIndicatorWidget v9 - 한미 이중 반원 게이지 (실데이터)
+// BuffettIndicatorWidget v10 - 캘리브레이션 기반 실데이터
 // 경로: src/components/BuffettIndicatorWidget.tsx
-// 세션 40: 실데이터 연동
-// 세션 40B: 무료/PRO 분리 안내 + 데스크탑 레이아웃 수정
-//   - PRO 뱃지 → 무료 뱃지 (무료버전일 때)
-//   - 하단 안내 문구 무료/PRO 분리
-//   - 에러 메시지 + 범례 + 안내 데스크탑 줄바꿈 수정
-//   - GDP 기준연도 명확 표시
+// 세션 40C: GuruFocus 기준점 방식으로 정확도 대폭 개선
+//   - 미국: ~223% (GuruFocus 일치), 한국: ~182% (GuruFocus 일치)
+//   - 무료/PRO 뱃지 분리
+//   - 캘리브레이션 기준 날짜 표시
+//   - 데스크탑 레이아웃 줄바꿈 수정
 // ============================================
 
 import React from 'react';
@@ -18,12 +17,13 @@ interface BuffettIndicatorWidgetProps {
   isPremium: boolean;
 }
 
-// ── 색상 판정 ──
+// ── 색상 판정 (GuruFocus 기준) ──
 const getColor = (r: number) => {
-  if (r < 70) return '#10b981';
-  if (r < 100) return '#eab308';
-  if (r < 150) return '#f97316';
-  return '#ef4444';
+  if (r < 75) return '#10b981';    // 저평가
+  if (r < 90) return '#22d3ee';    // 적정
+  if (r < 115) return '#eab308';   // 약간 고평가
+  if (r < 150) return '#f97316';   // 고평가
+  return '#ef4444';                 // 극단적 고평가
 };
 
 // ── 시각 포맷 ──
@@ -31,18 +31,17 @@ const formatTime = (isoString: string | null): string => {
   if (!isoString) return '-';
   try {
     const d = new Date(isoString);
-    const yy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${yy}.${mm}.${dd} ${hh}:${mi}`;
+    return `${mm}/${dd} ${hh}:${mi}`;
   } catch {
     return '-';
   }
 };
 
-// ── 게이지 차트 컴포넌트 ──
+// ── 게이지 차트 ──
 const GaugeChart = ({
   data, name, isMobile,
 }: {
@@ -50,7 +49,8 @@ const GaugeChart = ({
   name: string;
   isMobile: boolean;
 }) => {
-  const maxR = 250;
+  // ★ 게이지 최대값 변경: 250% → 300% (미국 223%, 한국 182%에 적합)
+  const maxR = 300;
   const pct = Math.min(data.ratio / maxR, 1);
   const col = getColor(data.ratio);
 
@@ -92,15 +92,13 @@ const GaugeChart = ({
         <text x={gcx - r} y={gcy + 16} textAnchor="middle"
           fill="#64748b" fontSize="9">0%</text>
         <text x={gcx + r} y={gcy + 16} textAnchor="middle"
-          fill="#64748b" fontSize="9">250%</text>
+          fill="#64748b" fontSize="9">300%</text>
       </svg>
 
-      {/* 세부 수치 (실데이터일 때만) */}
-      {data.indexLevel && (
+      {/* 지수 레벨 표시 */}
+      {data.indexLevel > 0 && !data.isFallback && (
         <div style={{ fontSize: '9px', color: '#475569', marginTop: '2px', lineHeight: '1.4' }}>
-          {name === '한국'
-            ? `KOSPI ${data.indexLevel.toLocaleString()} · 시총 ${data.marketCap.toLocaleString()}조`
-            : `S&P ${data.indexLevel.toLocaleString()} · $${(data.marketCap / 1000).toFixed(1)}T`}
+          {data.indexName} {data.indexLevel.toLocaleString()}
         </div>
       )}
     </div>
@@ -133,20 +131,18 @@ const LoadingSkeleton = ({ isMobile }: { isMobile: boolean }) => (
   </div>
 );
 
-// ── 범례 아이템 ──
+// ── 범례 (GuruFocus 기준에 맞게 5단계) ──
 const LEGEND_ITEMS = [
-  { label: '저평가', range: '<70%', color: '#10b981' },
-  { label: '적정', range: '70-100%', color: '#eab308' },
-  { label: '고평가', range: '100-150%', color: '#f97316' },
+  { label: '저평가', range: '<75%', color: '#10b981' },
+  { label: '적정', range: '75-90%', color: '#22d3ee' },
+  { label: '약간↑', range: '90-115%', color: '#eab308' },
+  { label: '고평가', range: '115-150%', color: '#f97316' },
   { label: '극단적', range: '>150%', color: '#ef4444' },
 ];
 
 // ── 메인 위젯 ──
 const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetProps) => {
-  const { korea, usa, isLoading, error, updatedAt, gdpNote, refresh } = useBuffettIndicator();
-
-  // GDP 기준연도 (표시용)
-  const gdpYear = korea.gdpYear ?? 2024;
+  const { korea, usa, isLoading, error, updatedAt, note, refresh } = useBuffettIndicator();
 
   return (
     <div style={{
@@ -165,24 +161,20 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
           whiteSpace: 'nowrap',
         }}>
           버핏지수 (시가총액/GDP)
-          {/* ★ 무료/PRO 뱃지 분리 */}
           {isPremium ? (
             <span style={{
               fontSize: '10px', color: '#a78bfa',
               background: 'rgba(139,92,246,0.15)',
-              padding: '2px 6px', borderRadius: '4px',
-              fontWeight: '600',
+              padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
             }}>PRO</span>
           ) : (
             <span style={{
               fontSize: '10px', color: '#64748b',
               background: 'rgba(255,255,255,0.06)',
-              padding: '2px 6px', borderRadius: '4px',
-              fontWeight: '600',
+              padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
             }}>무료</span>
           )}
         </h3>
-        {/* 새로고침 버튼 */}
         <button
           onClick={refresh}
           disabled={isLoading}
@@ -222,66 +214,61 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
           padding: '10px 14px', marginBottom: '10px', borderRadius: '8px',
           background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)',
           textAlign: 'center', lineHeight: '1.6',
-          maxWidth: '100%',
         }}>
           <div style={{ fontSize: '11px', color: '#f87171', fontWeight: '600' }}>
             ⚠️ 버핏지수 데이터를 불러올 수 없습니다
           </div>
           <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
-            이전 데이터를 표시합니다
+            기준점 데이터를 표시합니다 ({korea.calibrationDate} 기준)
           </div>
         </div>
       )}
 
-      {/* ── 범례 ── */}
+      {/* ── 범례 (5단계) ── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
-        gap: isMobile ? '6px' : '10px',
-        padding: '10px 14px',
+        gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(5, 1fr)',
+        gap: isMobile ? '5px' : '8px',
+        padding: '10px 12px',
         background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
       }}>
         {LEGEND_ITEMS.map((item) => (
           <div key={item.label} style={{
-            display: 'flex', alignItems: 'center', gap: '5px',
-            fontSize: isMobile ? '10px' : '11px', color: '#94a3b8',
-            justifyContent: 'center',
-            whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: '4px',
+            fontSize: isMobile ? '9px' : '11px', color: '#94a3b8',
+            justifyContent: 'center', whiteSpace: 'nowrap',
           }}>
             <span style={{
-              width: '8px', height: '8px', borderRadius: '2px',
+              width: '7px', height: '7px', borderRadius: '2px',
               background: item.color, flexShrink: 0,
             }} />
             <span style={{ fontWeight: '600' }}>{item.label}</span>
-            <span style={{ color: '#475569' }}>{item.range}</span>
+            <span style={{ color: '#475569', fontSize: isMobile ? '8px' : '10px' }}>{item.range}</span>
           </div>
         ))}
       </div>
 
-      {/* ── 하단 안내 — 무료/PRO 분리 ── */}
+      {/* ── 하단 안내 ── */}
       <div style={{
-        marginTop: '10px', textAlign: 'center',
-        padding: '10px 14px',
+        marginTop: '10px', textAlign: 'center', padding: '10px 14px',
         borderRadius: '8px',
         background: isPremium ? 'rgba(139,92,246,0.06)' : 'rgba(255,255,255,0.03)',
         border: isPremium ? '1px solid rgba(139,92,246,0.12)' : '1px solid rgba(255,255,255,0.06)',
         lineHeight: '1.6',
       }}>
         {isPremium ? (
-          /* ★ PRO 사용자: 실시간 갱신 시각 표시 */
           <>
             <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '600' }}>
-              📡 실시간 데이터 · 마지막 갱신 {formatTime(updatedAt)}
+              📡 지수 연동 데이터 · 갱신 {formatTime(updatedAt)}
             </div>
             <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-              Yahoo Finance 지수 기반 실시간 계산 · GDP {gdpYear}년 기준
+              GuruFocus 기준 · KOSPI {korea.indexLevel.toLocaleString()} · S&P {usa.indexLevel.toLocaleString()}
             </div>
           </>
         ) : (
-          /* ★ 무료 사용자: 기준연도 + PRO 유도 */
           <>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-              📊 {gdpYear}년 GDP 기준 데이터입니다
+              📊 {korea.calibrationDate} 기준 데이터 (GuruFocus 연동)
             </div>
             <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>
               PRO 구독 시 실시간 업데이트 + 역사적 추이 비교 제공
@@ -290,7 +277,6 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
         )}
       </div>
 
-      {/* CSS 애니메이션 */}
       <style>{`
         @keyframes buffett-spin {
           from { transform: rotate(0deg); }
