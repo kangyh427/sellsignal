@@ -2,8 +2,9 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 31: 모바일 터치타겟 44px 전면 적용
-// 변경사항: +추가/로그인/첫종목추가/모두지우기 버튼 minHeight 44px
+// 세션 19: usePositions 연동 (DB CRUD + localStorage)
+// 세션 31: 5개 버튼 터치타겟 44px 적용
+// 세션 32: 한글 인코딩 완전 복원
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -194,7 +195,7 @@ export default function CRESTApp() {
 
         <div style={
           isMobile
-            ? { display: 'flex', flexDirection: 'column', gap: '0' }
+            ? { display: 'flex', flexDirection: 'column' as const, gap: '0' }
             : isTablet
             ? { display: 'grid', gridTemplateColumns: '1fr 360px', gap: '16px', padding: '0 20px' }
             : { display: 'grid', gridTemplateColumns: isPremium ? '1fr 440px' : '160px 1fr 440px', gap: '20px' }
@@ -207,7 +208,7 @@ export default function CRESTApp() {
                 borderRadius: '12px', padding: '12px 8px',
                 border: '1px dashed rgba(255,255,255,0.08)',
                 textAlign: 'center', minHeight: '600px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
                 <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
@@ -231,7 +232,7 @@ export default function CRESTApp() {
               <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
                 보유 종목 ({positions.length})
               </h2>
-              {/* ★ 세션 31: +추가 버튼 height 34→44px, minHeight 44px */}
+              {/* ★ 세션 31: + 추가 버튼 터치타겟 44px */}
               <button onClick={() => {
                 if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
                   setShowUpgrade(true);
@@ -262,13 +263,13 @@ export default function CRESTApp() {
                   {isLoggedIn ? '내 종목이 자동 저장됩니다' : '로그인하면 내 종목을 저장/관리할 수 있습니다'}
                 </div>
               </div>
-              {/* ★ 세션 31: 로그인 버튼 minHeight 44px */}
+              {/* ★ 세션 31: 로그인 버튼 터치타겟 44px */}
               {!isLoggedIn && (
                 <button onClick={() => router.push('/login')} style={{
                   padding: '8px 12px', minHeight: '44px',
                   background: 'rgba(59,130,246,0.15)',
                   border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px',
-                  color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                  color: '#60a5fa', fontSize: '11px', fontWeight: '600', cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}>로그인</button>
               )}
@@ -288,7 +289,7 @@ export default function CRESTApp() {
                 <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
                   한국·미국 주식을 검색하고 매도 조건을 설정하세요
                 </div>
-                {/* ★ 세션 31: 첫 종목 추가 버튼 minHeight 44px */}
+                {/* ★ 세션 31: 첫 종목 추가하기 버튼 터치타겟 44px */}
                 <button onClick={() => setShowAddModal(true)} style={{
                   padding: '10px 24px', minHeight: '44px',
                   background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
@@ -359,11 +360,12 @@ export default function CRESTApp() {
                     🔔 조건 도달 알림
                     {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
                   </h3>
-                  {/* ★ 세션 31: 모두 지우기 버튼 minHeight 44px */}
+                  {/* ★ 세션 31: 모두 지우기 버튼 터치타겟 44px */}
                   {alerts.length > 0 && (
                     <button onClick={() => setAlerts([])} style={{
                       background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
-                      padding: '8px 12px', minHeight: '44px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
+                      padding: '8px 12px', minHeight: '44px',
+                      color: '#64748b', fontSize: '11px', cursor: 'pointer',
                     }}>모두 지우기</button>
                   )}
                 </div>
