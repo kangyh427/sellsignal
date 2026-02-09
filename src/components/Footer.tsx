@@ -2,7 +2,7 @@
 // ============================================
 // Footer - 모바일/데스크톱 통합 풋터
 // 경로: src/components/Footer.tsx
-// 세션 18B: 고객센터 중복 제거 (라벨+버튼 → 버튼 하나로 통합)
+// 세션 31: 고객센터 버튼 minHeight 44px, 모바일 간격 최적화
 // ============================================
 
 import React from 'react';
@@ -28,13 +28,13 @@ const Footer: React.FC<FooterProps> = ({ isMobile }) => {
           <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>CREST</span>
           <span style={{ fontSize: '10px', color: '#64748b' }}>매도의 기술</span>
         </div>
-        {/* 고객센터 버튼 (하나로 통합) */}
+        {/* 고객센터 버튼 — 세션 31: minHeight 44px */}
         <div style={{ textAlign: 'center', marginBottom: '12px' }}>
           <a href={MAILTO_HREF} style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
-            borderRadius: '8px', padding: '8px 16px', minHeight: '36px',
-            color: '#60a5fa', fontSize: '12px', fontWeight: '600',
+            borderRadius: '8px', padding: '10px 16px', minHeight: '44px',
+            color: '#60a5fa', fontSize: '13px', fontWeight: '600',
             textDecoration: 'none', cursor: 'pointer',
           }}>📬 고객센터</a>
           <div style={{ fontSize: '10px', color: '#475569', marginTop: '4px' }}>
@@ -58,7 +58,7 @@ const Footer: React.FC<FooterProps> = ({ isMobile }) => {
     );
   }
 
-  // 데스크톱/태블릿 — 고객센터 라벨 제거, 버튼 하나만 유지
+  // 데스크톱/태블릿 — 세션 31: minHeight 44px
   return (
     <footer style={{
       maxWidth: '1200px', margin: '40px auto 0', padding: '24px',
@@ -79,12 +79,12 @@ const Footer: React.FC<FooterProps> = ({ isMobile }) => {
             이메일: contact@sellsignal.kr
           </div>
         </div>
-        {/* 고객센터 — 버튼 하나 + 연락처 정보 */}
+        {/* 고객센터 — 세션 31: minHeight 44px */}
         <div style={{ minWidth: '160px' }}>
           <a href={MAILTO_HREF} style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)',
-            borderRadius: '8px', padding: '8px 14px', minHeight: '36px',
+            borderRadius: '8px', padding: '10px 14px', minHeight: '44px',
             color: '#60a5fa', fontSize: '12px', fontWeight: '600',
             textDecoration: 'none', cursor: 'pointer',
           }}>📬 고객센터 문의</a>
