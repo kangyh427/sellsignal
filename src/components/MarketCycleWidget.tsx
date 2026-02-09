@@ -1,8 +1,8 @@
 'use client';
 // ============================================
-// MarketCycleWidget v7 - 코스톨라니 달걀 + 시장 지표
+// MarketCycleWidget v8 - 코스톨라니 달걀 + 시장 지표
 // 경로: src/components/MarketCycleWidget.tsx
-// 세션 29: 모바일 최적화 — 아이콘 가시성, 터치타겟, 반응형
+// 세션 30: 국면 수정 반영 — 상단 '금리 정점', 하단 '금리 저점'
 // ============================================
 
 import React from 'react';
@@ -56,16 +56,17 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
         <span style={{ fontSize: '12px', color: '#64748b' }}>신뢰도 75%</span>
       </div>
 
-      {/* 달걀 SVG — 세션29: 모바일 maxWidth 조정 */}
+      {/* 달걀 SVG */}
       <div style={{ width: '100%', maxWidth: isMobile ? '300px' : '340px', margin: '0 auto' }}>
+        {/* ★ 세션30 수정: 상단 = 금리 정점 */}
         <div style={{ textAlign: 'center', marginBottom: '2px', padding: '4px 0' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444' }}>
-            금리인상 시작 · 금리저점
+            금리 정점
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          {/* 좌측: 경기상승 — 세션29: 모바일 폰트 축소 */}
+          {/* 좌측: 경기상승 */}
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             gap: '2px', padding: '0 2px', minWidth: '16px',
@@ -164,9 +165,10 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
           </div>
         </div>
 
+        {/* ★ 세션30 수정: 하단 = 금리 저점 */}
         <div style={{ textAlign: 'center', marginTop: '2px', padding: '4px 0' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#10b981' }}>
-            금리인하 시작 · 금리고점
+            금리 저점
           </div>
         </div>
       </div>
@@ -195,7 +197,7 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
           <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px', lineHeight: '1.5' }}>{stage.desc}</div>
         </div>
 
-        {/* 6단계 미니 리스트 — 세션29: 모바일 minHeight 40px */}
+        {/* 6단계 미니 리스트 */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
           {CYCLE_STAGES.map((s) => (
             <div key={s.num} style={{
@@ -223,7 +225,7 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
         </div>
       </div>
 
-      {/* ★ 세션29: 시장 지표 — 텍스트 아이콘 + 밝은 배경 박스 */}
+      {/* 시장 지표 */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
