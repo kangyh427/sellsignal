@@ -2,7 +2,7 @@
 // ============================================
 // DeleteConfirmModal - 종목 삭제 확인 2단계 모달
 // 경로: src/components/DeleteConfirmModal.tsx
-// 세션 26B: 모바일 UX 고도화
+// 세션 31: 모바일 터치타겟 44px 최적화
 // ============================================
 
 import React from 'react';
@@ -18,6 +18,7 @@ interface DeleteConfirmModalProps {
  * - 오버레이 클릭으로 취소
  * - 취소/삭제 2단계 확인
  * - slideUp 애니메이션 (CRESTApp에서 정의)
+ * - 세션 31: 버튼 minHeight 44px 터치타겟 적용
  */
 const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   stockName,
@@ -32,6 +33,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         top: 0, left: 0, right: 0, bottom: 0,
         background: 'rgba(0,0,0,0.7)',
         backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -62,13 +64,14 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
           </div>
         </div>
 
-        {/* 버튼 그룹 */}
+        {/* 버튼 그룹 — 세션 31: minHeight 44px 추가 */}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={onCancel}
             style={{
               flex: 1,
               padding: '12px',
+              minHeight: '44px',
               borderRadius: '10px',
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -85,6 +88,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             style={{
               flex: 1,
               padding: '12px',
+              minHeight: '44px',
               borderRadius: '10px',
               background: 'linear-gradient(135deg, #ef4444, #dc2626)',
               border: 'none',
