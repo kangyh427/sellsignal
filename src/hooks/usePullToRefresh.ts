@@ -3,6 +3,7 @@
 // usePullToRefresh - 당겨서 새로고침 커스텀 훅
 // 경로: src/hooks/usePullToRefresh.ts
 // 세션 26B: 모바일 UX 고도화
+// 세션 39: scrollTop 폴백 추가 + 임계값 조정
 // ============================================
 
 import { useState, useRef, useCallback } from 'react';
@@ -18,9 +19,10 @@ interface PullToRefreshReturn {
 
 /**
  * 모바일 Pull-to-Refresh 훅
- * - 화면 상단(scrollTop <= 0)에서 아래로 당기면 새로고침
+ * - 화면 상단(scrollTop <= 5)에서 아래로 당기면 새로고침
  * - 60px 이상 당기면 onRefresh 콜백 실행
  * - 최대 120px까지 제한 (0.5 감쇄)
+ * - ★ 세션 39: containerRef 미연결 시 window.scrollY 폴백
  */
 export default function usePullToRefresh(onRefresh: () => Promise<void>): PullToRefreshReturn {
   const [pullDistance, setPullDistance] = useState(0);
@@ -30,7 +32,13 @@ export default function usePullToRefresh(onRefresh: () => Promise<void>): PullTo
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (containerRef.current && containerRef.current.scrollTop <= 0) {
+    // ★ 세션 39: containerRef 미연결 시 window.scrollY 폴백
+    const scrollTop = containerRef.current
+      ? containerRef.current.scrollTop
+      : (window.scrollY || document.documentElement.scrollTop || 0);
+
+    // ★ 세션 39: 임계값 0 → 5 (약간의 여유)
+    if (scrollTop <= 5) {
       startY.current = e.touches[0].clientY;
       setPulling(true);
     }
