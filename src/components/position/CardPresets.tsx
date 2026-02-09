@@ -1,10 +1,10 @@
-
 'use client';
 // ============================================
 // CardPresets - 매도법 프리셋 목록
 // 경로: src/components/position/CardPresets.tsx
 // 세션 33: PositionCard에서 분리
-// 역할: 매도법 태그 표시 + 매도 기준가 목록 + 차트 라인 토글
+// 세션 35: 매도 기준가 폰트 크기 확대
+//   - 기준가: 12px → 13/14px (모바일/데스크탑)
 // ============================================
 
 import React from 'react';
@@ -140,7 +140,11 @@ const CardPresets = ({
                       {preset.icon} {isMobile ? preset.name.replace(' 매도법', '') : preset.name}
                     </span>
                   </div>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: priceColor }}>
+                  {/* ★ 매도 기준가 — 세션 35: 13/14px */}
+                  <span style={{
+                    fontSize: isMobile ? '13px' : '14px',
+                    fontWeight: '600', color: priceColor,
+                  }}>
                     {priceText}
                   </span>
                 </div>
