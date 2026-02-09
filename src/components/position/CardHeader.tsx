@@ -3,7 +3,11 @@
 // CardHeader - 포지션 카드 헤더 (접힌 상태 / 펼친 상태 상단)
 // 경로: src/components/position/CardHeader.tsx
 // 세션 33: PositionCard에서 분리
-// 역할: 종목명, 현재가, 수익률, 시그널 뱃지, 장 상태 표시
+// 세션 35: 금액 폰트 크기 확대
+//   - 현재가: 16/18px → 18/21px
+//   - 수익률: 16/18px → 18/21px
+//   - 수익금: 11px → 13px
+//   - 평가금: 10px → 12px
 // ============================================
 
 import React from 'react';
@@ -78,9 +82,12 @@ const CardHeader = ({
           )}
         </div>
 
-        {/* 현재가 + 전일 대비 */}
+        {/* ★ 현재가 + 전일 대비 — 세션 35: 18/21px */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff' }}>
+          <span style={{
+            fontSize: isMobile ? '18px' : '21px',
+            fontWeight: '700', color: '#fff',
+          }}>
             ₩{Math.round(currentPrice).toLocaleString()}
           </span>
           {hasRealPrice && dayChange !== null && (
@@ -103,18 +110,27 @@ const CardHeader = ({
         </div>
       </div>
 
-      {/* 우측: 수익률 */}
+      {/* ★ 우측: 수익률 — 세션 35: 18/21px */}
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{
-          fontSize: isMobile ? '16px' : '18px', fontWeight: '700',
+          fontSize: isMobile ? '18px' : '21px',
+          fontWeight: '700',
           color: isProfit ? '#10b981' : '#ef4444',
         }}>
           {isProfit ? '+' : ''}{profitRate.toFixed(2)}%
         </div>
-        <div style={{ fontSize: '11px', color: isProfit ? '#10b981' : '#ef4444' }}>
+        {/* ★ 수익금 — 세션 35: 13px */}
+        <div style={{
+          fontSize: '13px',
+          color: isProfit ? '#10b981' : '#ef4444',
+        }}>
           {isProfit ? '+' : ''}{formatCompact(profitAmount)}
         </div>
-        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+        {/* ★ 평가금액 — 세션 35: 12px */}
+        <div style={{
+          fontSize: '12px',
+          color: '#64748b', marginTop: '2px',
+        }}>
           평가 {formatCompact(totalValue)}
         </div>
       </div>
