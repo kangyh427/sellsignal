@@ -2,8 +2,8 @@
 // CREST 전체 타입 정의
 // 경로: src/types/index.ts
 // 세션 18A: 17f 기반 전면 재정의
-// 세션 23: StockPrice 인터페이스 추가
-// 세션 24: 매도 시그널 타입 추가 (SignalLevel, SignalResult, PositionSignals)
+// 세션 24: StockPrice, Signal 타입 추가
+// 세션 25: 누락 타입 보완 (StockPrice, PositionSignals)
 // ============================================
 
 /** 매도 프리셋 단일 항목 */
@@ -33,19 +33,6 @@ export interface CandleData {
   high: number;
   low: number;
   close: number;
-}
-
-/** 실시간 주가 데이터 (세션 23) */
-export interface StockPrice {
-  price: number;
-  change: number;
-  changeAmount: number;
-  previousClose: number;
-  high: number;
-  low: number;
-  volume: number;
-  marketState: string;
-  updatedAt: number;
 }
 
 /** 보유 포지션 */
@@ -121,27 +108,38 @@ export interface SellMethodDetail {
 }
 
 // ============================================
-// 세션 24: 매도 시그널 관련 타입
+// 세션 24 추가: 실시간 주가 + 매도 시그널 타입
 // ============================================
+
+/** 실시간 주가 데이터 (Yahoo Finance 기반) */
+export interface StockPrice {
+  code: string;
+  price: number;
+  change: number;          // 전일 대비 변동률 (%)
+  changeAmount: number;    // 전일 대비 변동 금액
+  volume?: number;
+  marketState?: 'PRE' | 'REGULAR' | 'POST' | 'CLOSED';
+  updatedAt?: number;
+}
 
 /** 시그널 위험 수준 (4단계 + 비활성) */
 export type SignalLevel = 'danger' | 'warning' | 'caution' | 'safe' | 'inactive';
 
 /** 개별 매도 시그널 결과 */
 export interface SignalResult {
-  presetId: string;        // 'candle3' | 'stopLoss' | ...
+  presetId: string;
   level: SignalLevel;
-  score: number;           // 0~100 (100 = 즉시 매도)
-  message: string;         // 요약 메시지
-  detail: string;          // 상세 설명
-  triggeredAt?: number;    // 트리거 시점 timestamp
+  score: number;           // 0~100
+  message: string;
+  detail: string;
+  triggeredAt?: number;
 }
 
 /** 포지션별 전체 시그널 결과 */
 export interface PositionSignals {
   positionId: number;
   signals: SignalResult[];
-  maxLevel: SignalLevel;   // 가장 위험한 수준
-  activeCount: number;     // 발동된 시그널 수 (caution 이상)
-  totalScore: number;      // 합산 점수
+  maxLevel: SignalLevel;
+  activeCount: number;
+  totalScore: number;
 }
