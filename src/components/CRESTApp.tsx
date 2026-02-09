@@ -3,19 +3,19 @@
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
 // 세션 19: usePositions 연동 (DB CRUD + localStorage)
-// 세션 23: Mock 제거 + useStockHistory/useStockPrices 실시간 연동
-// 세션 24: calculateAllSignals 시그널 엔진 연동
+// 세션 24: 매도 시그널 엔진 연동 + useStockPrices/History
+// 세션 25: 한글 인코딩 복원 + InstallPrompt + 시그널 PositionCard 전달
 // ============================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
-import useStockHistory from '@/hooks/useStockHistory';
 import useStockPrices from '@/hooks/useStockPrices';
+import useStockHistory from '@/hooks/useStockHistory';
 import { calculateAllSignals } from '@/lib/sellSignals';
-import { SELL_PRESETS } from '@/constants';
+import { SELL_PRESETS, formatCompact } from '@/constants';
 import type { Position, Alert, PositionSignals } from '@/types';
 
 // 컴포넌트 import
@@ -47,7 +47,7 @@ export default function CRESTApp() {
   const { isMobile, isTablet, width } = useResponsive();
   const { user, isLoggedIn, isLoading: authLoading, signOut } = useAuth();
 
-  // ★ usePositions 훅으로 DB 연동
+  // ★ 핵심: usePositions 훅으로 DB 연동
   const {
     positions,
     isLoading: positionsLoading,
@@ -56,14 +56,15 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  // ★ 세션 23: 실시간 주가 + 과거 차트 데이터
-  const stockCodes = useMemo(() => positions.map(p => p.code), [positions]);
-  const { prices: stockPrices } = useStockPrices(stockCodes);
-  const { historyMap, isLoading: historyLoading } = useStockHistory(positions);
+  // ★ 세션 22A/B: 실시간 주가 + 과거 차트 데이터
+  const { prices: stockPrices, getPrice, getCurrentPrice } = useStockPrices(positions);
+  const { historyMap: priceDataMap } = useStockHistory(positions);
 
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // 알림 상태 (추후 DB 연동 예정)
   const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
   const isPremium = false;
@@ -71,76 +72,57 @@ export default function CRESTApp() {
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // ★ 세션 23: priceDataMap 합성 (history + 실시간 오버레이)
-  const priceDataMap = useMemo(() => {
-    const map: Record<number, any[]> = {};
-    positions.forEach(p => {
-      const history = historyMap[p.id];
-      if (!history || history.length === 0) return;
-
-      const realtime = stockPrices[p.code];
-      if (realtime) {
-        // 마지막 캔들에 실시간 가격 오버레이
-        const updated = [...history];
-        const last = { ...updated[updated.length - 1] };
-        last.close = realtime.price;
-        last.high = Math.max(last.high, realtime.price);
-        last.low = Math.min(last.low, realtime.price);
-        updated[updated.length - 1] = last;
-        map[p.id] = updated;
-      } else {
-        map[p.id] = history;
-      }
-    });
-    return map;
-  }, [positions, historyMap, stockPrices]);
-
-  // ★ 세션 24: 매도 시그널 계산
+  // ★ 세션 24: 매도 시그널 계산 (전체 포지션)
   const signalsMap = useMemo<Record<number, PositionSignals>>(() => {
     const map: Record<number, PositionSignals> = {};
-    positions.forEach(p => {
-      const candles = priceDataMap[p.id] || [];
-      const currentPrice = getCurrentPrice(p);
-      if (candles.length > 0 && currentPrice > 0) {
-        map[p.id] = calculateAllSignals({ position: p, candles, currentPrice });
-      }
+    positions.forEach((pos) => {
+      const candles = priceDataMap[pos.id] || [];
+      const currentPrice = getCurrentPrice(pos.code, pos.buyPrice);
+      map[pos.id] = calculateAllSignals({ position: pos, candles, currentPrice });
     });
     return map;
-  }, [positions, priceDataMap, stockPrices]);
+  }, [positions, priceDataMap, getCurrentPrice]);
 
-  // 현재가 우선순위: 실시간 > 차트 마지막 종가 > 매수가
-  function getCurrentPrice(p: Position): number {
-    const realtime = stockPrices[p.code];
-    if (realtime?.price) return realtime.price;
-    const history = priceDataMap[p.id];
-    if (history?.length) return history[history.length - 1].close;
-    return p.buyPrice;
-  }
+  // ★ 전체 활성 시그널 수 (헤더 배지용)
+  const totalActiveSignals = useMemo(() => {
+    return Object.values(signalsMap).reduce((sum, s) => sum + s.activeCount, 0);
+  }, [signalsMap]);
 
   // ── 핸들러 ──
-  const handleUpdatePosition = (updated: Position) => updatePosition(updated);
-  const handleDeletePosition = (id: number) => deletePosition(id);
+  const handleUpdatePosition = (updated: Position) => {
+    updatePosition(updated);
+  };
+  const handleDeletePosition = (id: number) => {
+    deletePosition(id);
+  };
 
+  /** 종목 추가 핸들러 (AddStockModal에서 호출) */
   const handleAddStock = async (stock: {
-    name: string; code: string; buyPrice: number; quantity: number;
+    name: string;
+    code: string;
+    buyPrice: number;
+    quantity: number;
   }) => {
     await addPosition(stock);
   };
 
+  /** 로그인/로그아웃 핸들러 */
   const handleAuthAction = () => {
-    if (isLoggedIn) { signOut(); } else { router.push('/login'); }
+    if (isLoggedIn) {
+      signOut();
+    } else {
+      router.push('/login');
+    }
   };
 
-  // 요약 통계
+  // 요약 통계 (실시간 주가 우선)
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
-    return s + getCurrentPrice(p) * p.quantity;
+    const pr = getCurrentPrice(p.code, priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close || p.buyPrice);
+    return s + pr * p.quantity;
   }, 0);
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
-
-  // ★ 세션 24: 전체 활성 시그널 수 (알림 배지용)
-  const totalActiveSignals = Object.values(signalsMap).reduce((sum, ps) => sum + ps.activeCount, 0);
 
   // 로딩 스켈레톤
   if (authLoading || positionsLoading) {
@@ -173,6 +155,9 @@ export default function CRESTApp() {
       paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
     }}>
       <style>{`@keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }`}</style>
+
+      {/* ★ PWA 설치 안내 */}
+      <InstallPrompt />
 
       <ResponsiveHeader
         alerts={alerts} isPremium={isPremium} isLoggedIn={isLoggedIn}
@@ -217,7 +202,7 @@ export default function CRESTApp() {
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
                 <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
-                  📢 Google<br />AdSense<br />(160×600)
+                  {'📢'} Google<br />AdSense<br />(160×600)
                   <div style={{ fontSize: '9px', color: '#475569', marginTop: '8px' }}>PRO 구독 시<br />광고 제거</div>
                 </div>
               </div>
@@ -236,11 +221,12 @@ export default function CRESTApp() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 보유 종목 ({positions.length})
-                {/* ★ 세션 24: 활성 시그널 배지 */}
+                {/* ★ 세션 24: 전체 활성 시그널 배지 */}
                 {totalActiveSignals > 0 && (
                   <span style={{
-                    background: '#ef4444', color: '#fff', padding: '2px 7px',
-                    borderRadius: '8px', fontSize: '11px', fontWeight: '700',
+                    background: 'rgba(59,130,246,0.15)', color: '#60a5fa',
+                    padding: '2px 8px', borderRadius: '8px',
+                    fontSize: '11px', fontWeight: '700',
                   }}>📡 {totalActiveSignals}</span>
                 )}
               </h2>
@@ -291,7 +277,7 @@ export default function CRESTApp() {
                 background: 'linear-gradient(145deg, #1e293b, #0f172a)',
                 borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)',
               }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📈</div>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>{'📈'}</div>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '8px' }}>
                   종목을 추가해 보세요
                 </div>
@@ -307,25 +293,15 @@ export default function CRESTApp() {
               </div>
             )}
 
-            {/* ★ 차트 로딩 인디케이터 */}
-            {historyLoading && positions.length > 0 && (
-              <div style={{
-                padding: '8px 12px', marginBottom: '8px', borderRadius: '8px',
-                background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)',
-                fontSize: '12px', color: '#60a5fa', textAlign: 'center',
-              }}>
-                📡 차트 데이터 로딩 중...
-              </div>
-            )}
-
+            {/* ★ 세션 25: PositionCard에 signals + stockPrice prop 전달 */}
             {positions.map((pos) => (
               <PositionCard key={pos.id}
                 position={pos} priceData={priceDataMap[pos.id]}
                 isMobile={isMobile} isTablet={isTablet}
                 onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
                 isPremium={isPremium}
-                stockPrice={stockPrices[pos.code] || null}
-                signals={signalsMap[pos.id] || null}
+                stockPrice={getPrice(pos.code)}
+                signals={signalsMap[pos.id]}
                 aiNewsUsedCount={aiNewsUsedCount}
                 maxFreeAINews={MAX_FREE_AI_NEWS}
                 onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
@@ -341,7 +317,7 @@ export default function CRESTApp() {
                 border: '1px dashed rgba(255,255,255,0.06)', textAlign: 'center',
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', letterSpacing: '1px', marginBottom: '4px' }}>AD</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>📢 AdSense (320×100)</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>{'📢'} AdSense (320×100)</div>
                 <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>PRO 구독 시 광고 제거</div>
               </div>
             )}
@@ -378,7 +354,7 @@ export default function CRESTApp() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🔔 조건 도달 알림
+                    {'🔔'} 조건 도달 알림
                     {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
                   </h3>
                   {alerts.length > 0 && (
@@ -390,7 +366,7 @@ export default function CRESTApp() {
                 </div>
                 {alerts.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '24px' }}>
-                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>{'✨'}</div>
                     <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
                   </div>
                 ) : alerts.map((a) => (
@@ -405,13 +381,10 @@ export default function CRESTApp() {
         </div>
       </main>
 
-      {/* PWA 설치 프롬프트 */}
-      <InstallPrompt isMobile={isMobile} />
-
       {/* 모바일 하단 네비게이션 */}
       {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
 
-      {/* 종목 추가 모달 */}
+      {/* ★ 종목 추가 모달 */}
       {showAddModal && (
         <AddStockModal
           isMobile={isMobile}
