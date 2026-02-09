@@ -224,26 +224,35 @@ const BuffettIndicatorWidget = ({ isMobile, isPremium }: BuffettIndicatorWidgetP
         </div>
       )}
 
-      {/* ── 범례 (5단계) ── */}
+      {/* ── 범례 (5단계, 2줄 구조) ── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(5, 1fr)',
-        gap: isMobile ? '5px' : '8px',
-        padding: '10px 12px',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: '4px',
+        padding: '10px 8px',
         background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
       }}>
         {LEGEND_ITEMS.map((item) => (
           <div key={item.label} style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            fontSize: isMobile ? '9px' : '11px', color: '#94a3b8',
-            justifyContent: 'center', whiteSpace: 'nowrap',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            gap: '2px',
           }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '3px',
+            }}>
+              <span style={{
+                width: '7px', height: '7px', borderRadius: '2px',
+                background: item.color, flexShrink: 0,
+              }} />
+              <span style={{
+                fontSize: isMobile ? '10px' : '11px',
+                fontWeight: '600', color: '#94a3b8',
+              }}>{item.label}</span>
+            </div>
             <span style={{
-              width: '7px', height: '7px', borderRadius: '2px',
-              background: item.color, flexShrink: 0,
-            }} />
-            <span style={{ fontWeight: '600' }}>{item.label}</span>
-            <span style={{ color: '#475569', fontSize: isMobile ? '8px' : '10px' }}>{item.range}</span>
+              fontSize: isMobile ? '8px' : '9px',
+              color: '#475569',
+            }}>{item.range}</span>
           </div>
         ))}
       </div>
