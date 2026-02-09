@@ -2,6 +2,7 @@
 // CREST 전역 상수
 // 경로: src/constants/index.ts
 // 세션 30: CYCLE_STAGES 국면 전면 수정 (1,6=매수 / 2,5=관망 / 3,4=매도)
+// 세션 43: generateMockPriceData 브라운 브릿지 앵커링 수정
 // ============================================
 
 import type { SellPreset, ProfitStage, CycleStage } from '@/types';
@@ -107,12 +108,28 @@ export const formatCompact = (v: number): string => {
 };
 
 /**
- * 모의 주가 데이터 생성 (데모/차트 표시용)
- * @param basePrice 기준 매수가
- * @param days 생성할 일 수
+ * ★ 세션 43 수정: 브라운 브릿지 방식 모의 주가 데이터 생성
+ * 
+ * [기존 문제]
+ * - buyPrice에서 시작해 랜덤 워크로 60일간 표류
+ * - 끝점이 currentPrice와 무관하게 결정됨
+ * - MA 계산 시 실제 가격과 큰 괴리 발생 → 차트 Y축 왜곡
+ * 
+ * [수정 내용]
+ * - 시작점(buyPrice)과 끝점(currentPrice)을 고정
+ * - 중간 경로는 자연스러운 주가 움직임 시뮬레이션 (브라운 브릿지)
+ * - 마지막 봉의 close는 정확히 currentPrice와 일치
+ * 
+ * @param buyPrice 매수가 (시작점)
+ * @param currentPrice 현재가 (끝점) ★ 신규 파라미터
+ * @param days 생성할 일 수 (기본 60)
  * @returns 일별 OHLC 데이터 배열
  */
-export const generateMockPriceData = (basePrice: number, days: number = 60): Array<{
+export const generateMockPriceData = (
+  buyPrice: number,
+  currentPrice: number,
+  days: number = 60
+): Array<{
   date: string;
   open: number;
   high: number;
@@ -129,19 +146,39 @@ export const generateMockPriceData = (basePrice: number, days: number = 60): Arr
     volume: number;
   }> = [];
 
-  let price = basePrice;
   const now = new Date();
 
-  for (let i = days; i >= 0; i--) {
+  // ── 브라운 브릿지: 시작점과 끝점을 고정한 랜덤 워크 ──
+  // 1단계: 원시 랜덤 경로 생성
+  const rawPath: number[] = [buyPrice];
+  let p = buyPrice;
+  for (let i = 1; i <= days; i++) {
+    const noise = (Math.random() - 0.5) * buyPrice * 0.035;
+    p += noise;
+    rawPath.push(Math.max(p, buyPrice * 0.7)); // 하한 방어 (매수가의 70%)
+  }
+
+  // 2단계: 끝점을 currentPrice로 앵커링 (점진적 보정)
+  const rawEnd = rawPath[rawPath.length - 1];
+  const drift = currentPrice - rawEnd;
+  const anchored = rawPath.map((v, i) => {
+    const ratio = i / days;
+    return v + drift * ratio; // 선형 보정
+  });
+
+  // 3단계: OHLC 데이터 생성
+  for (let i = 0; i <= days; i++) {
     const date = new Date(now);
-    date.setDate(date.getDate() - i);
+    date.setDate(date.getDate() - (days - i));
     const dateStr = date.toISOString().split('T')[0];
 
-    const changePercent = (Math.random() - 0.45) * 0.06;
-    const open = price;
-    const close = price * (1 + changePercent);
-    const high = Math.max(open, close) * (1 + Math.random() * 0.02);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.02);
+    const base = anchored[i];
+    const vol = base * 0.015; // 일중 변동성
+    const open = base + (Math.random() - 0.5) * vol;
+    // 마지막 봉의 close는 정확히 currentPrice로 고정
+    const close = i === days ? currentPrice : base + (Math.random() - 0.5) * vol;
+    const high = Math.max(open, close) * (1 + Math.random() * 0.012);
+    const low = Math.min(open, close) * (1 - Math.random() * 0.012);
     const volume = Math.floor(50000 + Math.random() * 200000);
 
     data.push({
@@ -152,8 +189,6 @@ export const generateMockPriceData = (basePrice: number, days: number = 60): Arr
       close: Math.round(close),
       volume,
     });
-
-    price = close;
   }
 
   return data;
