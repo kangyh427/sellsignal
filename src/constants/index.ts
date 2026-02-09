@@ -1,7 +1,7 @@
 // ============================================
 // CREST 전역 상수
 // 경로: src/constants/index.ts
-// 세션 22B: generateMockPriceData 제거 → 세션 27: CRESTApp 데모용으로 복원
+// 세션 30: CYCLE_STAGES 국면 전면 수정 (1,6=매수 / 2,5=관망 / 3,4=매도)
 // ============================================
 
 import type { SellPreset, ProfitStage, CycleStage } from '@/types';
@@ -37,14 +37,63 @@ export const CHART_LINE_PRESETS: string[] = [
   'candle3', 'stopLoss', 'twoThird', 'maSignal', 'volumeZone', 'trendline',
 ];
 
-// ── 코스톨라니 달걀 6단계 (17C v6) ──
+// ── 코스톨라니 달걀 6단계 (세션 30: 국면 전면 수정) ──
+// 핵심: 1,6=매수(하단) / 2,5=관망(중간) / 3,4=매도(상단)
 export const CYCLE_STAGES: CycleStage[] = [
-  { num: 1, name: '과장국면', action: '매수', color: '#10b981', bgColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.25)', detail: '역실적장세 · 주가하락 가속', recommendation: '적극 매수 구간', desc: '금리인하 논의 시작, 가치보다 싼 주식이 널려있는 시기' },
-  { num: 2, name: '조정국면', action: '매수', color: '#10b981', bgColor: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.25)', detail: '금융장세 · 금리인하 시작', recommendation: '매수 보유', desc: '금리고점에서 금리인하 시작, 금융장세 진입' },
-  { num: 3, name: '동행국면', action: '보유', color: '#3b82f6', bgColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.25)', detail: '실적장세 · 기업실적 증가', recommendation: '보유 유지', desc: '경기 상승과 함께 실적장세 진행' },
-  { num: 4, name: '과장국면', action: '매도', color: '#ef4444', bgColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)', detail: '역금융장세 · 금리인상 논의', recommendation: '매도 시작', desc: '가치보다 비싼 주식이 많은 시기' },
-  { num: 5, name: '조정국면', action: '매도', color: '#ef4444', bgColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)', detail: '과열 조정 · 금리 고점 근접', recommendation: '적극 매도', desc: '금리인상 시작, 시장 과열 조정' },
-  { num: 6, name: '동행국면', action: '관망', color: '#94a3b8', bgColor: 'rgba(148,163,184,0.1)', borderColor: 'rgba(148,163,184,0.25)', detail: '경기침체 · 바닥 탐색', recommendation: '관망 대기', desc: '경기 침체와 함께 하락세 지속' },
+  {
+    num: 1, name: '조정국면', action: '매수',
+    color: '#10b981',
+    bgColor: 'rgba(16,185,129,0.1)',
+    borderColor: 'rgba(16,185,129,0.25)',
+    detail: '금융장세 · 금리인하 시작',
+    recommendation: '적극 매수 구간',
+    desc: '거래량 적고, 주식소유자 적다. 뉴스가 암울해도 가치보다 싼 주식이 널려있는 시기. 소신파 조용히 매수.',
+  },
+  {
+    num: 2, name: '동행국면', action: '관망',
+    color: '#f59e0b',
+    bgColor: 'rgba(245,158,11,0.1)',
+    borderColor: 'rgba(245,158,11,0.25)',
+    detail: '실적장세 · 경기회복 동행',
+    recommendation: '보유 유지 · 관망',
+    desc: '거래량과 주식소유자 증가, 주가는 조금씩 상승한다. 상황이 좋으면 상승, 나쁘면 하락. 소신파가 여전히 매수한다.',
+  },
+  {
+    num: 3, name: '과장국면', action: '매도',
+    color: '#ef4444',
+    bgColor: 'rgba(239,68,68,0.1)',
+    borderColor: 'rgba(239,68,68,0.25)',
+    detail: '역금융장세 · 과열 경고',
+    recommendation: '매도 시작',
+    desc: '거래량과 주식소유자 폭증. 흥분된 분위기를 타고 주가 상승. 일반 대중이 유입되며, 고평가된 종목을 기꺼이 산다. 소신파 조용히 매도.',
+  },
+  {
+    num: 4, name: '조정국면', action: '매도',
+    color: '#ef4444',
+    bgColor: 'rgba(239,68,68,0.1)',
+    borderColor: 'rgba(239,68,68,0.25)',
+    detail: '금리인상 시작 · 유동성 축소',
+    recommendation: '적극 매도',
+    desc: '거래량과 주식소유자 서서히 감소. 약간의 매도 = 즉시 하락. 새로운 고객 없음. 투자자들 예민해지기 시작. 소신파 매도를 끝마침(현금 보유).',
+  },
+  {
+    num: 5, name: '동행국면', action: '관망',
+    color: '#f59e0b',
+    bgColor: 'rgba(245,158,11,0.1)',
+    borderColor: 'rgba(245,158,11,0.25)',
+    detail: '경기침체 동행 · 하락 추세',
+    recommendation: '관망 대기',
+    desc: '거래량 증가, 주식소유자 계속 감소. 시장의 분위기 극도로 예민. 소신파는 편안히 관망, 혹은 조금씩 매수 시작.',
+  },
+  {
+    num: 6, name: '과장국면', action: '매수',
+    color: '#10b981',
+    bgColor: 'rgba(16,185,129,0.1)',
+    borderColor: 'rgba(16,185,129,0.25)',
+    detail: '역실적장세 · 바닥 형성',
+    recommendation: '적극 매수 구간',
+    desc: '거래량 폭증, 주식소유자 최저. 비관주의의 팽배. 주가 폭락. 기업은 멀쩡해도 다들 매도하기 바쁘다. 소신파 조용히 할값에 매수.',
+  },
 ];
 
 // ── 유틸리티 함수 ──
@@ -59,8 +108,6 @@ export const formatCompact = (v: number): string => {
 
 /**
  * 모의 주가 데이터 생성 (데모/차트 표시용)
- * - 세션 22B에서 제거되었으나, CRESTApp 데모 모드에서 필요하여 세션 27에서 복원
- * - 실제 API 연동 후에는 이 함수 대신 실시간 데이터 사용 예정
  * @param basePrice 기준 매수가
  * @param days 생성할 일 수
  * @returns 일별 OHLC 데이터 배열
@@ -90,7 +137,6 @@ export const generateMockPriceData = (basePrice: number, days: number = 60): Arr
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
 
-    // 랜덤 변동 (-3% ~ +4%) - 약간의 상승 바이어스
     const changePercent = (Math.random() - 0.45) * 0.06;
     const open = price;
     const close = price * (1 + changePercent);
