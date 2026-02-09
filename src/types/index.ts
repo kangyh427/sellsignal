@@ -1,7 +1,9 @@
 // ============================================
 // CREST 전체 타입 정의
 // 경로: src/types/index.ts
-// 세션 23: StockPrice 타입 추가
+// 세션 18A: 17f 기반 전면 재정의
+// 세션 23: StockPrice 인터페이스 추가
+// 세션 24: 매도 시그널 타입 추가 (SignalLevel, SignalResult, PositionSignals)
 // ============================================
 
 /** 매도 프리셋 단일 항목 */
@@ -33,6 +35,19 @@ export interface CandleData {
   close: number;
 }
 
+/** 실시간 주가 데이터 (세션 23) */
+export interface StockPrice {
+  price: number;
+  change: number;
+  changeAmount: number;
+  previousClose: number;
+  high: number;
+  low: number;
+  volume: number;
+  marketState: string;
+  updatedAt: number;
+}
+
 /** 보유 포지션 */
 export interface Position {
   id: number;
@@ -43,19 +58,6 @@ export interface Position {
   highestPrice: number;
   selectedPresets: string[];
   presetSettings: Record<string, PresetSetting>;
-}
-
-/** ★ 실시간 주가 데이터 (Yahoo Finance API 응답) */
-export interface StockPrice {
-  price: number;           // 현재가
-  change: number;          // 전일 대비 변동률 (%)
-  changeAmount: number;    // 전일 대비 변동 금액
-  previousClose: number;   // 전일 종가
-  high: number;            // 당일 고가
-  low: number;             // 당일 저가
-  volume: number;          // 거래량
-  marketState: string;     // 장 상태 ('REGULAR' | 'CLOSED' | 'PRE' | 'POST')
-  updatedAt: number;       // 조회 시각 (timestamp)
 }
 
 /** 조건 도달 알림 */
@@ -116,4 +118,30 @@ export interface SellMethodDetail {
   fullDesc: string;
   when: string;
   tip: string;
+}
+
+// ============================================
+// 세션 24: 매도 시그널 관련 타입
+// ============================================
+
+/** 시그널 위험 수준 (4단계 + 비활성) */
+export type SignalLevel = 'danger' | 'warning' | 'caution' | 'safe' | 'inactive';
+
+/** 개별 매도 시그널 결과 */
+export interface SignalResult {
+  presetId: string;        // 'candle3' | 'stopLoss' | ...
+  level: SignalLevel;
+  score: number;           // 0~100 (100 = 즉시 매도)
+  message: string;         // 요약 메시지
+  detail: string;          // 상세 설명
+  triggeredAt?: number;    // 트리거 시점 timestamp
+}
+
+/** 포지션별 전체 시그널 결과 */
+export interface PositionSignals {
+  positionId: number;
+  signals: SignalResult[];
+  maxLevel: SignalLevel;   // 가장 위험한 수준
+  activeCount: number;     // 발동된 시그널 수 (caution 이상)
+  totalScore: number;      // 합산 점수
 }
