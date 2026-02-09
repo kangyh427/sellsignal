@@ -2,24 +2,21 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 23: Mock 완전 제거 + 실시간 데이터 연동 + InstallPrompt
-// 변경사항:
-//   - generateMockPriceData 완전 제거
-//   - useStockHistory + useStockPrices 연동
-//   - useMemo로 priceDataMap 합성 (history + 실시간 오버레이)
-//   - InstallPrompt (PWA 홈화면 바로가기)
-//   - totalValue 계산에 실시간 가격 우선 적용
+// 세션 19: usePositions 연동 (DB CRUD + localStorage)
+// 세션 23: Mock 제거 + useStockHistory/useStockPrices 실시간 연동
+// 세션 24: calculateAllSignals 시그널 엔진 연동
 // ============================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
-import useStockPrices from '@/hooks/useStockPrices';
 import useStockHistory from '@/hooks/useStockHistory';
-import { SELL_PRESETS, formatCompact } from '@/constants';
-import type { Position, Alert } from '@/types';
+import useStockPrices from '@/hooks/useStockPrices';
+import { calculateAllSignals } from '@/lib/sellSignals';
+import { SELL_PRESETS } from '@/constants';
+import type { Position, Alert, PositionSignals } from '@/types';
 
 // 컴포넌트 import
 import CrestLogo from './CrestLogo';
@@ -50,7 +47,7 @@ export default function CRESTApp() {
   const { isMobile, isTablet, width } = useResponsive();
   const { user, isLoggedIn, isLoading: authLoading, signOut } = useAuth();
 
-  // ★ 핵심: usePositions 훅으로 DB 연동
+  // ★ usePositions 훅으로 DB 연동
   const {
     positions,
     isLoading: positionsLoading,
@@ -59,17 +56,14 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  // ★ 실시간 주가 (60초 갱신)
-  const { prices: stockPrices } = useStockPrices(positions);
-
-  // ★ 과거 차트 데이터 (60일 캔들)
+  // ★ 세션 23: 실시간 주가 + 과거 차트 데이터
+  const stockCodes = useMemo(() => positions.map(p => p.code), [positions]);
+  const { prices: stockPrices } = useStockPrices(stockCodes);
   const { historyMap, isLoading: historyLoading } = useStockHistory(positions);
 
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-
-  // 알림 상태 (추후 DB 연동 예정)
   const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
   const isPremium = false;
@@ -77,79 +71,76 @@ export default function CRESTApp() {
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // ★ priceDataMap 합성: 과거 차트 + 실시간 가격 오버레이
+  // ★ 세션 23: priceDataMap 합성 (history + 실시간 오버레이)
   const priceDataMap = useMemo(() => {
     const map: Record<number, any[]> = {};
-
-    positions.forEach((p) => {
+    positions.forEach(p => {
       const history = historyMap[p.id];
-      if (!history || history.length === 0) {
-        map[p.id] = [];
-        return;
+      if (!history || history.length === 0) return;
+
+      const realtime = stockPrices[p.code];
+      if (realtime) {
+        // 마지막 캔들에 실시간 가격 오버레이
+        const updated = [...history];
+        const last = { ...updated[updated.length - 1] };
+        last.close = realtime.price;
+        last.high = Math.max(last.high, realtime.price);
+        last.low = Math.min(last.low, realtime.price);
+        updated[updated.length - 1] = last;
+        map[p.id] = updated;
+      } else {
+        map[p.id] = history;
       }
-
-      // 과거 차트 복사
-      const candles = [...history];
-
-      // 실시간 가격이 있으면 마지막 캔들의 close를 오버레이
-      const livePrice = stockPrices[p.code];
-      if (livePrice && candles.length > 0) {
-        const lastCandle = { ...candles[candles.length - 1] };
-        lastCandle.close = livePrice.price;
-        lastCandle.high = Math.max(lastCandle.high, livePrice.price);
-        lastCandle.low = Math.min(lastCandle.low, livePrice.price);
-        candles[candles.length - 1] = lastCandle;
-      }
-
-      map[p.id] = candles;
     });
-
     return map;
   }, [positions, historyMap, stockPrices]);
 
-  // ── 현재가 가져오기 (실시간 > 차트 마지막 > 매수가) ──
-  const getCurrentPrice = (pos: Position): number => {
-    const live = stockPrices[pos.code];
-    if (live) return live.price;
-    const chart = priceDataMap[pos.id];
-    if (chart && chart.length > 0) return chart[chart.length - 1].close;
-    return pos.buyPrice;
-  };
+  // ★ 세션 24: 매도 시그널 계산
+  const signalsMap = useMemo<Record<number, PositionSignals>>(() => {
+    const map: Record<number, PositionSignals> = {};
+    positions.forEach(p => {
+      const candles = priceDataMap[p.id] || [];
+      const currentPrice = getCurrentPrice(p);
+      if (candles.length > 0 && currentPrice > 0) {
+        map[p.id] = calculateAllSignals({ position: p, candles, currentPrice });
+      }
+    });
+    return map;
+  }, [positions, priceDataMap, stockPrices]);
+
+  // 현재가 우선순위: 실시간 > 차트 마지막 종가 > 매수가
+  function getCurrentPrice(p: Position): number {
+    const realtime = stockPrices[p.code];
+    if (realtime?.price) return realtime.price;
+    const history = priceDataMap[p.id];
+    if (history?.length) return history[history.length - 1].close;
+    return p.buyPrice;
+  }
 
   // ── 핸들러 ──
-  const handleUpdatePosition = (updated: Position) => {
-    updatePosition(updated);
-  };
-  const handleDeletePosition = (id: number) => {
-    deletePosition(id);
-  };
+  const handleUpdatePosition = (updated: Position) => updatePosition(updated);
+  const handleDeletePosition = (id: number) => deletePosition(id);
 
-  /** 종목 추가 핸들러 (AddStockModal에서 호출) */
   const handleAddStock = async (stock: {
-    name: string;
-    code: string;
-    buyPrice: number;
-    quantity: number;
+    name: string; code: string; buyPrice: number; quantity: number;
   }) => {
     await addPosition(stock);
   };
 
-  /** 로그인/로그아웃 핸들러 */
   const handleAuthAction = () => {
-    if (isLoggedIn) {
-      signOut();
-    } else {
-      router.push('/login');
-    }
+    if (isLoggedIn) { signOut(); } else { router.push('/login'); }
   };
 
-  // 요약 통계 (실시간 가격 우선)
+  // 요약 통계
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
     return s + getCurrentPrice(p) * p.quantity;
   }, 0);
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+  // ★ 세션 24: 전체 활성 시그널 수 (알림 배지용)
+  const totalActiveSignals = Object.values(signalsMap).reduce((sum, ps) => sum + ps.activeCount, 0);
 
   // 로딩 스켈레톤
   if (authLoading || positionsLoading) {
@@ -209,7 +200,7 @@ export default function CRESTApp() {
 
         <div style={
           isMobile
-            ? { display: 'flex', flexDirection: 'column' as const, gap: '0' }
+            ? { display: 'flex', flexDirection: 'column', gap: '0' }
             : isTablet
             ? { display: 'grid', gridTemplateColumns: '1fr 360px', gap: '16px', padding: '0 20px' }
             : { display: 'grid', gridTemplateColumns: isPremium ? '1fr 440px' : '160px 1fr 440px', gap: '20px' }
@@ -222,7 +213,7 @@ export default function CRESTApp() {
                 borderRadius: '12px', padding: '12px 8px',
                 border: '1px dashed rgba(255,255,255,0.08)',
                 textAlign: 'center', minHeight: '600px',
-                display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
                 <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
@@ -243,8 +234,15 @@ export default function CRESTApp() {
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
+              <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 보유 종목 ({positions.length})
+                {/* ★ 세션 24: 활성 시그널 배지 */}
+                {totalActiveSignals > 0 && (
+                  <span style={{
+                    background: '#ef4444', color: '#fff', padding: '2px 7px',
+                    borderRadius: '8px', fontSize: '11px', fontWeight: '700',
+                  }}>📡 {totalActiveSignals}</span>
+                )}
               </h2>
               <button onClick={() => {
                 if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
@@ -286,18 +284,6 @@ export default function CRESTApp() {
               )}
             </div>
 
-            {/* 차트 로딩 인디케이터 */}
-            {historyLoading && positions.length > 0 && (
-              <div style={{
-                background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
-                borderRadius: '10px', padding: '10px 14px', marginBottom: '12px',
-                display: 'flex', alignItems: 'center', gap: '8px',
-              }}>
-                <span style={{ fontSize: '14px' }}>📊</span>
-                <div style={{ fontSize: '12px', color: '#60a5fa' }}>차트 데이터 로딩 중...</div>
-              </div>
-            )}
-
             {/* 종목이 없을 때 */}
             {positions.length === 0 && (
               <div style={{
@@ -321,6 +307,17 @@ export default function CRESTApp() {
               </div>
             )}
 
+            {/* ★ 차트 로딩 인디케이터 */}
+            {historyLoading && positions.length > 0 && (
+              <div style={{
+                padding: '8px 12px', marginBottom: '8px', borderRadius: '8px',
+                background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)',
+                fontSize: '12px', color: '#60a5fa', textAlign: 'center',
+              }}>
+                📡 차트 데이터 로딩 중...
+              </div>
+            )}
+
             {positions.map((pos) => (
               <PositionCard key={pos.id}
                 position={pos} priceData={priceDataMap[pos.id]}
@@ -328,6 +325,7 @@ export default function CRESTApp() {
                 onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
                 isPremium={isPremium}
                 stockPrice={stockPrices[pos.code] || null}
+                signals={signalsMap[pos.id] || null}
                 aiNewsUsedCount={aiNewsUsedCount}
                 maxFreeAINews={MAX_FREE_AI_NEWS}
                 onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
@@ -407,13 +405,13 @@ export default function CRESTApp() {
         </div>
       </main>
 
+      {/* PWA 설치 프롬프트 */}
+      <InstallPrompt isMobile={isMobile} />
+
       {/* 모바일 하단 네비게이션 */}
       {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
 
-      {/* PWA 설치 안내 (모바일에서만) */}
-      <InstallPrompt isMobile={isMobile} />
-
-      {/* ★ 종목 추가 모달 */}
+      {/* 종목 추가 모달 */}
       {showAddModal && (
         <AddStockModal
           isMobile={isMobile}
