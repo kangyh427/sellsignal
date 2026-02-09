@@ -5,15 +5,17 @@
 // 세션 19: usePositions 연동 (DB CRUD + localStorage)
 // 세션 24: 매도 시그널 엔진 연동 + useStockPrices/History
 // 세션 25: 한글 인코딩 복원 + InstallPrompt + 시그널 PositionCard 전달
+// 세션 26B: 모바일 UX 고도화 (PTR, 스켈레톤, 삭제모달, 탭 애니메이션)
 // ============================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
 import useStockPrices from '@/hooks/useStockPrices';
 import useStockHistory from '@/hooks/useStockHistory';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
 import { calculateAllSignals } from '@/lib/sellSignals';
 import { SELL_PRESETS, formatCompact } from '@/constants';
 import type { Position, Alert, PositionSignals } from '@/types';
@@ -33,6 +35,9 @@ import AddStockModal from './AddStockModal';
 import UpgradePopup from './UpgradePopup';
 import InstallPrompt from './InstallPrompt';
 import Footer from './Footer';
+// ★ 세션 26B 신규 컴포넌트
+import SkeletonCard from './SkeletonCard';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 export default function CRESTApp() {
   const router = useRouter();
@@ -58,6 +63,10 @@ export default function CRESTApp() {
 
   // ★ 세션 25: 사용자가 수동으로 닫은 알림 ID 추적
   const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<number>>(new Set());
+
+  // ★ 세션 26B: 탭 전환 애니메이션 + 삭제 확인 모달
+  const [tabAnim, setTabAnim] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const isPremium = false;
   const MAX_FREE_POSITIONS = 3;
@@ -91,7 +100,7 @@ export default function CRESTApp() {
         .filter(s => s.level === 'danger' || s.level === 'warning')
         .forEach(signal => {
           const id = alertId++;
-          if (dismissedAlertIds.has(id)) return; // 닫은 알림 제외
+          if (dismissedAlertIds.has(id)) return;
           const preset = SELL_PRESETS[signal.presetId];
           if (!preset) return;
           result.push({
@@ -101,7 +110,7 @@ export default function CRESTApp() {
             preset,
             message: signal.message,
             currentPrice: getCurrentPrice(pos.code, pos.buyPrice),
-            targetPrice: pos.buyPrice, // 참고값
+            targetPrice: pos.buyPrice,
             timestamp: signal.triggeredAt || Date.now(),
           });
         });
@@ -113,8 +122,16 @@ export default function CRESTApp() {
   const handleUpdatePosition = (updated: Position) => {
     updatePosition(updated);
   };
-  const handleDeletePosition = (id: number) => {
-    deletePosition(id);
+
+  // ★ 세션 26B: 삭제 확인 모달 → 실제 삭제
+  const handleDeleteRequest = (id: number) => {
+    setDeleteConfirmId(id);
+  };
+  const handleDeleteConfirm = () => {
+    if (deleteConfirmId !== null) {
+      deletePosition(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
   };
 
   /** 종목 추가 핸들러 (AddStockModal에서 호출) */
@@ -136,6 +153,21 @@ export default function CRESTApp() {
     }
   };
 
+  // ★ 세션 26B: 탭 전환 + fadeIn 애니메이션
+  const handleTabChange = (tab: string) => {
+    if (tab === activeTab) return;
+    setTabAnim(true);
+    setActiveTab(tab);
+    setTimeout(() => setTabAnim(false), 250);
+  };
+
+  // ★ 세션 26B: Pull-to-Refresh
+  const handleRefresh = useCallback(async () => {
+    // 실제로는 stockPrices 재요청 등의 로직
+    await new Promise((r) => setTimeout(r, 1000));
+  }, []);
+  const ptr = usePullToRefresh(handleRefresh);
+
   // 요약 통계 (실시간 주가 우선)
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
@@ -151,16 +183,30 @@ export default function CRESTApp() {
       <div style={{
         minHeight: '100vh',
         background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       }}>
-        <div style={{ textAlign: 'center' }}>
-          <svg width={48} height={48} viewBox="0 0 40 40" fill="none">
-            <rect width="40" height="40" rx="10" fill="#1e293b" />
-            <path d="M10 28 L16 14 L20 22 L24 12 L30 28" stroke="#3b82f6" strokeWidth="2.5"
-              fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="24" cy="12" r="3" fill="#10b981" />
-          </svg>
-          <div style={{ color: '#64748b', fontSize: '14px', marginTop: '12px' }}>로딩 중...</div>
+        {/* ★ 세션 26B: 향상된 스켈레톤 로딩 */}
+        <style>{`@keyframes skeletonPulse { 0%,100%{opacity:1}50%{opacity:0.5} }`}</style>
+        <div style={{ width: '100%', maxWidth: '430px', padding: '60px 16px 0' }}>
+          {/* 요약 카드 스켈레톤 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{
+                background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+                borderRadius: '12px', padding: '12px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                animation: 'skeletonPulse 1.5s ease-in-out infinite',
+                animationDelay: `${i * 0.15}s`,
+              }}>
+                <div style={{ width: '50%', height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 8 }} />
+                <div style={{ width: '70%', height: 16, borderRadius: 4, background: 'rgba(255,255,255,0.08)' }} />
+              </div>
+            ))}
+          </div>
+          {/* 포지션 카드 스켈레톤 */}
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -175,7 +221,16 @@ export default function CRESTApp() {
       fontSize: '14px',
       paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
     }}>
-      <style>{`@keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }`}</style>
+      {/* ★ 세션 26B: 전역 keyframe 애니메이션 정의 */}
+      <style>{`
+        @keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }
+        @keyframes skeletonPulse { 0%,100%{opacity:1}50%{opacity:0.5} }
+        @keyframes slideDown { from{opacity:0;max-height:0}to{opacity:1;max-height:800px} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+        @keyframes spinnerRotate { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
+        @keyframes slideUp { from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1} }
+        *{-webkit-tap-highlight-color:transparent}
+      `}</style>
 
       {/* ★ PWA 설치 안내 */}
       <InstallPrompt />
@@ -194,10 +249,46 @@ export default function CRESTApp() {
         isMobile={isMobile} isTablet={isTablet}
       />
 
-      <main style={{
-        maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
-        margin: '0 auto', padding: isMobile ? '0' : '24px',
-      }}>
+      {/* ★ 세션 26B: Pull-to-Refresh 인디케이터 (모바일 전용) */}
+      {isMobile && (
+        <div style={{
+          height: `${ptr.pullDistance}px`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: ptr.pullDistance === 0 ? 'height 0.3s ease' : 'none',
+          overflow: 'hidden',
+        }}>
+          {ptr.pullDistance > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              color: ptr.refreshing ? '#60a5fa' : '#64748b', fontSize: '12px',
+            }}>
+              <div style={{
+                width: 20, height: 20,
+                border: `2px solid ${ptr.refreshing ? '#60a5fa' : '#64748b'}`,
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                animation: ptr.refreshing ? 'spinnerRotate 0.8s linear infinite' : 'none',
+                transform: ptr.refreshing ? undefined : `rotate(${ptr.pullDistance * 3}deg)`,
+              }} />
+              {ptr.refreshing ? '새로고침 중...' : ptr.pullDistance >= 40 ? '놓으면 새로고침' : '아래로 당기기'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 메인 콘텐츠 영역 (PTR 터치 핸들러 연결) */}
+      <main
+        ref={isMobile ? ptr.containerRef : undefined}
+        onTouchStart={isMobile ? ptr.handleTouchStart : undefined}
+        onTouchMove={isMobile ? ptr.handleTouchMove : undefined}
+        onTouchEnd={isMobile ? ptr.handleTouchEnd : undefined}
+        style={{
+          maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
+          margin: '0 auto', padding: isMobile ? '0' : '24px',
+        }}
+      >
         <ResponsiveSummaryCards
           totalCost={totalCost} totalValue={totalValue}
           totalProfit={totalProfit} totalProfitRate={totalProfitRate}
@@ -223,7 +314,7 @@ export default function CRESTApp() {
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
                 <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
-                  {'📢'} Google<br />AdSense<br />(160×600)
+                  📢 Google<br />AdSense<br />(160×600)
                   <div style={{ fontSize: '9px', color: '#475569', marginTop: '8px' }}>PRO 구독 시<br />광고 제거</div>
                 </div>
               </div>
@@ -234,9 +325,11 @@ export default function CRESTApp() {
           <div style={{
             display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
             padding: isMobile ? '0 16px' : '0',
+            // ★ 세션 26B: 탭 전환 애니메이션
+            animation: isMobile && tabAnim ? 'fadeIn 0.25s ease-out' : 'none',
           }}>
             {isMobile && activeTab === 'positions' && (
-              <MarketMiniSummary onClick={() => setActiveTab('market')} />
+              <MarketMiniSummary onClick={() => handleTabChange('market')} />
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -298,7 +391,7 @@ export default function CRESTApp() {
                 background: 'linear-gradient(145deg, #1e293b, #0f172a)',
                 borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)',
               }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>{'📈'}</div>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📈</div>
                 <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '8px' }}>
                   종목을 추가해 보세요
                 </div>
@@ -315,19 +408,27 @@ export default function CRESTApp() {
             )}
 
             {/* ★ 세션 25: PositionCard에 signals + stockPrice prop 전달 */}
-            {positions.map((pos) => (
-              <PositionCard key={pos.id}
-                position={pos} priceData={priceDataMap[pos.id]}
-                isMobile={isMobile} isTablet={isTablet}
-                onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
-                isPremium={isPremium}
-                stockPrice={getPrice(pos.code)}
-                signals={signalsMap[pos.id]}
-                aiNewsUsedCount={aiNewsUsedCount}
-                maxFreeAINews={MAX_FREE_AI_NEWS}
-                onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
-                onShowUpgrade={() => setShowUpgrade(true)}
-              />
+            {/* ★ 세션 26B: onDelete → 삭제 확인 모달 연결 */}
+            {positions.map((pos, i) => (
+              <div key={pos.id} style={{
+                animation: isMobile ? 'fadeIn 0.3s ease-out' : 'none',
+                animationDelay: `${i * 0.1}s`,
+                animationFillMode: 'both',
+              }}>
+                <PositionCard
+                  position={pos} priceData={priceDataMap[pos.id]}
+                  isMobile={isMobile} isTablet={isTablet}
+                  onUpdate={handleUpdatePosition}
+                  onDelete={handleDeleteRequest}
+                  isPremium={isPremium}
+                  stockPrice={getPrice(pos.code)}
+                  signals={signalsMap[pos.id]}
+                  aiNewsUsedCount={aiNewsUsedCount}
+                  maxFreeAINews={MAX_FREE_AI_NEWS}
+                  onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
+                  onShowUpgrade={() => setShowUpgrade(true)}
+                />
+              </div>
             ))}
 
             {/* 카드 하단 광고 */}
@@ -338,7 +439,7 @@ export default function CRESTApp() {
                 border: '1px dashed rgba(255,255,255,0.06)', textAlign: 'center',
               }}>
                 <div style={{ fontSize: '10px', color: '#475569', letterSpacing: '1px', marginBottom: '4px' }}>AD</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>{'📢'} AdSense (320×100)</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>📢 AdSense (320×100)</div>
                 <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>PRO 구독 시 광고 제거</div>
               </div>
             )}
@@ -346,10 +447,14 @@ export default function CRESTApp() {
 
           {/* 우측 사이드바 */}
           {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
-            <div style={{ padding: isMobile ? '0 16px' : '0', overflow: 'visible' }}>
+            <div style={{
+              padding: isMobile ? '0 16px' : '0', overflow: 'visible',
+              // ★ 세션 26B: 탭 전환 애니메이션
+              animation: isMobile && tabAnim ? 'fadeIn 0.25s ease-out' : 'none',
+            }}>
               <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
                 {isMobile && activeTab === 'market' && (
-                  <button onClick={() => setActiveTab('positions')} style={{
+                  <button onClick={() => handleTabChange('positions')} style={{
                     width: '100%', padding: '10px 14px', marginBottom: '10px', minHeight: '44px',
                     background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03))',
                     border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', cursor: 'pointer',
@@ -375,7 +480,7 @@ export default function CRESTApp() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {'🔔'} 조건 도달 알림
+                    🔔 조건 도달 알림
                     {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
                   </h3>
                   {alerts.length > 0 && (
@@ -387,7 +492,7 @@ export default function CRESTApp() {
                 </div>
                 {alerts.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '24px' }}>
-                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>{'✨'}</div>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
                     <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
                   </div>
                 ) : alerts.map((a) => (
@@ -402,8 +507,17 @@ export default function CRESTApp() {
         </div>
       </main>
 
-      {/* 모바일 하단 네비게이션 */}
-      {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
+      {/* 모바일 하단 네비게이션 (★ 26B: handleTabChange 연결) */}
+      {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={handleTabChange} alertCount={alerts.length} />}
+
+      {/* ★ 세션 26B: 삭제 확인 모달 */}
+      {deleteConfirmId !== null && (
+        <DeleteConfirmModal
+          stockName={positions.find(p => p.id === deleteConfirmId)?.name || ''}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
+      )}
 
       {/* ★ 종목 추가 모달 */}
       {showAddModal && (
