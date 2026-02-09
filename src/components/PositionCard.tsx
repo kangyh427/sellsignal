@@ -244,8 +244,8 @@ const PositionCard = ({
           position: 'relative', marginBottom: '8px',
           overflow: 'hidden', borderRadius: '14px',
         }}>
-          {/* 삭제 버튼 배경 */}
-          <SwipeDeleteBackground />
+          {/* 삭제 버튼 배경 (스와이프 시에만 표시) */}
+          {swipe.swipeOffset < 0 && <SwipeDeleteBackground />}
 
           {/* 카드 본체 (스와이프 대상) */}
           <div
@@ -255,7 +255,7 @@ const PositionCard = ({
             style={{
               position: 'relative', zIndex: 1,
               transform: `translateX(${swipe.swipeOffset}px)`,
-              transition: (swipe.swipeOffset === 0 || swipe.showDeleteBtn)
+              transition: (swipe.swipeOffset === 0 || swipe.swipeOffset === -80)
                 ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
             }}
           >
@@ -347,8 +347,8 @@ const PositionCard = ({
         overflow: isMobile ? 'hidden' : 'visible',
         borderRadius: '16px',
       }}>
-        {/* 삭제 버튼 배경 (모바일만) */}
-        {isMobile && <SwipeDeleteBackground />}
+        {/* 삭제 버튼 배경 (모바일, 스와이프 시에만 표시) */}
+        {isMobile && swipe.swipeOffset < 0 && <SwipeDeleteBackground />}
 
         {/* 카드 본체 */}
         <div
@@ -358,7 +358,7 @@ const PositionCard = ({
           style={{
             position: 'relative', zIndex: 1,
             transform: isMobile ? `translateX(${swipe.swipeOffset}px)` : 'none',
-            transition: isMobile && (swipe.swipeOffset === 0 || swipe.showDeleteBtn)
+            transition: isMobile && (swipe.swipeOffset === 0 || swipe.swipeOffset === -80)
               ? 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
             background: "linear-gradient(145deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9))",
             borderRadius: "16px", padding: isMobile ? "14px" : "16px 18px",
