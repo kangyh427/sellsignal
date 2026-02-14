@@ -6,13 +6,12 @@
 // 세션 36: PWA + 한글 인코딩 복구
 // 세션 37: 실시간 주가 API + 차트 히스토리 연동
 // 세션 39: Pull-to-Refresh 연결 + 빌드 에러 수정
-// 변경사항:
-//   - useStockPrices 훅 연동 → 실시간 가격 표시
-//   - useStockHistory 훅 연동 → 실제 캔들차트 데이터
-//   - calculateAllSignals 연동 → 매도 시그널 실계산
-//   - usePullToRefresh 연결 → 모바일 당겨서 새로고침
-//   - Mock 시뮬레이션 제거 (API fallback은 유지)
-//   - stockPrice, signals props를 PositionCard에 전달
+// ★ 세션 60: 차트 Mock 데이터 버그 수정 + 사이드바 레이아웃/순서 수정
+// 변경사항 (세션 60):
+//   [버그수정] generateMockPriceData(buyPrice, 60) → (buyPrice, curPrice, 60)
+//     - 60이 currentPrice로 해석되어 차트가 0원대로 추락하는 치명적 버그
+//   [레이아웃] 우측 사이드바 3개 별도 div → 1개 wrapper div로 통합 (그리드 정상화)
+//   [순서변경] 버핏→달걀→알림→가이드 → 알림→달걀→버핏→가이드
 // ============================================
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -94,7 +93,10 @@ export default function CRESTApp() {
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // ★ 세션 37: API 히스토리가 없으면 Mock 데이터 생성 (fallback)
+  // ★ 세션 37 + 세션 60 수정: API 히스토리가 없으면 Mock 데이터 생성 (fallback)
+  // [세션60 버그수정] generateMockPriceData(buyPrice, currentPrice, days)
+  // 기존: generateMockPriceData(p.buyPrice, 60) → 60이 currentPrice로 해석됨!
+  // 삼성전자 buyPrice=150,000일 때 currentPrice=60으로 차트가 0원대 추락
   useEffect(() => {
     if (positions.length === 0) return;
     const d: Record<number, any[]> = {};
@@ -105,7 +107,11 @@ export default function CRESTApp() {
       if (mockDataMap[p.id]) {
         d[p.id] = mockDataMap[p.id];
       } else {
-        d[p.id] = generateMockPriceData(p.buyPrice, 60);
+        // ★ 세션 60 핵심 수정: currentPrice를 두 번째 인자로 정확히 전달
+        // 실시간 API 가격이 있으면 사용, 없으면 매수가 기준 ±15% 랜덤
+        const realPrice = getCurrentPrice(p.code);
+        const curPrice = realPrice || p.buyPrice * (1 + (Math.random() - 0.3) * 0.3);
+        d[p.id] = generateMockPriceData(p.buyPrice, curPrice, 60);
       }
     });
     if (Object.keys(d).length > 0) {
@@ -306,7 +312,7 @@ export default function CRESTApp() {
         gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 300px' : '1fr 340px',
         gap: '16px',
       }}>
-        {/* 좌측: 요약 + 포지션 */}
+        {/* ===== 좌측 컬럼: 요약 + 포지션 카드 ===== */}
         <div style={{
           display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
           padding: isMobile ? '0 16px' : '0',
@@ -382,7 +388,7 @@ export default function CRESTApp() {
                 보유 종목을 추가해보세요
               </div>
               <div style={{ fontSize: '12px', color: '#64748b' }}>
-                상단의 '+ 추가' 버튼으로 종목을 등록할 수 있습니다
+                상단의 &apos;+ 추가&apos; 버튼으로 종목을 등록할 수 있습니다
               </div>
             </div>
           ) : (
@@ -420,55 +426,77 @@ export default function CRESTApp() {
           )}
         </div>
 
-        {/* 우측: 시장 분석 + 알림 + 가이드 */}
-        {(!isMobile || activeTab === 'market') && (
-          <div style={{
-            display: isMobile && activeTab !== 'market' ? 'none' : 'block',
-            padding: isMobile ? '0 16px' : '0',
-          }}>
-            <BuffettIndicatorWidget isMobile={isMobile} />
-            <MarketCycleWidget isMobile={isMobile} />
-          </div>
-        )}
+        {/* ===== ★ 세션 60: 우측 사이드바 (단일 wrapper div) ===== */}
+        {/* 핵심 수정: 기존 3개 별도 조건부 div → 1개 wrapper로 통합 */}
+        {/* CSS Grid '1fr 340px' 에서 좌측1개 + 우측1개 = 정상 2열 레이아웃 */}
+        {/* 순서: 1)조건도달알림 → 2)코스톨라니달걀 → 3)버핏지수 → 4)매도법가이드 */}
+        <div style={{
+          display: isMobile && activeTab === 'positions' ? 'none' : 'block',
+          padding: isMobile ? '0 16px' : '0',
+        }}>
 
-        {(!isMobile || activeTab === 'alerts') && (
+          {/* ── 1) 조건 도달 알림 (가장 위) ── */}
           <div style={{
             display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
-            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-            borderRadius: '14px', padding: isMobile ? '14px' : '16px',
-            border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🔔 조건 도달 알림
-                {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
-              </h3>
-              {alerts.length > 0 && (
-                <button onClick={() => setAlerts([])} style={{
-                  background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
-                  padding: '6px 10px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
-                }}>모두 지우기</button>
-              )}
-            </div>
-            {alerts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px' }}>
-                <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
+            <div style={{
+              background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+              borderRadius: '14px', padding: isMobile ? '14px' : '16px',
+              border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔔 조건 도달 알림
+                  {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
+                </h3>
+                {alerts.length > 0 && (
+                  <button onClick={() => setAlerts([])} style={{
+                    background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
+                    padding: '6px 10px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
+                  }}>모두 지우기</button>
+                )}
               </div>
-            ) : alerts.map((a) => (
-              <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
-            ))}
+              {alerts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
+                </div>
+              ) : alerts.map((a) => (
+                <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
+              ))}
+            </div>
           </div>
-        )}
 
-        {(!isMobile || activeTab === 'guide') && (
+          {/* ── 2) 코스톨라니 달걀 + 3) 버핏지수 ── */}
+          <div style={{
+            display: isMobile && activeTab !== 'market' ? 'none' : 'block',
+          }}>
+            {isMobile && activeTab === 'market' && (
+              <button onClick={() => setActiveTab('positions')} style={{
+                width: '100%', padding: '10px 14px', marginBottom: '10px', minHeight: '44px',
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03))',
+                border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '10px',
+              }}>
+                <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#60a5fa' }}>←</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#60a5fa' }}>보유 종목으로 돌아가기</div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>포지션 · 차트 · AI분석</div>
+                </div>
+              </button>
+            )}
+            <MarketCycleWidget isMobile={isMobile} />
+            <BuffettIndicatorWidget isMobile={isMobile} />
+          </div>
+
+          {/* ── 4) 매도의 기술 가이드 (가장 아래) ── */}
           <div style={{
             display: isMobile && activeTab !== 'guide' ? 'none' : 'block',
           }}>
-            {/* 매도법 가이드 */}
             <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
           </div>
-        )}
+
+        </div>
       </main>
 
       {/* 모바일 하단 네비게이션 */}
