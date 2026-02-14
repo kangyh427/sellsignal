@@ -140,6 +140,82 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }: Po
                     }} />
                   </div>
                 </button>
+                {/* ★ 세션60: 프리셋별 세부 설정 UI */}
+                {isActive && preset.id === 'stopLoss' && (
+                  <div style={{
+                    padding: '8px 12px', marginTop: '-2px',
+                    background: 'rgba(239,68,68,0.06)',
+                    borderRadius: '0 0 8px 8px',
+                    border: '1px solid rgba(239,68,68,0.15)',
+                    borderTop: 'none',
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                      손절률 설정 (매수가 대비)
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {[-3, -5, -7, -10].map((pct) => {
+                        const isSelected = (editSettings.stopLoss?.value || -5) === pct;
+                        return (
+                          <button key={pct} onClick={(e) => {
+                            e.stopPropagation();
+                            setEditSettings((prev) => ({
+                              ...prev,
+                              stopLoss: { value: pct },
+                            }));
+                          }} style={{
+                            padding: '6px 12px', minHeight: '36px',
+                            background: isSelected ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${isSelected ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: '6px', cursor: 'pointer',
+                            color: isSelected ? '#fca5a5' : '#94a3b8',
+                            fontSize: '13px', fontWeight: isSelected ? '700' : '500',
+                          }}>
+                            {pct}%
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>
+                      PPT: 주가 1일 등락폭 고려하여 -3%~-5% 권장
+                    </div>
+                  </div>
+                )}
+                {isActive && preset.id === 'maSignal' && (
+                  <div style={{
+                    padding: '8px 12px', marginTop: '-2px',
+                    background: 'rgba(6,182,212,0.06)',
+                    borderRadius: '0 0 8px 8px',
+                    border: '1px solid rgba(6,182,212,0.15)',
+                    borderTop: 'none',
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                      이동평균선 기간 설정
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[10, 20, 60].map((period) => {
+                        const isSelected = (editSettings.maSignal?.value || 20) === period;
+                        return (
+                          <button key={period} onClick={(e) => {
+                            e.stopPropagation();
+                            setEditSettings((prev) => ({
+                              ...prev,
+                              maSignal: { value: period },
+                            }));
+                          }} style={{
+                            padding: '6px 12px', minHeight: '36px',
+                            background: isSelected ? 'rgba(6,182,212,0.25)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${isSelected ? '#06b6d4' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: '6px', cursor: 'pointer',
+                            color: isSelected ? '#67e8f9' : '#94a3b8',
+                            fontSize: '13px', fontWeight: isSelected ? '700' : '500',
+                          }}>
+                            {period}일
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               );
             })}
           </div>
