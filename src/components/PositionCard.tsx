@@ -193,9 +193,39 @@ const PositionCard = ({
         }
         break;
       }
-      case 'trendline':
-        sellPrices.trendline = Math.round(position.buyPrice * 0.95);
+      case 'trendline': {
+        // ★ 세션64: PPT 추세선 매도법 — "최근 2번째 지지선 이탈 시 매도"
+        // 캔들 최저가(low)에서 로컬 저점(양옆보다 낮은 점)을 찾고,
+        // 최근 2번째 저점 = 매도 기준가
+        if (priceData && priceData.length >= 10) {
+          // 로컬 저점 찾기 (양옆 캔들보다 low가 낮은 지점)
+          const localLows: { idx: number; price: number }[] = [];
+          for (let i = 1; i < priceData.length - 1; i++) {
+            const c = priceData[i];
+            const prev = priceData[i - 1];
+            const next = priceData[i + 1];
+            if (c.low <= prev.low && c.low <= next.low) {
+              localLows.push({ idx: i, price: c.low });
+            }
+          }
+          if (localLows.length >= 2) {
+            // 최근 순으로 정렬 (idx 큰 것 = 최근)
+            localLows.sort((a, b) => b.idx - a.idx);
+            // 최근 2번째 지지선 = 매도 기준가
+            sellPrices.trendline = Math.round(localLows[1].price);
+          } else if (localLows.length === 1) {
+            // 저점이 1개뿐이면 그것을 사용
+            sellPrices.trendline = Math.round(localLows[0].price);
+          } else {
+            // 저점을 찾지 못하면 전체 기간 최저가
+            const allLow = Math.min(...priceData.map((d: any) => d.low));
+            sellPrices.trendline = Math.round(allLow);
+          }
+        } else {
+          sellPrices.trendline = Math.round(position.buyPrice * 0.95);
+        }
         break;
+      }
     }
   });
 
