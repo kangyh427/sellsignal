@@ -4,12 +4,14 @@
 // 경로: src/hooks/useStockHistory.ts
 // 세션 22A: Yahoo Finance 과거 OHLCV → CandleData[]
 // 세션 61: volume 데이터 포함 + 자동 갱신 로직 보강
+// 세션 62: 60일→90일 (3개월 차트)
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Position, CandleData } from '@/types';
 
-const DEFAULT_DAYS = 60;
+// ★ 세션 62: 3개월 차트를 위해 90일로 변경
+const DEFAULT_DAYS = 90;
 
 export default function useStockHistory(positions: Position[]) {
   // position.id → CandleData[] 매핑
@@ -39,14 +41,14 @@ export default function useStockHistory(positions: Position[]) {
         const data = await res.json();
         if (!data.candles || data.candles.length === 0) return [];
 
-        // ★ 세션 61: volume 데이터 반드시 포함
+        // ★ volume 데이터 반드시 포함
         return data.candles.map((c: any) => ({
           date: new Date(c.date),
           open: c.open,
           high: c.high,
           low: c.low,
           close: c.close,
-          volume: c.volume || 0,  // ★ 매물대 매도법에 필수
+          volume: c.volume || 0,
         }));
       } catch (err) {
         console.error(`History fetch error for ${code}:`, err);
@@ -131,10 +133,10 @@ export default function useStockHistory(positions: Position[]) {
   }, []);
 
   return {
-    historyMap,    // Record<positionId, CandleData[]>
+    historyMap,
     isLoading,
     error,
-    refreshOne,    // (position) => 단일 종목 새로고침
-    refreshAll,    // () => 전체 캐시 클리어 후 새로고침
+    refreshOne,
+    refreshAll,
   };
 }
