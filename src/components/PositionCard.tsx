@@ -260,6 +260,16 @@ const PositionCard = ({
                       height={isMobile ? 200 : isTablet ? 260 : 280}
                       sellPrices={sellPrices}
                       visibleLines={visibleLines}
+                      overlays={{
+                        ma20: position.selectedPresets.includes('maSignal'),
+                        ma60: false,
+                        macd: position.selectedPresets.includes('maSignal'),
+                        volumeProfile: position.selectedPresets.includes('volumeZone'),
+                        trendline: position.selectedPresets.includes('trendline'),
+                      }}
+                      showMACDPanel={
+                        position.selectedPresets.includes('maSignal') && !isMobile
+                      }
                     />
                   </div>
                   <div style={{
