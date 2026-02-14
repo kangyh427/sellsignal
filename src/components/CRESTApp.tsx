@@ -2,12 +2,14 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 63: API 연동 복구 (useStockHistory + useStockPrices)
-// 변경사항:
-//   - generateMockPriceData → useStockHistory (Yahoo Finance OHLCV)
-//   - 3초 가짜 시뮬레이션 → useStockPrices (60초 실시간 갱신)
-//   - PositionCard에 stockPrice prop 추가
-//   - 요약 통계: 실시간가 > 차트종가 > 매수가 우선순위
+// 세션 63: API 연동 복구 + Mock 파라미터 버그 수정
+//
+// [핵심 수정]
+// 1. generateMockPriceData(buyPrice, 60) → (buyPrice, currentPrice, 60)
+//    ← 60을 "현재가"로 인식하여 차트가 ₩58까지 추락하던 버그 수정
+// 2. useStockHistory + useStockPrices 훅 연동
+// 3. 3초 가짜 시뮬레이션 완전 제거
+// 4. 요약 통계: 실시간가 > 차트종가 > 매수가 우선순위
 // ============================================
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -57,25 +59,24 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  // ★ 세션 63 핵심: 실시간 주가 + 과거 차트 API 훅 연동
+  // ★ 실시간 주가 API 훅 (Yahoo Finance, 60초 갱신)
   const {
-    historyMap,        // Record<positionId, CandleData[]>
-    isLoading: historyLoading,
-    error: historyError,
-  } = useStockHistory(positions);
-
-  const {
-    prices: stockPriceMap,  // Record<종목코드, StockPrice>
+    prices: stockPriceMap,
     isLoading: pricesLoading,
     error: pricesError,
     lastUpdated: pricesLastUpdated,
   } = useStockPrices(positions);
 
+  // ★ 과거 차트 API 훅 (Yahoo Finance, 60일 OHLCV)
+  const {
+    historyMap,
+    isLoading: historyLoading,
+    error: historyError,
+  } = useStockHistory(positions);
+
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-
-  // 알림 상태 (추후 DB 연동 예정)
   const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
   const isPremium = false;
@@ -83,22 +84,33 @@ export default function CRESTApp() {
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // ★ 차트 데이터 통합: API 데이터 > Mock 폴백
-  // historyMap에 데이터가 있으면 사용, 없으면 generateMockPriceData로 폴백
+  // ============================================
+  // ★★★ 핵심 수정: 차트 데이터 통합 ★★★
+  //
+  // [이전 버그]
+  //   generateMockPriceData(p.buyPrice, 60)
+  //   → 두 번째 인자 60이 "현재가"로 해석됨
+  //   → 차트가 ₩60까지 하락하는 비정상 표시
+  //
+  // [수정 후]
+  //   generateMockPriceData(p.buyPrice, realCurrentPrice, 60)
+  //   → 실시간 현재가를 끝점으로 사용 → 정상 차트
+  // ============================================
   const priceDataMap = useMemo(() => {
     const map: Record<number, any[]> = {};
     positions.forEach((p) => {
       if (historyMap[p.id] && historyMap[p.id].length > 0) {
-        // ★ API에서 받은 실제 캔들 데이터 사용
+        // ★ 1순위: API에서 받은 실제 캔들 데이터
         map[p.id] = historyMap[p.id];
       } else if (!historyLoading) {
-        // API 로딩 완료인데 데이터 없음 → Mock 폴백
-        map[p.id] = generateMockPriceData(p.buyPrice, 60);
+        // ★ 2순위: API 실패 시 Mock 폴백
+        // 반드시 3개 파라미터: (매수가, 현재가, 일수)
+        const realPrice = stockPriceMap[p.code]?.price || p.buyPrice;
+        map[p.id] = generateMockPriceData(p.buyPrice, realPrice, 60);
       }
-      // historyLoading 중이면 아직 데이터 없어도 빈 배열로 두지 않음 (로딩 표시)
     });
     return map;
-  }, [positions, historyMap, historyLoading]);
+  }, [positions, historyMap, historyLoading, stockPriceMap]);
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
@@ -108,7 +120,6 @@ export default function CRESTApp() {
     deletePosition(id);
   };
 
-  /** 종목 추가 핸들러 (AddStockModal에서 호출) */
   const handleAddStock = async (stock: {
     name: string;
     code: string;
@@ -118,7 +129,6 @@ export default function CRESTApp() {
     await addPosition(stock);
   };
 
-  /** 로그인/로그아웃 핸들러 */
   const handleAuthAction = () => {
     if (isLoggedIn) {
       signOut();
@@ -127,14 +137,11 @@ export default function CRESTApp() {
     }
   };
 
-  // ★ 요약 통계: 실시간 가격(1순위) > 차트 종가(2순위) > 매수가(3순위)
+  // ★ 요약 통계: 실시간가(1순위) > 차트종가(2순위) > 매수가(3순위)
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
-    // 1순위: 실시간 API 가격
     const realTimePrice = stockPriceMap[p.code]?.price;
-    // 2순위: 차트 마지막 종가
     const chartPrice = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close;
-    // 3순위: 매수가
     const currentPrice = realTimePrice || chartPrice || p.buyPrice;
     return s + currentPrice * p.quantity;
   }, 0);
@@ -197,7 +204,7 @@ export default function CRESTApp() {
           isMobile={isMobile} isTablet={isTablet}
         />
 
-        {/* ★ API 에러 배너 */}
+        {/* API 에러 배너 */}
         {(historyError || pricesError) && (
           <div style={{
             margin: isMobile ? '0 16px 12px' : '0 0 12px',
@@ -218,7 +225,7 @@ export default function CRESTApp() {
           </div>
         )}
 
-        {/* ★ 차트 로딩 인디케이터 */}
+        {/* 차트 로딩 인디케이터 */}
         {historyLoading && positions.length > 0 && (
           <div style={{
             margin: isMobile ? '0 16px 12px' : '0 0 12px',
@@ -229,7 +236,7 @@ export default function CRESTApp() {
             display: 'flex', alignItems: 'center', gap: '8px',
             fontSize: '12px', color: '#60a5fa',
           }}>
-            <span style={{ animation: 'pulse 1.5s infinite' }}>📊</span>
+            <span>📊</span>
             <span>차트 데이터 불러오는 중...</span>
           </div>
         )}
@@ -313,7 +320,7 @@ export default function CRESTApp() {
               )}
             </div>
 
-            {/* ★ 실시간 가격 갱신 시각 표시 */}
+            {/* 실시간 갱신 시각 */}
             {pricesLastUpdated && positions.length > 0 && (
               <div style={{
                 fontSize: '10px', color: '#475569', textAlign: 'right',
@@ -347,7 +354,7 @@ export default function CRESTApp() {
               </div>
             )}
 
-            {/* ★ 핵심: PositionCard에 stockPrice prop 전달 */}
+            {/* ★★★ PositionCard에 stockPrice 전달 ★★★ */}
             {positions.map((pos) => (
               <PositionCard key={pos.id}
                 position={pos}
@@ -439,7 +446,7 @@ export default function CRESTApp() {
       {/* 모바일 하단 네비게이션 */}
       {isMobile && <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} alertCount={alerts.length} />}
 
-      {/* ★ 종목 추가 모달 */}
+      {/* 종목 추가 모달 */}
       {showAddModal && (
         <AddStockModal
           isMobile={isMobile}
