@@ -175,8 +175,8 @@ const PositionCard = ({
             let supportPrice = 0;
             for (let z = curZone - 1; z >= 0; z--) {
               if (volByZone[z] > avgVol * 1.2 && volByZone[z] / maxVol > 0.3) {
-                // 이 구간의 상단 = 지지선 (이걸 깨면 매도)
-                supportPrice = Math.round(minP + (z + 1) * zoneSize);
+                // 이 구간의 하단 = 지지선 (이걸 깨면 매도)
+                supportPrice = Math.round(minP + z * zoneSize);
                 break;
               }
             }
