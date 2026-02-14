@@ -3,28 +3,22 @@
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
 // 세션 19: usePositions 연동 (DB CRUD + localStorage)
-// 세션 36: PWA + 한글 인코딩 복구
-// 세션 37: 실시간 주가 API + 차트 히스토리 연동
-// 세션 39: Pull-to-Refresh 연결 + 빌드 에러 수정
-// ★ 세션 60: 차트 Mock 데이터 버그 수정 + 사이드바 레이아웃/순서 수정
-// 변경사항 (세션 60):
-//   [버그수정] generateMockPriceData(buyPrice, 60) → (buyPrice, curPrice, 60)
-//     - 60이 currentPrice로 해석되어 차트가 0원대로 추락하는 치명적 버그
-//   [레이아웃] 우측 사이드바 3개 별도 div → 1개 wrapper div로 통합 (그리드 정상화)
-//   [순서변경] 버핏→달걀→알림→가이드 → 알림→달걀→버핏→가이드
+// 세션 62: ★ Mock → 실제 API 데이터 전환
+//   - useStockHistory: Yahoo Finance 과거 OHLCV 데이터
+//   - useStockPrices: 실시간 현재가
+//   - generateMockPriceData 완전 제거
+//   - 가짜 시뮬레이션 제거
 // ============================================
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
-import useStockPrices from '@/hooks/useStockPrices';
-import useStockHistory from '@/hooks/useStockHistory';
-import usePullToRefresh from '@/hooks/usePullToRefresh';
-import { calculateAllSignals } from '@/lib/sellSignals';
+import useStockHistory from '@/hooks/useStockHistory';   // ★ 세션 62 추가
+import useStockPrices from '@/hooks/useStockPrices';     // ★ 세션 62 추가
 import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants';
-import type { Position, Alert, PositionSignals } from '@/types';
+import type { Position, Alert, CandleData } from '@/types';
 
 // 컴포넌트 import
 import CrestLogo from './CrestLogo';
@@ -63,21 +57,17 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  // ★ 세션 37: 실시간 주가 훅
-  const {
-    prices: stockPrices,
-    isLoading: pricesLoading,
-    lastUpdated: pricesLastUpdated,
-    getCurrentPrice,
-    refresh: refreshPrices,
-  } = useStockPrices(positions);
-
-  // ★ 세션 37: 차트 히스토리 훅
+  // ★ 세션 62: 실제 API 데이터 훅 연동
   const {
     historyMap,
     isLoading: historyLoading,
-    refreshAll: refreshHistory,
+    error: historyError,
   } = useStockHistory(positions);
+
+  const {
+    prices: stockPriceMap,
+    isLoading: pricesLoading,
+  } = useStockPrices(positions);
 
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -86,92 +76,36 @@ export default function CRESTApp() {
   // 알림 상태 (추후 DB 연동 예정)
   const [alerts, setAlerts] = useState<Alert[]>(DEMO_ALERTS);
 
-  // ★ 세션 37: Mock 차트 데이터 (API 실패 시 fallback용)
-  const [mockDataMap, setMockDataMap] = useState<Record<number, any[]>>({});
+  // ★ 세션 62: 차트 데이터 — API 우선, Mock 폴백
+  const [priceDataMap, setPriceDataMap] = useState<Record<number, CandleData[]>>({});
   const isPremium = false;
   const MAX_FREE_POSITIONS = 3;
   const MAX_FREE_AI_NEWS = 3;
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
-  // ★ 세션 37 + 세션 60 수정: API 히스토리가 없으면 Mock 데이터 생성 (fallback)
-  // [세션60 버그수정] generateMockPriceData(buyPrice, currentPrice, days)
-  // 기존: generateMockPriceData(p.buyPrice, 60) → 60이 currentPrice로 해석됨!
-  // 삼성전자 buyPrice=150,000일 때 currentPrice=60으로 차트가 0원대 추락
+  // ★ 세션 62: API 데이터 → priceDataMap 동기화
+  // API에서 실제 데이터가 오면 사용, 없으면 Mock 폴백
   useEffect(() => {
     if (positions.length === 0) return;
-    const d: Record<number, any[]> = {};
-    positions.forEach((p) => {
-      // 실제 API 데이터가 있으면 Mock 불필요
-      if (historyMap[p.id] && historyMap[p.id].length > 0) return;
-      // Mock 데이터가 이미 있으면 재사용
-      if (mockDataMap[p.id]) {
-        d[p.id] = mockDataMap[p.id];
-      } else {
-        // ★ 세션 60 핵심 수정: currentPrice를 두 번째 인자로 정확히 전달
-        // 실시간 API 가격이 있으면 사용, 없으면 매수가 기준 ±15% 랜덤
-        const realPrice = getCurrentPrice(p.code);
-        const curPrice = realPrice || p.buyPrice * (1 + (Math.random() - 0.3) * 0.3);
-        d[p.id] = generateMockPriceData(p.buyPrice, curPrice, 60);
-      }
-    });
-    if (Object.keys(d).length > 0) {
-      setMockDataMap((prev) => ({ ...prev, ...d }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions, historyMap]);
 
-  // ★ 세션 37: 차트 데이터 = API 우선, 없으면 Mock fallback
-  const priceDataMap = useMemo(() => {
-    const result: Record<number, any[]> = {};
+    const newMap: Record<number, CandleData[]> = {};
     positions.forEach((p) => {
       if (historyMap[p.id] && historyMap[p.id].length > 0) {
-        result[p.id] = historyMap[p.id];
-      } else if (mockDataMap[p.id]) {
-        result[p.id] = mockDataMap[p.id];
+        // ★ 실제 API 데이터 사용 (Yahoo Finance)
+        newMap[p.id] = historyMap[p.id];
+      } else if (priceDataMap[p.id]) {
+        // 기존 데이터 유지 (API 로딩 중)
+        newMap[p.id] = priceDataMap[p.id];
+      } else {
+        // ★ Mock 폴백 (API 로딩 전 또는 실패 시)
+        newMap[p.id] = generateMockPriceData(p.buyPrice, 60);
       }
     });
-    return result;
-  }, [positions, historyMap, mockDataMap]);
+    setPriceDataMap(newMap);
+  }, [positions, historyMap]);
 
-  // ★ 세션 37: 매도 시그널 실계산
-  const signalsMap = useMemo(() => {
-    const result: Record<number, PositionSignals> = {};
-    positions.forEach((p) => {
-      const candles = priceDataMap[p.id];
-      if (!candles || candles.length === 0) return;
-
-      // 현재가: API 실시간 가격 → 차트 마지막 봉 → 매수가
-      const currentPrice = getCurrentPrice(p.code)
-        || candles[candles.length - 1]?.close
-        || p.buyPrice;
-
-      try {
-        result[p.id] = calculateAllSignals({
-          position: p,
-          candles,
-          currentPrice,
-        });
-      } catch (err) {
-        console.error(`Signal calc error for ${p.name}:`, err);
-      }
-    });
-    return result;
-  }, [positions, priceDataMap, getCurrentPrice]);
-
-  // ★ 세션 39: Pull-to-Refresh 연결
-  const handleRefresh = useCallback(async () => {
-    refreshPrices();
-    refreshHistory();
-  }, [refreshPrices, refreshHistory]);
-
-  const {
-    containerRef: ptrContainerRef,
-    pullDistance,
-    refreshing,
-    handleTouchStart: ptrStart,
-    handleTouchMove: ptrMove,
-    handleTouchEnd: ptrEnd,
-  } = usePullToRefresh(handleRefresh);
+  // ★ 세션 62: 가짜 실시간 시뮬레이션 제거!
+  // (이전: 3초마다 랜덤 가격 변동 → 이제 useStockPrices가 60초 간격 실제 가격 조회)
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
@@ -200,13 +134,16 @@ export default function CRESTApp() {
     }
   };
 
-  // 요약 통계
+  // ★ 세션 62: 요약 통계 — 실시간 가격 우선 사용
   const totalCost = positions.reduce((s, p) => s + p.buyPrice * p.quantity, 0);
   const totalValue = positions.reduce((s, p) => {
-    const cur = getCurrentPrice(p.code)
-      || priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close
-      || p.buyPrice;
-    return s + cur * p.quantity;
+    // 1순위: useStockPrices 실시간 가격
+    const realPrice = stockPriceMap[p.code]?.price;
+    // 2순위: 차트 데이터의 마지막 종가
+    const chartPrice = priceDataMap[p.id]?.[priceDataMap[p.id]?.length - 1]?.close;
+    // 3순위: 매수가 (데이터 없을 때)
+    const currentPrice = realPrice || chartPrice || p.buyPrice;
+    return s + currentPrice * p.quantity;
   }, 0);
   const totalProfit = totalValue - totalCost;
   const totalProfitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
@@ -233,25 +170,15 @@ export default function CRESTApp() {
   }
 
   return (
-    <div
-      ref={ptrContainerRef}
-      onTouchStart={isMobile ? ptrStart : undefined}
-      onTouchMove={isMobile ? ptrMove : undefined}
-      onTouchEnd={isMobile ? ptrEnd : undefined}
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
-        color: '#fff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontSize: '14px',
-        paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
-        overscrollBehavior: 'none',
-      }}
-    >
-      <style>{`
-        @keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #0a0a0f 0%, #0f172a 50%, #0a0a0f 100%)',
+      color: '#fff',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px',
+      paddingBottom: isMobile ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '0',
+    }}>
+      <style>{`@keyframes pulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.15); } }`}</style>
 
       <ResponsiveHeader
         alerts={alerts} isPremium={isPremium} isLoggedIn={isLoggedIn}
@@ -267,235 +194,217 @@ export default function CRESTApp() {
         isMobile={isMobile} isTablet={isTablet}
       />
 
-      {/* ★ 세션 39: Pull-to-Refresh 인디케이터 */}
-      {isMobile && (pullDistance > 0 || refreshing) && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: `${Math.max(pullDistance, refreshing ? 50 : 0)}px`,
-          overflow: 'hidden',
-          transition: refreshing ? 'none' : 'height 0.2s ease',
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            {refreshing ? (
-              <>
-                <div style={{
-                  width: '24px', height: '24px', margin: '0 auto',
-                  border: '3px solid rgba(59,130,246,0.2)',
-                  borderTop: '3px solid #3b82f6', borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite',
-                }} />
-                <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginTop: '4px' }}>
-                  새로고침 중...
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{
-                  fontSize: '20px',
-                  transform: `rotate(${pullDistance >= 60 ? 180 : 0}deg)`,
-                  transition: 'transform 0.2s ease',
-                  opacity: Math.min(pullDistance / 60, 1),
-                }}>↓</div>
-                <div style={{ fontSize: '11px', color: pullDistance >= 60 ? '#3b82f6' : '#64748b' }}>
-                  {pullDistance >= 60 ? '놓으면 새로고침' : '아래로 당겨서 새로고침'}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       <main style={{
-        maxWidth: '1200px', margin: '0 auto',
-        padding: isMobile ? '0' : '0 20px',
-        display: isMobile ? 'block' : 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 300px' : '1fr 340px',
-        gap: '16px',
+        maxWidth: isMobile ? '100%' : isTablet ? '1200px' : '1600px',
+        margin: '0 auto', padding: isMobile ? '0' : '24px',
       }}>
-        {/* ===== 좌측 컬럼: 요약 + 포지션 카드 ===== */}
-        <div style={{
-          display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
-          padding: isMobile ? '0 16px' : '0',
-        }}>
-          {/* ★ 세션 37: 데이터 상태 표시 */}
-          {pricesLastUpdated && (
-            <div style={{
-              fontSize: '10px', color: '#475569', textAlign: 'right',
-              padding: '4px 0', marginBottom: '4px',
-            }}>
-              📡 실시간 가격: {new Date(pricesLastUpdated).toLocaleTimeString('ko-KR')} 갱신
-              {pricesLoading && ' (로딩중...)'}
+        <ResponsiveSummaryCards
+          totalCost={totalCost} totalValue={totalValue}
+          totalProfit={totalProfit} totalProfitRate={totalProfitRate}
+          isMobile={isMobile} isTablet={isTablet}
+        />
+
+        <div style={
+          isMobile
+            ? { display: 'flex', flexDirection: 'column', gap: '0' }
+            : isTablet
+            ? { display: 'grid', gridTemplateColumns: '1fr 360px', gap: '16px', padding: '0 20px' }
+            : { display: 'grid', gridTemplateColumns: isPremium ? '1fr 440px' : '160px 1fr 440px', gap: '20px' }
+        }>
+          {/* 좌측 광고 (데스크톱, 비프리미엄) */}
+          {!isMobile && !isTablet && !isPremium && (
+            <div style={{ position: 'sticky', top: '80px', alignSelf: 'start' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                borderRadius: '12px', padding: '12px 8px',
+                border: '1px dashed rgba(255,255,255,0.08)',
+                textAlign: 'center', minHeight: '600px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{ fontSize: '10px', color: '#475569', marginBottom: '8px', letterSpacing: '1px' }}>AD</div>
+                <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>
+                  📢 Google<br />AdSense<br />(160×600)
+                  <div style={{ fontSize: '9px', color: '#475569', marginTop: '8px' }}>PRO 구독 시<br />광고 제거</div>
+                </div>
+              </div>
             </div>
           )}
 
-          <MarketMiniSummary isMobile={isMobile} />
-
-          <ResponsiveSummaryCards
-            totalCost={totalCost} totalValue={totalValue}
-            totalProfit={totalProfit} totalProfitRate={totalProfitRate}
-            isMobile={isMobile} isTablet={isTablet}
-          />
-
-          {/* 종목 섹션 헤더 */}
+          {/* 포지션 목록 */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: '10px', marginTop: '6px',
+            display: isMobile && activeTab !== 'positions' ? 'none' : 'block',
+            padding: isMobile ? '0 16px' : '0',
           }}>
-            <h2 style={{ fontSize: '16px', fontWeight: '800', color: '#fff', margin: 0 }}>
-              📋 보유 종목
-            </h2>
-            <button onClick={() => {
-              if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
-                setShowUpgrade(true);
-              } else {
-                setShowAddModal(true);
-              }
-            }} style={{
-              padding: '6px 14px', height: '34px',
-              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-              border: 'none', borderRadius: '8px', color: '#fff',
-              fontSize: '12px', fontWeight: '600', cursor: 'pointer',
-            }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
-          </div>
+            {isMobile && activeTab === 'positions' && (
+              <MarketMiniSummary onClick={() => setActiveTab('market')} />
+            )}
 
-          {/* 인증 상태 배너 */}
-          <div style={{
-            background: isLoggedIn ? 'rgba(16,185,129,0.06)' : 'rgba(59,130,246,0.06)',
-            border: `1px solid ${isLoggedIn ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)'}`,
-            borderRadius: '10px', padding: '10px 14px', marginBottom: '10px',
-            display: 'flex', alignItems: 'center', gap: '8px',
-          }}>
-            <span style={{ fontSize: '16px' }}>{isLoggedIn ? '✅' : '🔑'}</span>
-            <div>
-              <div style={{ fontSize: '12px', color: isLoggedIn ? '#10b981' : '#3b82f6', fontWeight: '600' }}>
-                {isLoggedIn ? `로그인 완료 (${user?.email})` : '비로그인 상태'}
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                {isLoggedIn ? '내 종목이 자동 저장됩니다' : '로그인하면 종목이 클라우드에 저장됩니다'}
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '700', color: '#fff', margin: 0 }}>
+                보유 종목 ({positions.length})
+                {/* ★ 세션 62: 차트 데이터 로딩 표시 */}
+                {historyLoading && (
+                  <span style={{ fontSize: '10px', color: '#f59e0b', marginLeft: '8px', fontWeight: 500 }}>
+                    차트 로딩중...
+                  </span>
+                )}
+              </h2>
+              <button onClick={() => {
+                if (!isPremium && positions.length >= MAX_FREE_POSITIONS) {
+                  setShowUpgrade(true);
+                } else {
+                  setShowAddModal(true);
+                }
+              }} style={{
+                padding: '6px 14px', height: '34px',
+                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                border: 'none', borderRadius: '8px', color: '#fff',
+                fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              }}>+ 추가 {!isPremium && `(${positions.length}/${MAX_FREE_POSITIONS})`}</button>
             </div>
-          </div>
 
-          {/* 종목 카드 목록 */}
-          {positions.length === 0 ? (
+            {/* 인증 상태 배너 */}
             <div style={{
-              background: 'rgba(30,41,59,0.5)', borderRadius: '14px',
-              padding: '40px 20px', textAlign: 'center', marginBottom: '12px',
-              border: '1px dashed rgba(255,255,255,0.1)',
+              background: isLoggedIn ? 'rgba(16,185,129,0.06)' : 'rgba(59,130,246,0.06)',
+              border: `1px solid ${isLoggedIn ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)'}`,
+              borderRadius: '10px', padding: '10px 14px', marginBottom: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>📊</div>
-              <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '4px' }}>
-                보유 종목을 추가해보세요
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '8px', height: '8px', borderRadius: '50%',
+                  background: isLoggedIn ? '#10b981' : '#3b82f6',
+                }} />
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  {isLoggedIn ? '내 종목이 자동 저장됩니다' : '로그인하면 내 종목을 저장/관리할 수 있습니다'}
+                </div>
               </div>
-              <div style={{ fontSize: '12px', color: '#64748b' }}>
-                상단의 &apos;+ 추가&apos; 버튼으로 종목을 등록할 수 있습니다
-              </div>
+              {!isLoggedIn && (
+                <button onClick={() => router.push('/login')} style={{
+                  padding: '6px 12px', background: 'rgba(59,130,246,0.15)',
+                  border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px',
+                  color: '#60a5fa', fontSize: '11px', fontWeight: '600', cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}>로그인</button>
+              )}
             </div>
-          ) : (
-            positions.map((pos) => (
-              <PositionCard
-                key={pos.id}
-                position={pos}
-                priceData={priceDataMap[pos.id]}
-                isMobile={isMobile}
-                isTablet={isTablet}
+
+            {/* 종목이 없을 때 */}
+            {positions.length === 0 && (
+              <div style={{
+                textAlign: 'center', padding: '40px 20px',
+                background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+                borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📈</div>
+                <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '8px' }}>
+                  종목을 추가해 보세요
+                </div>
+                <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+                  한국·미국 주식을 검색하고 매도 조건을 설정하세요
+                </div>
+                <button onClick={() => setShowAddModal(true)} style={{
+                  padding: '10px 24px',
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  border: 'none', borderRadius: '10px', color: '#fff',
+                  fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+                }}>+ 첫 종목 추가하기</button>
+              </div>
+            )}
+
+            {/* ★ 세션 62: API 에러 표시 */}
+            {historyError && (
+              <div style={{
+                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
+                borderRadius: '10px', padding: '10px 14px', marginBottom: '12px',
+                fontSize: '11px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px',
+              }}>
+                ⚠️ {historyError} — 임시 차트 데이터를 표시합니다
+              </div>
+            )}
+
+            {positions.map((pos) => (
+              <PositionCard key={pos.id}
+                position={pos} priceData={priceDataMap[pos.id]}
+                isMobile={isMobile} isTablet={isTablet}
+                onUpdate={handleUpdatePosition} onDelete={handleDeletePosition}
                 isPremium={isPremium}
-                onUpdate={handleUpdatePosition}
-                onDelete={handleDeletePosition}
-                stockPrice={stockPrices[pos.code] || null}
-                signals={signalsMap[pos.id] || null}
                 aiNewsUsedCount={aiNewsUsedCount}
                 maxFreeAINews={MAX_FREE_AI_NEWS}
-                onUseAINews={() => setAiNewsUsedCount((c) => c + 1)}
+                onUseAINews={() => setAiNewsUsedCount(prev => prev + 1)}
                 onShowUpgrade={() => setShowUpgrade(true)}
               />
-            ))
-          )}
+            ))}
 
-          {/* 광고 배너 (무료 사용자) */}
-          {!isPremium && positions.length > 0 && (
-            <div style={{
-              textAlign: 'center', padding: '16px', marginBottom: '12px',
-              background: 'rgba(255,255,255,0.02)', borderRadius: '10px',
-              border: '1px dashed rgba(255,255,255,0.08)',
-            }}>
-              <div style={{ fontSize: '10px', color: '#475569', marginBottom: '4px' }}>AD</div>
-              <div style={{ fontSize: '12px', color: '#64748b' }}>🎯 AdSense (320×100)</div>
-              <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px' }}>PRO 구독 시 광고 제거</div>
-            </div>
-          )}
-        </div>
-
-        {/* ===== ★ 세션 60: 우측 사이드바 (단일 wrapper div) ===== */}
-        {/* 핵심 수정: 기존 3개 별도 조건부 div → 1개 wrapper로 통합 */}
-        {/* CSS Grid '1fr 340px' 에서 좌측1개 + 우측1개 = 정상 2열 레이아웃 */}
-        {/* 순서: 1)조건도달알림 → 2)코스톨라니달걀 → 3)버핏지수 → 4)매도법가이드 */}
-        <div style={{
-          display: isMobile && activeTab === 'positions' ? 'none' : 'block',
-          padding: isMobile ? '0 16px' : '0',
-        }}>
-
-          {/* ── 1) 조건 도달 알림 (가장 위) ── */}
-          <div style={{
-            display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
-          }}>
-            <div style={{
-              background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-              borderRadius: '14px', padding: isMobile ? '14px' : '16px',
-              border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🔔 조건 도달 알림
-                  {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
-                </h3>
-                {alerts.length > 0 && (
-                  <button onClick={() => setAlerts([])} style={{
-                    background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
-                    padding: '6px 10px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
-                  }}>모두 지우기</button>
-                )}
-              </div>
-              {alerts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px' }}>
-                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
-                  <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
-                </div>
-              ) : alerts.map((a) => (
-                <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── 2) 코스톨라니 달걀 + 3) 버핏지수 ── */}
-          <div style={{
-            display: isMobile && activeTab !== 'market' ? 'none' : 'block',
-          }}>
-            {isMobile && activeTab === 'market' && (
-              <button onClick={() => setActiveTab('positions')} style={{
-                width: '100%', padding: '10px 14px', marginBottom: '10px', minHeight: '44px',
-                background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03))',
-                border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '10px',
+            {/* 카드 하단 광고 */}
+            {!isPremium && positions.length > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))',
+                borderRadius: '12px', padding: '16px', marginTop: '8px',
+                border: '1px dashed rgba(255,255,255,0.06)', textAlign: 'center',
               }}>
-                <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#60a5fa' }}>←</span>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#60a5fa' }}>보유 종목으로 돌아가기</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>포지션 · 차트 · AI분석</div>
-                </div>
-              </button>
+                <div style={{ fontSize: '10px', color: '#475569', letterSpacing: '1px', marginBottom: '4px' }}>AD</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>📢 AdSense (320×100)</div>
+                <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>PRO 구독 시 광고 제거</div>
+              </div>
             )}
-            <MarketCycleWidget isMobile={isMobile} />
-            <BuffettIndicatorWidget isMobile={isMobile} />
           </div>
 
-          {/* ── 4) 매도의 기술 가이드 (가장 아래) ── */}
-          <div style={{
-            display: isMobile && activeTab !== 'guide' ? 'none' : 'block',
-          }}>
-            <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
-          </div>
+          {/* 우측 사이드바 */}
+          {(!isMobile || activeTab === 'market' || activeTab === 'alerts' || activeTab === 'guide') && (
+            <div style={{ padding: isMobile ? '0 16px' : '0', overflow: 'visible' }}>
+              <div style={{ display: isMobile && activeTab !== 'market' ? 'none' : 'block' }}>
+                {isMobile && activeTab === 'market' && (
+                  <button onClick={() => setActiveTab('positions')} style={{
+                    width: '100%', padding: '10px 14px', marginBottom: '10px', minHeight: '44px',
+                    background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.03))',
+                    border: '1px solid rgba(59,130,246,0.15)', borderRadius: '12px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                  }}>
+                    <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#60a5fa' }}>←</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#60a5fa' }}>보유 종목으로 돌아가기</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>포지션 · 차트 · AI분석</div>
+                    </div>
+                  </button>
+                )}
+                <MarketCycleWidget isMobile={isMobile} isTablet={isTablet} isPremium={isPremium} />
+                <BuffettIndicatorWidget isMobile={isMobile} isPremium={isPremium} />
+              </div>
 
+              {/* 알림 섹션 */}
+              <div style={{
+                display: isMobile && activeTab !== 'alerts' ? 'none' : 'block',
+                background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+                borderRadius: '14px', padding: isMobile ? '14px' : '16px',
+                border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🔔 조건 도달 알림
+                    {alerts.length > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: '700' }}>{alerts.length}</span>}
+                  </h3>
+                  {alerts.length > 0 && (
+                    <button onClick={() => setAlerts([])} style={{
+                      background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '6px',
+                      padding: '6px 10px', color: '#64748b', fontSize: '11px', cursor: 'pointer',
+                    }}>모두 지우기</button>
+                  )}
+                </div>
+                {alerts.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px' }}>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✨</div>
+                    <div style={{ fontSize: '13px', color: '#64748b' }}>현재 도달한 조건이 없습니다</div>
+                  </div>
+                ) : alerts.map((a) => (
+                  <AlertCard key={a.id} alert={a} onDismiss={(id) => setAlerts((prev) => prev.filter((x) => x.id !== id))} />
+                ))}
+              </div>
+
+              {/* 매도법 가이드 */}
+              <SellMethodGuide isMobile={isMobile} activeTab={activeTab} />
+            </div>
+          )}
         </div>
       </main>
 
