@@ -206,7 +206,7 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
   };
 
   // ── Y축 그리드 ──
-  const gridCountY = isWide ? 6 : 4;
+  const gridCountY = isWide ? 7 : 5;
 
   // ── X축 날짜 라벨 ──
   const xIndices = data.length <= 10
