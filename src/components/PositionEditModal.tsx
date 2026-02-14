@@ -109,7 +109,8 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }: Po
             {Object.values(SELL_PRESETS).map((preset) => {
               const isActive = editPresets.includes(preset.id);
               return (
-                <button key={preset.id} onClick={() => togglePreset(preset.id)} style={{
+                <React.Fragment key={preset.id}>
+                <button onClick={() => togglePreset(preset.id)} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: isMobile ? "12px" : "10px 12px",
                   minHeight: "48px",
@@ -216,6 +217,7 @@ const PositionEditModal = ({ position, onSave, onClose, onDelete, isMobile }: Po
                     </div>
                   </div>
                 )}
+                </React.Fragment>
               );
             })}
           </div>
