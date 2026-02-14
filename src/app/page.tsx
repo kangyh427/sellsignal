@@ -1,10 +1,11 @@
+'use client';
 // ============================================
+// Next.js App Router 엔트리 포인트
 // 경로: src/app/page.tsx
-// CREST v7.4 — 메인 페이지 엔트리 포인트
 // ============================================
 
-import CRESTMobileApp from '@/components/CRESTMobileApp';
+import CRESTApp from '@/components/CRESTApp';
 
 export default function Home() {
-  return <CRESTMobileApp />;
+  return <CRESTApp />;
 }
