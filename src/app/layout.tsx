@@ -1,16 +1,10 @@
 // ============================================
+// CREST 앱 루트 레이아웃
 // 경로: src/app/layout.tsx
-// CREST v7.4 — 루트 레이아웃
 // ============================================
 
 import type { Metadata, Viewport } from 'next';
-
-export const metadata: Metadata = {
-  title: 'CREST — 매도의 기술',
-  description: '8가지 매도 방법론으로 최적의 매도 타이밍을 알려주는 주식 매도 시그널 앱',
-  keywords: '주식, 매도, 매도신호, 매도타이밍, CREST, 코스톨라니',
-  icons: { icon: '/favicon.ico' },
-};
+import './globals.css';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -21,6 +15,27 @@ export const viewport: Viewport = {
   themeColor: '#0a0a0f',
 };
 
+export const metadata: Metadata = {
+  title: 'CREST - 주식 매도 타이밍 분석 플랫폼',
+  description: '8가지 매도 기법으로 최적의 매도 시점을 분석합니다.',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'CREST',
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+  openGraph: {
+    title: 'CREST - 매도의 기술',
+    description: '주식 매도 타이밍을 놓치지 마세요. 8가지 매도법 실시간 모니터링.',
+    siteName: 'CREST',
+    locale: 'ko_KR',
+    type: 'website',
+  },
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -29,23 +44,19 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="CREST" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body style={{
-        margin: 0,
-        padding: 0,
-        background: '#0a0a0f',
-        color: '#e2e8f0',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        WebkitFontSmoothing: 'antialiased',
-        overscrollBehavior: 'none',
-        minHeight: '100vh',
-      }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
+```
+
+3. **Commit changes**
+
+### 순서
+```
+① CRESTApp.tsx → b7da1b8 버전으로 복원 → Commit
+② layout.tsx → 위 코드로 복원 → Commit
+③ Vercel Redeploy
