@@ -274,7 +274,7 @@ const PositionCard = ({
                   </div>
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: '4px', padding: '6px 0 2px', fontSize: '11px', color: '#64748b',
+                    gap: '4px', padding: '6px 0 2px', fontSize: '12px', color: '#64748b',
                   }}>
                     <span>📈</span>
                     <span style={{ textDecoration: 'underline', color: '#60a5fa' }}>네이버 증권 차트 보기</span>
