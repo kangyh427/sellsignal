@@ -51,12 +51,3 @@ export default function RootLayout({
     </html>
   );
 }
-```
-
-3. **Commit changes**
-
-### 순서
-```
-① CRESTApp.tsx → b7da1b8 버전으로 복원 → Commit
-② layout.tsx → 위 코드로 복원 → Commit
-③ Vercel Redeploy
