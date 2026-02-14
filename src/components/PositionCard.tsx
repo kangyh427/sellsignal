@@ -1,13 +1,13 @@
 'use client';
 // ============================================
-// PositionCard v2 - 보유 종목 카드 (서브컴포넌트 분리)
+// PositionCard v2.1 - 보유 종목 카드 (서브컴포넌트 분리)
 // 경로: src/components/PositionCard.tsx
 // 세션 33: 648줄 → ~320줄 (서브컴포넌트 3개 분리)
 // 세션 34: 데스크탑 차트 너비 동적 계산 (컨테이너 기반)
+// 세션 64: 매물대 매도법 매도가격 수정 (저항→지지, PPT 로직 반영)
 // 변경사항:
-//   - chartW: 하드코딩 380px → useRef로 컨테이너 너비 측정
-//   - 데스크탑 캔들 수: 40 → 55개 (넓은 화면 활용)
-//   - 데스크탑 차트 높이: 260 → 280px
+//   - volumeZone 매도가격: buyPrice*1.1 → 현재가 아래 가장 가까운 지지 매물대
+//   - PPT: "하단 매물대의 지지를 깨고 하락할 때 매도"
 // ============================================
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -140,9 +140,59 @@ const PositionCard = ({
         }
         break;
       }
-      case 'volumeZone':
-        sellPrices.volumeZone = Math.round(position.buyPrice * 1.10);
+      case 'volumeZone': {
+        // ★ 세션64: PPT 매물대 매도법 — "하단 지지 매물대를 깨고 하락할 때 매도"
+        // 현재가 아래에서 가장 가까운 고거래량 매물대(지지대)의 상단 가격 = 매도 기준가
+        // 이 가격을 깨면 지지 이탈 → 매도 시그널
+        if (priceData && priceData.length >= 10) {
+          // 볼륨 프로파일 계산 (20구간)
+          const zones = 20;
+          let minP = Infinity, maxP = -Infinity;
+          priceData.forEach((c: any) => {
+            if (c.low < minP) minP = c.low;
+            if (c.high > maxP) maxP = c.high;
+          });
+          const prRange = maxP - minP;
+          if (prRange > 0) {
+            const zoneSize = prRange / zones;
+            const volByZone: number[] = new Array(zones).fill(0);
+            priceData.forEach((c: any) => {
+              const vol = c.volume || 1;
+              const cRange = (c.high - c.low) || zoneSize * 0.1;
+              for (let z = 0; z < zones; z++) {
+                const zLow = minP + z * zoneSize;
+                const zHigh = minP + (z + 1) * zoneSize;
+                const oLow = Math.max(c.low, zLow);
+                const oHigh = Math.min(c.high, zHigh);
+                if (oLow < oHigh) volByZone[z] += vol * ((oHigh - oLow) / cRange);
+              }
+            });
+            const maxVol = Math.max(...volByZone);
+            const avgVol = volByZone.reduce((s, v) => s + v, 0) / zones;
+            // 현재가가 위치한 구간
+            const curZone = Math.min(Math.floor((cur - minP) / zoneSize), zones - 1);
+            // 현재가 아래에서 고거래량 지지 매물대 찾기 (가장 가까운 것)
+            let supportPrice = 0;
+            for (let z = curZone - 1; z >= 0; z--) {
+              if (volByZone[z] > avgVol * 1.2 && volByZone[z] / maxVol > 0.3) {
+                // 이 구간의 상단 = 지지선 (이걸 깨면 매도)
+                supportPrice = Math.round(minP + (z + 1) * zoneSize);
+                break;
+              }
+            }
+            if (supportPrice > 0) {
+              sellPrices.volumeZone = supportPrice;
+            } else {
+              // 지지 매물대를 찾지 못한 경우 → 매수가를 폴백으로
+              sellPrices.volumeZone = position.buyPrice;
+            }
+          }
+        } else {
+          // 차트 데이터 없으면 매수가를 폴백
+          sellPrices.volumeZone = position.buyPrice;
+        }
         break;
+      }
       case 'trendline':
         sellPrices.trendline = Math.round(position.buyPrice * 0.95);
         break;
