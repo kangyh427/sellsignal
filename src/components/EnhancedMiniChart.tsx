@@ -57,13 +57,99 @@ function calcMACD(closes: number[]) {
   return { macdLine, signalLine, histogram };
 }
 
-function calcTrendline(lows: number[]) {
-  const n = lows.length;
+/**
+ * ★ 세션64: 상승 추세선 — 스윙 로우(의미있는 저점)를 연결하는 지지선
+ * 
+ * [알고리즘]
+ * 1. 스윙 로우 탐색: 양옆 W개 캔들보다 low가 낮은 의미있는 저점
+ * 2. 스윙 로우가 2개 이상이면 선형회귀로 추세선 도출
+ * 3. slope > 0 → 상승 추세선 (지지선 역할)
+ * 4. slope <= 0 → 하락/횡보 → 최근 스윙 로우를 수평 지지선으로 사용
+ * 
+ * @param data 캔들 데이터 배열
+ * @returns { slope, intercept, getY, swingLows } 또는 null
+ */
+function calcTrendline(data: CandleData[]) {
+  if (!data || data.length < 6) return null;
+
+  // ── 1단계: 스윙 로우 탐색 (양옆 3개 캔들보다 low가 낮은 점) ──
+  const W = Math.min(3, Math.floor(data.length / 4)); // 윈도우 크기
+  const swingLows: { idx: number; price: number }[] = [];
+
+  for (let i = W; i < data.length - W; i++) {
+    let isSwingLow = true;
+    for (let j = 1; j <= W; j++) {
+      if (data[i].low > data[i - j].low || data[i].low > data[i + j].low) {
+        isSwingLow = false;
+        break;
+      }
+    }
+    if (isSwingLow) {
+      // 너무 가까운 스윙 로우 병합 (5캔들 이내면 더 낮은 것만 유지)
+      const last = swingLows[swingLows.length - 1];
+      if (last && i - last.idx < 5) {
+        if (data[i].low < last.price) {
+          swingLows[swingLows.length - 1] = { idx: i, price: data[i].low };
+        }
+      } else {
+        swingLows.push({ idx: i, price: data[i].low });
+      }
+    }
+  }
+
+  // ── 2단계: 스윙 로우 부족 시 — 전체 구간 4등분하여 각 구간 최저점 사용 ──
+  if (swingLows.length < 2) {
+    const quarterLen = Math.floor(data.length / 4);
+    for (let q = 0; q < 4; q++) {
+      const start = q * quarterLen;
+      const end = Math.min(start + quarterLen, data.length);
+      let minLow = Infinity;
+      let minIdx = start;
+      for (let i = start; i < end; i++) {
+        if (data[i].low < minLow) {
+          minLow = data[i].low;
+          minIdx = i;
+        }
+      }
+      swingLows.push({ idx: minIdx, price: minLow });
+    }
+  }
+
+  if (swingLows.length < 2) return null;
+
+  // ── 3단계: 스윙 로우에 대한 선형회귀 ──
+  const n = swingLows.length;
   let sx = 0, sy = 0, sxy = 0, sx2 = 0;
-  for (let i = 0; i < n; i++) { sx += i; sy += lows[i]; sxy += i * lows[i]; sx2 += i * i; }
-  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
+  for (const sl of swingLows) {
+    sx += sl.idx;
+    sy += sl.price;
+    sxy += sl.idx * sl.price;
+    sx2 += sl.idx * sl.idx;
+  }
+  const denom = n * sx2 - sx * sx;
+  if (denom === 0) return null;
+
+  const slope = (n * sxy - sx * sy) / denom;
   const intercept = (sy - slope * sx) / n;
-  return { slope, intercept, getY: (i: number) => slope * i + intercept };
+
+  // ── 4단계: 추세선이 캔들 아래에 위치하도록 보정 ──
+  // 상승 추세선은 지지선이므로, 모든 스윙 로우가 선 위에 있어야 함
+  // 선형회귀 결과를 아래로 평행이동하여 가장 낮은 스윙 로우에 접하게 함
+  let maxBelow = 0; // 선보다 아래에 있는 최대 거리
+  for (const sl of swingLows) {
+    const lineY = slope * sl.idx + intercept;
+    const diff = lineY - sl.price;
+    if (diff > maxBelow) maxBelow = diff;
+  }
+
+  const adjustedIntercept = intercept - maxBelow;
+
+  return {
+    slope,
+    intercept: adjustedIntercept,
+    getY: (i: number) => slope * i + adjustedIntercept,
+    swingLows, // 차트에 마커로 표시
+  };
 }
 
 function calcVolumeProfile(candles: CandleData[], zones = 20) {
@@ -151,7 +237,7 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
     [closes, showMACD]
   );
   const trendData = useMemo(
-    () => (overlays.trendline && safeData.length > 1) ? calcTrendline(safeData.map(c => c.low)) : null,
+    () => (overlays.trendline && safeData.length > 5) ? calcTrendline(safeData) : null,
     [safeData, overlays.trendline]
   );
   const volProfile = useMemo(
@@ -193,7 +279,8 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
 
   const allP = safeData.flatMap((d) => [d.high, d.low])
     .concat([buyPrice])
-    .concat(Object.values(sellPrices).filter(Boolean));
+    .concat(Object.values(sellPrices).filter(Boolean))
+    .concat(trendData ? [trendData.getY(0), trendData.getY(safeData.length - 1)] : []);
   const minP = Math.min(...allP) * 0.98;
   const maxP = Math.max(...allP) * 1.02;
   const range = maxP - minP || 1;
@@ -371,11 +458,20 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
         {renderMA(ma20Data, '#06b6d4')}
         {renderMA(ma60Data, '#f59e0b')}
 
-        {/* 추세선 */}
+        {/* 추세선 + 스윙 로우 마커 */}
         {trendData && (
-          <line x1={x(0) + barW / 2} y1={y(trendData.getY(0))}
-            x2={x(safeData.length - 1) + barW / 2} y2={y(trendData.getY(safeData.length - 1))}
-            stroke="#ec4899" strokeWidth={1.5} strokeDasharray="6,3" opacity={0.6} />
+          <g>
+            {/* 추세선 본선 */}
+            <line x1={x(0) + barW / 2} y1={y(trendData.getY(0))}
+              x2={x(safeData.length - 1) + barW / 2} y2={y(trendData.getY(safeData.length - 1))}
+              stroke="#ec4899" strokeWidth={1.5} strokeDasharray="6,3" opacity={0.7} />
+            {/* 스윙 로우 마커 (저점 표시) */}
+            {trendData.swingLows && trendData.swingLows.map((sl, si) => (
+              <circle key={`sl${si}`}
+                cx={x(sl.idx) + barW / 2} cy={y(sl.price)}
+                r={3} fill="#ec4899" opacity={0.7} stroke="#fff" strokeWidth={0.5} />
+            ))}
+          </g>
         )}
 
         {/* 매수가 기준선 */}
