@@ -1,18 +1,96 @@
+'use client';
 // ============================================
-// PositionCard.tsx 수정 패치 (세션 43)
+// PositionCard v2 - 보유 종목 카드 (서브컴포넌트 분리)
 // 경로: src/components/PositionCard.tsx
-// 
-// 수정 위치: 95~123줄 (sellPrices 계산 블록)
-// 수정 내용: maSignal, trendline case 삭제
-// 이유: 
-//   - maSignal: 수평 매도선 → 차트 위 MA 곡선 오버레이로 대체 (Y축 왜곡 방지)
-//   - trendline: 고정 수평선(buyPrice*0.95) → 저점 선형회귀 대각선으로 대체
+// 세션 33: 648줄 → ~320줄 (서브컴포넌트 3개 분리)
+// 세션 34: 데스크탑 차트 너비 동적 계산 (컨테이너 기반)
+// 변경사항:
+//   - chartW: 하드코딩 380px → useRef로 컨테이너 너비 측정
+//   - 데스크탑 캔들 수: 40 → 55개 (넓은 화면 활용)
+//   - 데스크탑 차트 높이: 260 → 280px
 // ============================================
 
-// ─────────────────────────────────────────────
-// [변경 전] 95~123줄 전체
-// ─────────────────────────────────────────────
-/*
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { SELL_PRESETS, CHART_LINE_PRESETS, PROFIT_STAGES, formatCompact } from '@/constants';
+import EnhancedMiniChart from './EnhancedMiniChart';
+import PositionEditModal from './PositionEditModal';
+import AINewsSummary from './AINewsSummary';
+import SignalSection from './SignalSection';
+import useSwipeToDelete from '@/hooks/useSwipeToDelete';
+import type { Position, StockPrice, PositionSignals } from '@/types';
+
+// ★ 서브컴포넌트
+import CardHeader from './position/CardHeader';
+import CardPresets from './position/CardPresets';
+import CardActions from './position/CardActions';
+
+interface PositionCardProps {
+  position: Position;
+  priceData: any[] | undefined;
+  isMobile: boolean;
+  isTablet: boolean;
+  isPremium: boolean;
+  onUpdate: (updated: Position) => void;
+  onDelete: (id: number) => void;
+  stockPrice?: StockPrice | null;
+  signals?: PositionSignals | null;
+  aiNewsUsedCount?: number;
+  maxFreeAINews?: number;
+  onUseAINews?: () => void;
+  onShowUpgrade?: () => void;
+}
+
+const PositionCard = ({
+  position, priceData, isMobile, isTablet,
+  onUpdate, onDelete, isPremium, stockPrice, signals,
+  aiNewsUsedCount = 0, maxFreeAINews = 3, onUseAINews, onShowUpgrade,
+}: PositionCardProps) => {
+  // ── 상태 ──
+  const [isExpanded, setIsExpanded] = useState(!isMobile);
+  const [showChart, setShowChart] = useState(!isMobile);
+  const [showPresets, setShowPresets] = useState(!isMobile);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>(() => {
+    const lines: Record<string, boolean> = {};
+    CHART_LINE_PRESETS.forEach((p) => { lines[p] = true; });
+    return lines;
+  });
+
+  // ★ 스와이프 삭제 훅
+  const swipe = useSwipeToDelete();
+
+  // ── 현재가 계산 (실시간 → 차트 → 매수가) ──
+  const cur = stockPrice?.price
+    || priceData?.[priceData.length - 1]?.close
+    || position.buyPrice;
+
+  // ── 수익률 계산 ──
+  const profitRate = ((cur - position.buyPrice) / position.buyPrice) * 100;
+  const profitAmount = (cur - position.buyPrice) * position.quantity;
+  const totalValue = cur * position.quantity;
+  const isProfit = profitRate >= 0;
+
+  // ── 수익 단계 ──
+  const getStage = () => {
+    if (profitRate < 0) return { label: '손실 구간', color: '#ef4444' };
+    if (profitRate < 5) return PROFIT_STAGES.initial;
+    if (profitRate < 10) return PROFIT_STAGES.profit5;
+    return PROFIT_STAGES.profit10;
+  };
+  const stage = getStage();
+
+  // ── 시그널 border ──
+  const getSignalBorder = () => {
+    if (!signals) return '1px solid rgba(255,255,255,0.08)';
+    switch (signals.maxLevel) {
+      case 'danger': return '1px solid rgba(239,68,68,0.25)';
+      case 'warning': return '1px solid rgba(245,158,11,0.2)';
+      default: return '1px solid rgba(255,255,255,0.08)';
+    }
+  };
+
   // ── 매도가 계산 ──
   const sellPrices: Record<string, number> = {};
   (position.selectedPresets || []).forEach((pid) => {
@@ -26,48 +104,250 @@
         sellPrices.twoThird = Math.round(hp - (hp - position.buyPrice) / 3);
         break;
       }
-      case 'maSignal': {                          // ← 삭제 대상
-        if (priceData?.length) {                   // ← 삭제 대상
-          const mp = setting || 20;                // ← 삭제 대상
-          const rd = priceData.slice(-mp);         // ← 삭제 대상
-          sellPrices.maSignal = Math.round(...);   // ← 삭제 대상
-        }                                          // ← 삭제 대상
-        break;                                     // ← 삭제 대상
-      }                                            // ← 삭제 대상
-      case 'volumeZone':
-        sellPrices.volumeZone = Math.round(position.buyPrice * 1.10);
-        break;
-      case 'trendline':                            // ← 삭제 대상
-        sellPrices.trendline = Math.round(position.buyPrice * 0.95);  // ← 삭제 대상
-        break;                                     // ← 삭제 대상
-    }
-  });
-*/
-
-// ─────────────────────────────────────────────
-// [변경 후] 95~123줄 → 아래로 교체
-// ─────────────────────────────────────────────
-
-  // ── 매도가 계산 (세션 43 수정) ──
-  // ★ maSignal: 수평 매도선 제거 → 차트에 MA 곡선 오버레이로 표시
-  // ★ trendline: 수평선 제거 → 차트에 저점 선형회귀 대각선으로 표시
-  // 이 두 값이 sellPrices에 포함되면 Y축 범위가 왜곡됨
-  const sellPrices: Record<string, number> = {};
-  (position.selectedPresets || []).forEach((pid) => {
-    const setting = position.presetSettings?.[pid]?.value;
-    switch (pid) {
-      case 'stopLoss':
-        sellPrices.stopLoss = Math.round(position.buyPrice * (1 + (setting || -5) / 100));
-        break;
-      case 'twoThird': {
-        const hp = position.highestPrice || cur;
-        sellPrices.twoThird = Math.round(hp - (hp - position.buyPrice) / 3);
+      case 'maSignal': {
+        if (priceData?.length) {
+          const mp = setting || 20;
+          const rd = priceData.slice(-mp);
+          sellPrices.maSignal = Math.round(rd.reduce((s: number, d: any) => s + d.close, 0) / rd.length);
+        }
         break;
       }
-      // ★ maSignal case 삭제됨 (차트에서 곡선 오버레이로 표시)
       case 'volumeZone':
         sellPrices.volumeZone = Math.round(position.buyPrice * 1.10);
         break;
-      // ★ trendline case 삭제됨 (차트에서 대각선으로 표시)
+      case 'trendline':
+        sellPrices.trendline = Math.round(position.buyPrice * 0.95);
+        break;
     }
   });
+
+  // ── 외부 링크 ──
+  const naverChartUrl = isMobile
+    ? `https://m.stock.naver.com/domestic/stock/${position.code}/chart`
+    : `https://finance.naver.com/item/fchart.naver?code=${position.code}`;
+  const naverNewsUrl = `https://finance.naver.com/item/news.naver?code=${position.code}`;
+
+  // ── 차트 컨테이너 너비 동적 측정 ──
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = useState(isMobile ? 320 : 380);
+
+  useEffect(() => {
+    const measure = () => {
+      if (chartContainerRef.current) {
+        const containerW = chartContainerRef.current.clientWidth;
+        // 패딩(8px*2) 제외한 실제 차트 영역
+        setChartW(Math.max(280, containerW - 16));
+      } else {
+        // fallback
+        setChartW(isMobile ? Math.min(window?.innerWidth - 60 || 320, 400) : isTablet ? 300 : 380);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isMobile, isTablet]);
+
+  // ── 핸들러 ──
+  const handleCardToggle = () => {
+    if (swipe.showDeleteBtn) { swipe.resetSwipe(); return; }
+    setIsExpanded(!isExpanded);
+  };
+
+  const handleToggleAI = () => {
+    if (showAI) { setShowAI(false); return; }
+    if (!isPremium && aiNewsUsedCount >= maxFreeAINews) {
+      onShowUpgrade?.();
+      return;
+    }
+    if (!isPremium && onUseAINews) onUseAINews();
+    setShowAI(true);
+  };
+
+  return (
+    <>
+      {/* ★ 스와이프 래퍼 */}
+      <div
+        {...(isMobile ? swipe.handlers : {})}
+        style={{
+          position: 'relative', overflow: 'hidden', borderRadius: '14px',
+          marginBottom: '10px',
+          transform: isMobile ? `translateX(${swipe.offsetX}px)` : undefined,
+          transition: swipe.isDragging ? 'none' : 'transform 0.3s ease',
+        }}
+      >
+        {/* 스와이프 삭제 버튼 (배경) */}
+        {isMobile && swipe.showDeleteBtn && (
+          <div
+            onClick={() => { setShowDeleteConfirm(true); swipe.resetSwipe(); }}
+            style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: '80px',
+              background: '#ef4444', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: '#fff', fontWeight: '700',
+              fontSize: '13px', cursor: 'pointer', borderRadius: '0 14px 14px 0',
+            }}
+          >🗑️ 삭제</div>
+        )}
+
+        {/* 카드 본체 */}
+        <div style={{
+          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+          borderRadius: '14px', border: getSignalBorder(),
+          overflow: 'hidden',
+        }}>
+          {/* ★ CardHeader 서브컴포넌트 */}
+          <CardHeader
+            position={position}
+            currentPrice={cur}
+            profitRate={profitRate}
+            profitAmount={profitAmount}
+            totalValue={totalValue}
+            isProfit={isProfit}
+            stage={stage}
+            signals={signals}
+            stockPrice={stockPrice}
+            isMobile={isMobile}
+            isExpanded={isExpanded}
+            onToggle={handleCardToggle}
+          />
+
+          {/* ★ 펼친 상태: 시그널 + 프리셋 + 차트 */}
+          {isExpanded && (
+            <div style={{ padding: isMobile ? '0 14px 14px' : '0 16px 16px' }}>
+              {/* 시그널 섹션 */}
+              {signals && signals.signals.length > 0 && (
+                <SignalSection signals={signals} isMobile={isMobile} />
+              )}
+
+              {/* ★ CardPresets 서브컴포넌트 */}
+              <CardPresets
+                position={position}
+                currentPrice={cur}
+                sellPrices={sellPrices}
+                showPresets={showPresets}
+                onTogglePresets={() => setShowPresets(!showPresets)}
+                onEditClick={() => setShowEditModal(true)}
+                visibleLines={visibleLines}
+                onToggleLine={(pid) => setVisibleLines((prev) => ({ ...prev, [pid]: !prev[pid] }))}
+                isMobile={isMobile}
+              />
+
+              {/* 차트 토글 (모바일) */}
+              {isMobile && (
+                <button onClick={() => setShowChart(!showChart)} style={{
+                  width: '100%', padding: '10px', minHeight: '44px',
+                  background: showChart ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.08)',
+                  border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px',
+                  color: '#60a5fa', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                  marginTop: '8px', marginBottom: showChart ? '8px' : '0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                }}>📊 차트 {showChart ? '접기 ▲' : '보기 ▼'}</button>
+              )}
+
+              {/* 차트 영역 */}
+              {(showChart || !isMobile) && (
+                <div
+                  onClick={() => window.open(naverChartUrl, '_blank')}
+                  style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', marginTop: '8px' }}
+                >
+                  <div ref={chartContainerRef} style={{
+                    background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '4px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <EnhancedMiniChart
+                      data={priceData?.slice(isMobile ? -30 : isTablet ? -40 : -55) || null}
+                      buyPrice={position.buyPrice}
+                      width={chartW}
+                      height={isMobile ? 200 : isTablet ? 260 : 280}
+                      sellPrices={sellPrices}
+                      visibleLines={visibleLines}
+                    />
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '4px', padding: '6px 0 2px', fontSize: '11px', color: '#64748b',
+                  }}>
+                    <span>📈</span>
+                    <span style={{ textDecoration: 'underline', color: '#60a5fa' }}>네이버 증권 차트 보기</span>
+                    <span style={{ fontSize: '10px' }}>→</span>
+                  </div>
+                </div>
+              )}
+
+              {/* AI 뉴스 요약 */}
+              {showAI && <AINewsSummary position={position} onClose={() => setShowAI(false)} />}
+
+              {/* ★ CardActions 서브컴포넌트 */}
+              <CardActions
+                isMobile={isMobile}
+                isPremium={isPremium}
+                naverNewsUrl={naverNewsUrl}
+                aiNewsUsedCount={aiNewsUsedCount}
+                maxFreeAINews={maxFreeAINews}
+                onEditClick={() => setShowEditModal(true)}
+                onToggleAI={handleToggleAI}
+              />
+
+              {/* 스와이프 힌트 */}
+              {isMobile && (
+                <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', color: '#475569' }}>
+                  ← 좌측으로 스와이프하여 삭제
+                </div>
+              )}
+            </div>
+          )}
+        </div>{/* 카드 본체 div 닫기 */}
+      </div>{/* 스와이프 래퍼 div 닫기 */}
+
+      {/* 수정 모달 */}
+      {showEditModal && (
+        <PositionEditModal
+          position={position}
+          onSave={onUpdate}
+          onClose={() => setShowEditModal(false)}
+          onDelete={() => { setShowEditModal(false); setShowDeleteConfirm(true); }}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* 삭제 확인 팝업 */}
+      {showDeleteConfirm && (
+        <div
+          onClick={(e: React.MouseEvent) => e.target === e.currentTarget && setShowDeleteConfirm(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
+          }}
+        >
+          <div style={{
+            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+            borderRadius: '16px', padding: '24px', maxWidth: '340px', width: '90%',
+            border: '1px solid rgba(239,68,68,0.3)', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>⚠️</div>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '8px' }}>
+              종목을 삭제합니다
+            </div>
+            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px', lineHeight: '1.5' }}>
+              <strong style={{ color: '#fff' }}>{position.name}</strong>을(를) 삭제하시겠습니까?<br/>이 작업은 되돌릴 수 없습니다.
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowDeleteConfirm(false)} style={{
+                flex: 1, padding: '12px', minHeight: '44px',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '10px', color: '#94a3b8', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+              }}>취소</button>
+              <button onClick={() => { onDelete(position.id); setShowDeleteConfirm(false); }} style={{
+                flex: 1, padding: '12px', minHeight: '44px',
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                border: 'none', borderRadius: '10px', color: '#fff',
+                fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+              }}>🗑️ 삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default PositionCard;
