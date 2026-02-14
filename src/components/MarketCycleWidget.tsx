@@ -57,7 +57,7 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
       </div>
 
       {/* 달걀 SVG */}
-      <div style={{ width: '100%', maxWidth: isMobile ? '300px' : '340px', margin: '0 auto' }}>
+      <div style={{ width: '100%', maxWidth: isMobile ? '340px' : '400px', margin: '0 auto' }}>
         {/* ★ 세션30 수정: 상단 = 금리 정점 */}
         <div style={{ textAlign: 'center', marginBottom: '2px', padding: '4px 0' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444' }}>
@@ -187,7 +187,7 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
               color: '#fff', flexShrink: 0,
             }}>{stage.num}</span>
             <div>
-              <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: '700', color: stage.color }}>
+              <div style={{ fontSize: isMobile ? '15px' : '17px', fontWeight: '700', color: stage.color }}>
                 {stage.name} — {stage.action}
               </div>
               <div style={{ fontSize: '11px', color: '#94a3b8' }}>{stage.detail}</div>
@@ -247,7 +247,7 @@ const MarketCycleWidget = ({ isMobile, isTablet, isPremium }: MarketCycleWidgetP
               </span>
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8' }}>{ind.label}</div>
-            <div style={{ fontSize: isMobile ? '14px' : '15px', fontWeight: '700', color: '#e2e8f0' }}>
+            <div style={{ fontSize: isMobile ? '15px' : '16px', fontWeight: '700', color: '#e2e8f0' }}>
               {ind.value}{' '}
               <span style={{
                 fontSize: '11px',
