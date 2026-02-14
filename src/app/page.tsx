@@ -1,9 +1,4 @@
 'use client';
-// ============================================
-// Next.js App Router 엔트리 포인트
-// 경로: src/app/page.tsx
-// 세션 54: SSR 비활성화로 prerender 에러 우회
-// ============================================
 
 import dynamic from 'next/dynamic';
 
