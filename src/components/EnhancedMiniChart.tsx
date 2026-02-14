@@ -135,10 +135,11 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
   const cur = data[data.length - 1]?.close || buyPrice;
 
   // ── 폰트 사이즈 ──
+  // ★ 세션G: 폰트 크기 복원 — 모바일에서도 가독성 확보
   const fs = {
     x: isWide ? 11 : isSmall ? 10 : 11,
-    y: isWide ? 11 : isSmall ? 10 : 10,
-    label: isWide ? 11 : isSmall ? 10 : 10,
+    y: isWide ? 12 : isSmall ? 10 : 11,
+    label: isWide ? 12 : isSmall ? 10 : 11,
   };
 
   // ── 오버레이 계산 (메모이제이션) ──
@@ -209,10 +210,15 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
   const gridCountY = isWide ? 7 : 5;
 
   // ── X축 날짜 라벨 ──
-  const xIndices = data.length <= 10
-    ? Array.from({ length: data.length }, (_, i) => i).filter((_, i) => i % 2 === 0)
-    : [0, Math.floor(data.length * 0.25), Math.floor(data.length * 0.5),
-       Math.floor(data.length * 0.75), data.length - 1];
+  // ★ 세션G: X축 날짜 레이블 촘촘하게 — 7~8개 표시
+  const xIndices = useMemo(() => {
+    const len = data.length;
+    if (len <= 10) return Array.from({ length: len }, (_, i) => i).filter((_, i) => i % 2 === 0);
+    // 약 7개 포인트를 균등 배치
+    const count = isWide ? 8 : 7;
+    const step = (len - 1) / (count - 1);
+    return Array.from({ length: count }, (_, i) => Math.round(step * i));
+  }, [data.length, isWide]);
 
   const buyLabelW = isWide ? 82 : isSmall ? 74 : 78;
   const buyLabelH = 20;
@@ -225,9 +231,9 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
         return (
           <g key={`g${i}`}>
             <line x1={pad.left} y1={y(p)} x2={width - pad.right} y2={y(p)}
-              stroke="rgba(255,255,255,0.04)" />
+              stroke="rgba(255,255,255,0.07)" />
             <text x={width - pad.right + 4} y={y(p) + 4}
-              fill="#94a3b8" fontSize={fs.y} fontWeight="500">
+              fill="#94a3b8" fontSize={fs.y} fontWeight="600">
               {Math.round(p).toLocaleString()}
             </text>
           </g>
