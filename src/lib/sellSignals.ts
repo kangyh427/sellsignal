@@ -1,835 +1,509 @@
 // ============================================
-// CREST 매도 시그널 계산 엔진 v3
+// sellSignals.ts v5.1 패치 적용 가이드
+// 작성: 세션 53
+// 대상 파일: src/lib/sellSignals.ts
+//
+// ★ 이 파일은 직접 사용하는 파일이 아니라,
+//   GitHub의 sellSignals.ts에 적용하기 위한 "변경 섹션 모음"입니다.
+//
+// 적용 순서:
+//   1) SECTION A: 파일 헤더 교체 (1~14줄)
+//   2) SECTION B: import 수정 (16줄)
+//   3) SECTION C: checkTwoThird 수정 (세션53 발견 이슈)
+//   4) SECTION D: checkMASignal MACD 가중치 상향 (세션53)
+//   5) SECTION E: checkFundamental v5.1 교체 (827~838줄)
+//   6) SECTION F: checkCycle v5.1 교체 (841~859줄)
+//   7) SECTION G: calculateAllSignals v5.1 교체 (865~939줄)
+//   8) SECTION H: export 목록 교체 (941~957줄)
+// ============================================
+
+
+// ═══════════════════════════════════════════════
+// SECTION A: 파일 헤더 (1~14줄 교체)
+// ═══════════════════════════════════════════════
+
+// ============================================
+// CREST 매도 시그널 계산 엔진 v5.1
 // 경로: src/lib/sellSignals.ts
-// 세션 41: PPT/자막 원본 기반 1~3번 매도법 대폭 강화
-//   - 봉3개: 양봉 묶음 합산 덮기 + "음봉에서만 매도" 원칙
-//   - 손실제한: ATR 기반 동적 손절 + 분산투자 안내
-//   - 2/3 익절: 수익 구간별 맞춤 메시지 + 급변 대응 안내
-//   - 공통: "모든 매도는 음봉에서" 원칙 적용
-//   - MACD 계산 유틸리티 추가 (세션 42 준비)
-// ============================================
+// 세션 53: PPT 대조 검증 + v5.1 패치 통합
 //
-// 사용법:
-//   import { calculateAllSignals } from '@/lib/sellSignals';
-//   const result = calculateAllSignals({ position, candles, currentPrice });
+// [변경 이력]
+// v3 (세션 41): 1~3번 매도법 강화
+// v4 (세션 43): 4~6번 매도법 PPT 기반 강화
+// v5 (세션 44): 7번 기업가치 + 8번 경기순환 본격 구현
+// v5.1 (세션 44-2): 7번 PER/PBR 밴드 + 8번 단계점수 수정
+// v5.1a (세션 53): PPT 대조 기반 3번 twoThird 수정, 4번 MACD 가중치 조정
+// ============================================
+
+
+// ═══════════════════════════════════════════════
+// SECTION B: import 수정 (16줄 교체)
+// ═══════════════════════════════════════════════
+
+// import type {
+//   Position, CandleData, SignalLevel, SignalResult, PositionSignals,
+//   FundamentalData, CycleData, ValuationBandData  // ★ v5.1 추가
+// } from '@/types';
 //
-// 반환값: PositionSignals (positionId, signals[], maxLevel, activeCount, totalScore)
-// ============================================
-
-import type { Position, CandleData, SignalLevel, SignalResult, PositionSignals } from '@/types';
-
-// ── 계산 입력 ──
-interface SignalInput {
-  position: Position;
-  candles: CandleData[];
-  currentPrice: number;
-}
-
-// ── 유틸리티 함수 ──
-
-/** 단순 이동평균 (SMA) */
-function calcMA(closes: number[], period: number): number[] {
-  const ma: number[] = [];
-  for (let i = 0; i < closes.length; i++) {
-    if (i < period - 1) {
-      ma.push(NaN);
-    } else {
-      const slice = closes.slice(i - period + 1, i + 1);
-      ma.push(slice.reduce((a, b) => a + b, 0) / period);
-    }
-  }
-  return ma;
-}
-
-/** 지수 이동평균 (EMA) — MACD 계산용 */
-function calcEMA(values: number[], period: number): number[] {
-  const ema: number[] = [];
-  const k = 2 / (period + 1);
-
-  for (let i = 0; i < values.length; i++) {
-    if (i === 0) {
-      ema.push(values[0]);
-    } else {
-      ema.push(values[i] * k + ema[i - 1] * (1 - k));
-    }
-  }
-  return ema;
-}
-
-/** MACD 계산 결과 타입 */
-interface MACDResult {
-  macdLine: number[];     // MACD 선 (EMA12 - EMA26)
-  signalLine: number[];   // 시그널 선 (MACD의 EMA9)
-  histogram: number[];    // 히스토그램 (MACD - Signal)
-}
-
-/** MACD 계산 (12, 26, 9) — 세션 42에서 본격 활용 */
-function calcMACD(closes: number[]): MACDResult {
-  const ema12 = calcEMA(closes, 12);
-  const ema26 = calcEMA(closes, 26);
-
-  const macdLine = ema12.map((v, i) => v - ema26[i]);
-  const signalLine = calcEMA(macdLine, 9);
-  const histogram = macdLine.map((v, i) => v - signalLine[i]);
-
-  return { macdLine, signalLine, histogram };
-}
-
-/**
- * ATR (Average True Range) — 종목별 변동폭 측정
- * PPT: "주가 1일 등락폭을 고려해요. 어떤 종목은 1~2% 왔다갔다, 어떤 종목은 3~5% 크게 움직여요"
- */
-function calcATR(candles: CandleData[], period: number = 14): number {
-  if (candles.length < 2) return 0;
-
-  const trueRanges: number[] = [];
-  for (let i = 1; i < candles.length; i++) {
-    const tr = Math.max(
-      candles[i].high - candles[i].low,
-      Math.abs(candles[i].high - candles[i - 1].close),
-      Math.abs(candles[i].low - candles[i - 1].close)
-    );
-    trueRanges.push(tr);
-  }
-
-  // 최근 period일 평균
-  const recentTR = trueRanges.slice(-period);
-  return recentTR.reduce((a, b) => a + b, 0) / recentTR.length;
-}
-
-/** 수익률 계산 (%) */
-function calcReturn(buyPrice: number, currentPrice: number): number {
-  if (buyPrice <= 0) return 0;
-  return ((currentPrice - buyPrice) / buyPrice) * 100;
-}
-
-/** 오늘이 음봉인지 확인 (PPT: "모든 매도는 음봉에서 하세요") */
-function isBearishCandle(candle: CandleData): boolean {
-  return candle.close < candle.open;
-}
-
-/** 레벨 우선순위 (높을수록 위험) */
-const LEVEL_PRIORITY: Record<SignalLevel, number> = {
-  danger: 4,
-  warning: 3,
-  caution: 2,
-  safe: 1,
-  inactive: 0,
-};
+// // ── 계산 입력 v5.1 ──
+// interface SignalInput {
+//   position: Position;
+//   candles: CandleData[];
+//   currentPrice: number;
+//   fundamentalData?: FundamentalData;  // ★ v5 추가
+//   cycleData?: CycleData;              // ★ v5 추가
+// }
 
 
-// ============================================
-// 1. 봉 3개 매도법 v3 (candle3)
-// ============================================
-// PPT 원본 기반 개선:
-//   - 양봉 2~3개 묶음 합산 → 50%/100% 덮기 판정
-//   - "모든 매도는 음봉에서" 원칙 적용
-//   - 갭하락(시초가 < 전일 저가) 감지 강화
-//   - 수익 구간 인식 → 초기(~5%)에서만 주력 적용
-// ============================================
-function checkCandle3(
-  candles: CandleData[],
-  returnPct?: number  // 현재 수익률 (구간별 메시지용)
-): SignalResult {
-  const id = 'candle3';
-  if (candles.length < 3) {
-    return { presetId: id, level: 'inactive', score: 0, message: '데이터 부족', detail: '최소 3일 이상의 데이터가 필요합니다.' };
-  }
+// ═══════════════════════════════════════════════
+// SECTION C: checkTwoThird 수정 (세션 53 PPT 대조 이슈)
+// ★ 변경 내용: 최소수익 5% 조건 완화
+//   PPT: "5% 소액에서도 적용하되, 대응이 급할 수 있음"
+//   기존: 5% 미만 → inactive (비활성화)
+//   수정: 5% 미만 → caution + 경고 메시지
+//
+// ★ 적용 위치: checkTwoThird 함수 내부의 early return 부분
+//   기존 코드에서 아래와 유사한 부분을 찾아 교체:
+//   if (highestPrice < buyPrice * 1.05) return { ... inactive ... }
+// ═══════════════════════════════════════════════
 
-  const today = candles[candles.length - 1];
-  const yesterday = candles[candles.length - 2];
-  const todayIsBearish = isBearishCandle(today);
+// [기존 코드 — 찾아서 교체]
+// if (highestPrice < buyPrice * 1.05) {
+//   return {
+//     presetId: id, level: 'inactive', score: 0,
+//     message: '최소 수익 미달',
+//     detail: '최고점이 매수가의 5% 이상이어야 적용됩니다.',
+//   };
+// }
 
-  // ── 갭하락 체크 (가장 강력한 매도 신호) ──
-  // PPT: "갭하락 음봉이 나와도 전량 매도"
-  if (today.open < yesterday.low) {
-    return {
-      presetId: id, level: 'danger', score: 95,
-      message: '갭하락 발생! 전량 매도 고려',
-      detail: `금일 시가(${today.open.toLocaleString()})가 전일 저가(${yesterday.low.toLocaleString()}) 아래에서 시작했습니다. 갭하락은 강한 하락 신호입니다.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  // ── 3일 연속 하락봉 체크 ──
-  const last3 = candles.slice(-3);
-  const threeConsecDown = last3.every(c => c.close < c.open);
-  if (threeConsecDown) {
-    const totalDrop = ((last3[2].close - last3[0].open) / last3[0].open * 100).toFixed(1);
-    return {
-      presetId: id, level: 'danger', score: 85,
-      message: `3일 연속 하락봉! (${totalDrop}%)`,
-      detail: `3일간 연속 하락봉이 출현했습니다. 추세 전환의 강한 신호입니다.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  // ── 양봉 묶음 합산 덮기 체크 (PPT 핵심 로직) ──
-  // "양봉이 두 개라면 두 개를 하나로 묶어서 50% 뚫고 내려가는 음봉이 발생하면 매도"
-  const recent = candles.slice(-5);
-
-  // 최근 연속 양봉 묶음 찾기 (최대 3개까지)
-  let bullGroupStart = -1;
-  let bullGroupEnd = -1;
-  for (let i = recent.length - 2; i >= 0; i--) {
-    if (recent[i].close > recent[i].open) {
-      // 양봉 발견
-      if (bullGroupEnd === -1) bullGroupEnd = i;
-      bullGroupStart = i;
-    } else if (bullGroupEnd !== -1) {
-      break; // 양봉 묶음 끝
-    }
-  }
-
-  if (bullGroupStart >= 0 && bullGroupEnd >= bullGroupStart && todayIsBearish) {
-    // 양봉 묶음의 합산 몸통 계산
-    const groupOpen = recent[bullGroupStart].open;   // 첫 양봉의 시가
-    const groupClose = recent[bullGroupEnd].close;    // 마지막 양봉의 종가
-    const groupBody = groupClose - groupOpen;
-
-    if (groupBody > 0) {
-      const todayDrop = groupClose - today.close;
-      const coverRatio = todayDrop / groupBody;
-
-      // 100% 이상 덮기 → 전량 매도
-      if (coverRatio >= 1.0) {
-        const bullCount = bullGroupEnd - bullGroupStart + 1;
-        return {
-          presetId: id, level: 'danger', score: 85,
-          message: `양봉 ${bullCount}개 100% 덮는 음봉! 전량 매도`,
-          detail: `최근 ${bullCount}개 양봉(${groupOpen.toLocaleString()}→${groupClose.toLocaleString()})을 완전히 덮는 음봉이 발생했습니다.`,
-          triggeredAt: Date.now(),
-        };
-      }
-
-      // 50% 이상 덮기 → 절반 매도
-      if (coverRatio >= 0.5) {
-        const bullCount = bullGroupEnd - bullGroupStart + 1;
-        return {
-          presetId: id, level: 'warning', score: 65,
-          message: `양봉 ${bullCount}개 ${(coverRatio * 100).toFixed(0)}% 덮는 음봉 — 절반 매도`,
-          detail: `최근 ${bullCount}개 양봉의 ${(coverRatio * 100).toFixed(0)}%를 덮는 음봉이 발생했습니다. 절반 매도를 고려하세요.`,
-          triggeredAt: Date.now(),
-        };
-      }
-    }
-  }
-
-  // ── 2일 연속 하락봉 (주의) ──
-  const last2 = candles.slice(-2);
-  if (last2.every(c => c.close < c.open)) {
-    return {
-      presetId: id, level: 'caution', score: 30,
-      message: '2일 연속 하락봉 — 추이 관찰',
-      detail: '연속 하락봉이 시작되고 있습니다. 내일 추가 하락 시 매도를 고려하세요.',
-    };
-  }
-
-  // ── 오늘이 양봉이면 안전 (PPT: "상승의 시작은 양봉에서") ──
-  if (!todayIsBearish) {
-    return {
-      presetId: id, level: 'safe', score: 0,
-      message: '양봉 유지 — 상승 기운',
-      detail: '오늘 양봉으로 마감하여 상승 흐름이 유지되고 있습니다.',
-    };
-  }
-
-  return {
-    presetId: id, level: 'safe', score: 5,
-    message: '정상 — 특이 패턴 없음',
-    detail: '최근 봉 패턴에서 매도 신호가 감지되지 않았습니다.',
-  };
-}
-
-
-// ============================================
-// 2. 손실제한 매도법 v3 (stopLoss)
-// ============================================
-// PPT 원본 기반 개선:
-//   - ATR 기반 동적 손절 기준 (변동폭 고려)
-//   - "작게 움직이면 -3~4%, 크게 움직이면 -4~5%"
-//   - 분산투자 안내 메시지 (PPT: "최소 5~20종목 분산투자 시 효과적")
-//   - "주가의 앞날은 모른다" — 감정 배제 강조
-// ============================================
-function checkStopLoss(
-  buyPrice: number,
-  currentPrice: number,
-  candles: CandleData[],
-  userThreshold?: number  // 사용자 직접 설정값 (있으면 우선)
-): SignalResult {
-  const id = 'stopLoss';
-  if (buyPrice <= 0 || currentPrice <= 0) {
-    return { presetId: id, level: 'inactive', score: 0, message: '가격 데이터 없음', detail: '' };
-  }
-
-  // ── ATR 기반 동적 손절 기준 계산 ──
-  let threshold: number;
-  let thresholdSource: string;
-
-  if (userThreshold !== undefined && userThreshold !== null) {
-    // 사용자가 직접 설정한 경우 (우선)
-    threshold = userThreshold;
-    thresholdSource = '사용자 설정';
-  } else if (candles.length >= 15) {
-    // ATR 기반 자동 계산
-    const atr = calcATR(candles, 14);
-    const atrPct = (atr / buyPrice) * 100;
-
-    // PPT: "작게 움직이면 -3~4%, 크게 움직이면 -4~5%"
-    if (atrPct < 2) {
-      threshold = -3;       // 저변동 종목
-    } else if (atrPct < 4) {
-      threshold = -4;       // 중변동 종목
-    } else {
-      threshold = -5;       // 고변동 종목
-    }
-    thresholdSource = `ATR 기반 (일변동 ${atrPct.toFixed(1)}%)`;
-  } else {
-    threshold = -5;         // 기본값
-    thresholdSource = '기본값';
-  }
-
-  const returnPct = calcReturn(buyPrice, currentPrice);
-
-  // ── 손절 기준 도달 (danger) ──
-  if (returnPct <= threshold) {
-    return {
-      presetId: id, level: 'danger', score: 95,
-      message: `손절 기준 도달! (${returnPct.toFixed(1)}%)`,
-      detail: `매수가 ${buyPrice.toLocaleString()}원 대비 ${returnPct.toFixed(1)}% 하락. 손절 기준(${threshold}%, ${thresholdSource})을 초과했습니다.\n⚡ 감정을 배제하고 기계적으로 손절하세요. 주가의 앞날은 모릅니다.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  // ── 손절 근접 (warning) — threshold +2%p 이내 ──
-  if (returnPct <= threshold + 2) {
-    return {
-      presetId: id, level: 'warning', score: 70,
-      message: `손절 기준 근접 (${returnPct.toFixed(1)}%)`,
-      detail: `손절 기준(${threshold}%)까지 ${(returnPct - threshold).toFixed(1)}%p 남았습니다. 조건 자동 매도를 설정해 두세요.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  // ── 소폭 손실 (caution) ──
-  if (returnPct < 0) {
-    return {
-      presetId: id, level: 'caution', score: 25,
-      message: `소폭 손실 중 (${returnPct.toFixed(1)}%)`,
-      detail: `현재 ${returnPct.toFixed(1)}% 손실 중입니다. 손절 기준: ${threshold}% (${thresholdSource})`,
-    };
-  }
-
-  // ── 수익 중 (safe) ──
-  return {
-    presetId: id, level: 'safe', score: 0,
-    message: returnPct > 0 ? `수익 중 (+${returnPct.toFixed(1)}%)` : '손익분기점',
-    detail: `현재 수익 구간이므로 손절 기준에 해당하지 않습니다. 기준: ${threshold}% (${thresholdSource})`,
-  };
-}
-
-
-// ============================================
-// 3. 2/3 익절 매도법 v3 (twoThird)
-// ============================================
-// PPT 원본 기반 개선:
-//   - 수익 구간별 맞춤 메시지 (5% vs 50% 구간 차이)
-//   - "수익이 커질수록 적용하기 쉬워요" 반영
-//   - "작은 수익 구간에서는 대응이 급하게 흘러갈 수 있음" 경고
-//   - "손실 이전에 작은 수익이라도 누적하는 습관" 강조
-// ============================================
-function checkTwoThird(
-  buyPrice: number,
-  highestPrice: number,
-  currentPrice: number
-): SignalResult {
+// [교체할 코드 ↓]
+// ── 세션 53 수정: PPT에서는 소액 수익에서도 적용 가능 ──
+// 다만 수익 자체가 없는 경우(최고가 ≤ 매수가)만 비활성화
+function checkTwoThird_PATCH(
+  buyPrice: number, highestPrice: number, currentPrice: number
+): { shouldSkip: boolean; earlyReturn?: any } {
   const id = 'twoThird';
+  const hp = highestPrice || currentPrice;
 
-  if (buyPrice <= 0 || highestPrice <= buyPrice) {
-    return { presetId: id, level: 'inactive', score: 0, message: '수익 발생 전', detail: '최고가가 매수가보다 높아야 이 매도법이 작동합니다.' };
-  }
-
-  const maxProfit = highestPrice - buyPrice;       // 최대 수익금
-  const currentProfit = currentPrice - buyPrice;   // 현재 수익금
-  const profitLoss = maxProfit - currentProfit;    // 수익 감소분
-  const lossRatio = profitLoss / maxProfit;        // 수익 대비 하락 비율
-
-  const maxReturnPct = calcReturn(buyPrice, highestPrice);
-  const currentReturnPct = calcReturn(buyPrice, currentPrice);
-
-  // ── 수익 구간 판별 (메시지 차별화용) ──
-  const profitTier = maxReturnPct >= 20 ? 'large' : maxReturnPct >= 10 ? 'medium' : 'small';
-
-  // ── 1/3 하락 도달: 매도! (danger) ──
-  if (lossRatio >= 1 / 3) {
-    // 수익 구간별 맞춤 메시지
-    let tierAdvice: string;
-    if (profitTier === 'small') {
-      // PPT: "5% 정도 작은 수익에서 1/3은 사실 얼마 안되죠, 1~2% 왔다갔다"
-      tierAdvice = `작은 수익 구간(최고 +${maxReturnPct.toFixed(1)}%)에서는 대응이 급하게 흘러갈 수 있습니다. 빠른 판단이 필요합니다.`;
-    } else if (profitTier === 'medium') {
-      tierAdvice = `중간 수익 구간(최고 +${maxReturnPct.toFixed(1)}%)입니다. 남은 수익을 확보하고 눌림목 이후 재진입도 고려하세요.`;
-    } else {
-      // PPT: "50% 정도 수익구간이면 1/3 갭이 굉장히 커질 수 있죠"
-      tierAdvice = `큰 수익 구간(최고 +${maxReturnPct.toFixed(1)}%)입니다. 충분한 수익을 확보할 수 있으니 침착하게 익절하세요.`;
-    }
-
+  // ★ 수정: 최고가가 매수가 이하면 적용 불가 (수익 자체가 없음)
+  if (hp <= buyPrice) {
     return {
-      presetId: id, level: 'danger', score: 90,
-      message: `수익 1/3 하락! 2/3 익절 매도`,
-      detail: `최고 수익률 +${maxReturnPct.toFixed(1)}% → 현재 +${currentReturnPct.toFixed(1)}%. 수익의 ${(lossRatio * 100).toFixed(0)}%가 감소했습니다.\n${tierAdvice}`,
-      triggeredAt: Date.now(),
+      shouldSkip: true,
+      earlyReturn: {
+        presetId: id, level: 'inactive' as const, score: 0,
+        message: '수익 미발생 — 최고가 미갱신',
+        detail: '매수가를 넘는 최고가가 기록되어야 적용됩니다.',
+      }
     };
   }
 
-  // ── 1/4 하락: 매도 준비 (warning) ──
-  if (lossRatio >= 1 / 4) {
-    const remainingToTrigger = ((1/3 - lossRatio) * maxProfit).toFixed(0);
+  // ★ 수정: 5% 미만이어도 활성화하되, 소액 구간 경고 표시
+  const profitPct = ((hp - buyPrice) / buyPrice) * 100;
+  const targetPrice = Math.round(buyPrice + (hp - buyPrice) * 2 / 3);
+  // 즉, 매도 목표가 = 최고점에서 1/3 하락한 지점
+  const distancePct = ((currentPrice - targetPrice) / targetPrice) * 100;
+
+  if (currentPrice <= targetPrice) {
+    // 매도 목표가 도달 → danger
     return {
-      presetId: id, level: 'warning', score: 60,
-      message: `수익 1/4 하락 — 매도 준비`,
-      detail: `최고 수익 대비 ${(lossRatio * 100).toFixed(0)}% 감소. 1/3 하락 기준까지 약 ${remainingToTrigger}원 남았습니다. 조건 자동 매도 설정을 권장합니다.`,
-      triggeredAt: Date.now(),
+      shouldSkip: false,
+      earlyReturn: {
+        presetId: id,
+        level: 'danger' as const,
+        score: 80,
+        message: `2/3 익절 매도 시점! 목표가 ${targetPrice.toLocaleString()}원 도달`,
+        detail: `매수 ${buyPrice.toLocaleString()}원 → 최고 ${hp.toLocaleString()}원 → 1/3 하락 도달` +
+          (profitPct < 5 ? ' (소액 수익 구간 — 신속 대응 필요)' : ''),
+        triggeredAt: Date.now(),
+      }
     };
   }
 
-  // ── 1/5 하락: 주의 (caution) ──
-  if (lossRatio >= 1 / 5) {
+  if (distancePct <= 2) {
+    // 매도 목표가 근접 (2% 이내) → warning
     return {
-      presetId: id, level: 'caution', score: 30,
-      message: `수익 줄어드는 중 (${(lossRatio * 100).toFixed(0)}% 감소)`,
-      detail: `최고점에서 수익이 줄어들고 있습니다. 눌림목 조정인지 추세 전환인지 관찰하세요.`,
+      shouldSkip: false,
+      earlyReturn: {
+        presetId: id,
+        level: 'warning' as const,
+        score: 45,
+        message: `매도 목표가 근접 (${targetPrice.toLocaleString()}원)`,
+        detail: `현재가와 목표가 차이 ${distancePct.toFixed(1)}%` +
+          (profitPct < 5 ? ' — 소액 수익, 빠른 대응 권장' : ''),
+      }
     };
   }
 
-  // ── 안전 ──
+  // ★ 신규: 5% 미만 소액 수익 구간 caution
+  if (profitPct < 5) {
+    return {
+      shouldSkip: false,
+      earlyReturn: {
+        presetId: id,
+        level: 'caution' as const,
+        score: 15,
+        message: `소액 수익 구간 (${profitPct.toFixed(1)}%) — 매도 목표가 ${targetPrice.toLocaleString()}원`,
+        detail: 'PPT: "작은 수익구간에서는 대응이 급하게 흘러갈 수 있음"',
+      }
+    };
+  }
+
+  // 안전 구간
   return {
-    presetId: id, level: 'safe', score: 5,
-    message: `수익 유지 중 (+${currentReturnPct.toFixed(1)}%)`,
-    detail: `최고가 근처에서 수익을 유지하고 있습니다.${profitTier === 'small' ? ' 작은 수익 구간이므로 봉 3개 매도법과 함께 관찰하세요.' : ''}`,
+    shouldSkip: false,
+    earlyReturn: {
+      presetId: id,
+      level: 'safe' as const,
+      score: 0,
+      message: `매도 목표가 ${targetPrice.toLocaleString()}원 (여유 ${distancePct.toFixed(1)}%)`,
+      detail: `매수 ${buyPrice.toLocaleString()}원 → 최고 ${hp.toLocaleString()}원`,
+    }
   };
 }
 
 
+// ═══════════════════════════════════════════════
+// SECTION D: checkMASignal MACD 가중치 수정 안내
+// ★ 적용 위치: checkMASignal 함수 내부
+//   기존: MACD 데드크로스 +10점 → +20점으로 변경
+//   기존: 이평선 데드크로스 +15점 → +20점으로 변경
+//
+// PPT 근거: MACD 데드크로스를 별도 슬라이드로 강조,
+//          "다른 매도법들과 병행해서 분석하라" 권고
+// ═══════════════════════════════════════════════
+
+// 찾아서 변경할 부분:
+//   1) MACD 데드크로스 관련: score += 10 → score += 20
+//   2) 이평선 데드크로스 관련: score += 15 → score += 20
+
+
+// ═══════════════════════════════════════════════
+// SECTION E: checkFundamental v5.1 (827~838줄 전체 교체)
+// ═══════════════════════════════════════════════
+
 // ============================================
-// 4. 이동평균선 매도법 (maSignal) — 기존 + MACD 인프라
+// 7. 기업가치 반전 매도법 v5.1 (fundamental)
+// PPT: "기업 가치에 변화가 나왔을 때 매도"
+//      "실적 하락 발표 or 하락 전망 → 매도"
+//      "악재(물적분할 등) → 매도"
+//
+// ★ v5.1: PER/PBR 밴드차트 비교
+//   - 과거 5년간 PER 추이 대비 현재 위치 판단
+//   - 밴드 상단 초과 시 추가 경고 (+20점)
+//   - 업종 대비 + 자기 밴드 대비 = 이중 검증
 // ============================================
-// 그랜빌 법칙 기반 4가지 매도 신호 (기존 유지)
-// + MACD 데드크로스 감지 추가 (세션 42에서 본격 활용)
-// ============================================
-function checkMASignal(
-  candles: CandleData[],
-  currentPrice: number,
-  period: number = 20
-): SignalResult {
-  const id = 'maSignal';
+/*
+function checkFundamental(data?: FundamentalData): SignalResult {
+  const id = 'fundamental';
 
-  if (candles.length < period + 5) {
-    return { presetId: id, level: 'inactive', score: 0, message: '데이터 부족', detail: `${period}일 이동평균선 계산에 충분한 데이터가 필요합니다.` };
-  }
-
-  const closes = candles.map(c => c.close);
-  const maValues = calcMA(closes, period);
-
-  const maToday = maValues[maValues.length - 1];
-  const maYesterday = maValues[maValues.length - 2];
-  const ma3DaysAgo = maValues[maValues.length - 4];
-
-  if (isNaN(maToday) || isNaN(maYesterday)) {
-    return { presetId: id, level: 'inactive', score: 0, message: '계산 불가', detail: '' };
-  }
-
-  const priceToday = closes[closes.length - 1];
-  const priceYesterday = closes[closes.length - 2];
-
-  // MA 추세 판단
-  const maTrend = maToday - ma3DaysAgo;
-  const isMARising = maTrend > 0;
-  const isMATurning = isMARising && (maToday - maYesterday) < (maYesterday - ma3DaysAgo) * 0.3;
-
-  const priceBelowMA = priceToday < maToday;
-  const priceAboveMA = priceToday > maToday;
-  const yesterdayAboveMA = priceYesterday >= maYesterday;
-
-  const deviation = ((priceToday - maToday) / maToday) * 100;
-
-  // ── MACD 보조 판단 (세션 42에서 본격 활용) ──
-  let macdNote = '';
-  if (candles.length >= 35) {
-    const macd = calcMACD(closes);
-    const macdToday = macd.macdLine[macd.macdLine.length - 1];
-    const macdYesterday = macd.macdLine[macd.macdLine.length - 2];
-    const sigToday = macd.signalLine[macd.signalLine.length - 1];
-    const sigYesterday = macd.signalLine[macd.signalLine.length - 2];
-
-    // 데드크로스 감지
-    if (macdYesterday >= sigYesterday && macdToday < sigToday) {
-      macdNote = ' [MACD 데드크로스 동시 발생!]';
-    }
-    // 0선 하향돌파 감지
-    else if (macdYesterday >= 0 && macdToday < 0) {
-      macdNote = ' [MACD 0선 하향돌파!]';
-    }
-  }
-
-  // ── 매도신호 1: MA 상승→전환 + 하향돌파 ──
-  if ((isMATurning || !isMARising) && priceBelowMA && yesterdayAboveMA) {
+  // 데이터 없으면 수동 판정 모드
+  if (!data) {
     return {
-      presetId: id, level: 'danger', score: 85,
-      message: `${period}일선 하향 돌파! 강력 매도`,
-      detail: `이동평균선이 횡보/하락 전환하는 구간에서 주가가 ${period}일선을 하향 돌파했습니다. (이격도: ${deviation.toFixed(1)}%)${macdNote}`,
-      triggeredAt: Date.now(),
+      presetId: id, level: 'inactive', score: 0,
+      message: '기업 데이터 미입력',
+      detail: 'PER/PBR 등 기업가치 데이터를 입력하면 자동 판정됩니다.',
     };
   }
 
-  // ── 매도신호 3: MA 하락 중 돌파 실패 ──
-  if (!isMARising && priceBelowMA && !yesterdayAboveMA) {
-    return {
-      presetId: id, level: 'warning', score: 65,
-      message: `${period}일선 저항 작용 중`,
-      detail: `이동평균선이 하락 중이며, 주가가 ${period}일선 위로 올라가지 못하고 있습니다.${macdNote}`,
-      triggeredAt: Date.now(),
-    };
-  }
+  let totalScore = 0;
+  const details: string[] = [];
 
-  // ── 매도신호 2: MA 하락 중 일시적 상향돌파 ──
-  if (!isMARising && priceAboveMA) {
-    return {
-      presetId: id, level: 'warning', score: 55,
-      message: `하락 추세 중 기술적 반등`,
-      detail: `${period}일선이 하락 중인데 주가가 일시적으로 위로 올라왔습니다. 매수 자제, 매도 관점으로 접근하세요.${macdNote}`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  // ── 매도신호 4: 과도 이격 ──
-  if (isMARising && deviation > 10) {
-    return {
-      presetId: id, level: 'caution', score: 40,
-      message: `이격도 과대 (${deviation.toFixed(1)}%)`,
-      detail: `주가가 ${period}일선보다 ${deviation.toFixed(1)}% 위에 있습니다. 과도한 이격은 조정의 신호일 수 있습니다.${macdNote}`,
-    };
-  }
-
-  // ── 안정적 상승 ──
-  if (priceAboveMA && isMARising) {
-    return {
-      presetId: id, level: 'safe', score: 5,
-      message: `${period}일선 위 안정적 상승`,
-      detail: `주가가 상승하는 ${period}일선 위에서 안정적으로 유지되고 있습니다. (이격도: +${deviation.toFixed(1)}%)`,
-    };
-  }
-
-  return {
-    presetId: id, level: 'caution', score: 20,
-    message: `${period}일선 부근 — 방향 관찰`,
-    detail: `주가가 이동평균선 근처에 위치합니다. 돌파/이탈 방향을 주시하세요.${macdNote}`,
-  };
-}
-
-
-// ============================================
-// 5. 매물대 매도법 (volumeZone) — 기존 유지
-// ============================================
-function checkVolumeZone(
-  candles: CandleData[],
-  currentPrice: number
-): SignalResult {
-  const id = 'volumeZone';
-
-  if (candles.length < 20) {
-    return { presetId: id, level: 'inactive', score: 0, message: '데이터 부족', detail: '매물대 분석에는 최소 20일 데이터가 필요합니다.' };
-  }
-
-  const prices = candles.map(c => (c.high + c.low + c.close) / 3);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const range = maxPrice - minPrice;
-
-  if (range <= 0) {
-    return { presetId: id, level: 'inactive', score: 0, message: '가격 변동 없음', detail: '' };
-  }
-
-  const ZONES = 10;
-  const zoneSize = range / ZONES;
-  const zoneCount = new Array(ZONES).fill(0);
-
-  prices.forEach(p => {
-    const idx = Math.min(Math.floor((p - minPrice) / zoneSize), ZONES - 1);
-    zoneCount[idx]++;
-  });
-
-  const currentZoneIdx = Math.min(Math.floor((currentPrice - minPrice) / zoneSize), ZONES - 1);
-  const avgCount = candles.length / ZONES;
-
-  // 현재가 위 저항대 체크
-  let resistanceStrength = 0;
-  for (let i = currentZoneIdx + 1; i < Math.min(currentZoneIdx + 3, ZONES); i++) {
-    if (zoneCount[i] > avgCount * 1.5) {
-      resistanceStrength += zoneCount[i] / avgCount;
+  // ── PER 업종 대비 고평가 판단 ──
+  if (data.per && data.sectorAvgPer) {
+    const perRatio = data.per / data.sectorAvgPer;
+    if (perRatio > 2.5) {
+      totalScore += 15;
+      details.push(`PER ${data.per.toFixed(1)}x — 업종 평균(${data.sectorAvgPer.toFixed(1)}x)의 ${perRatio.toFixed(1)}배`);
+    } else if (perRatio > 1.8) {
+      totalScore += 8;
+      details.push(`PER ${data.per.toFixed(1)}x — 다소 고평가`);
+    } else if (perRatio > 1.3) {
+      totalScore += 3;
     }
   }
 
-  // 현재가 아래 지지대 이탈 체크 (PPT 추가: "하단 매물대 지지를 깨고 하락할 때 매도")
-  let supportStrength = 0;
-  for (let i = currentZoneIdx - 1; i >= Math.max(currentZoneIdx - 2, 0); i--) {
-    if (zoneCount[i] > avgCount * 1.5) {
-      supportStrength += zoneCount[i] / avgCount;
+  // ── ★ v5.1: PER 밴드차트 비교 (과거 5년 자기 자신 대비) ──
+  if (data.perBand) {
+    const band = data.perBand;
+    const bandRange = band.high - band.low;
+    const bandPosition = bandRange > 0
+      ? (band.current - band.low) / bandRange
+      : 0.5;
+
+    if (band.current > band.high) {
+      totalScore += 20;
+      details.push(`PER 5년 밴드 상단 초과! (상단 ${band.high} → 현재 ${band.current})`);
+    } else if (bandPosition > 0.8) {
+      totalScore += 10;
+      details.push(`PER 밴드 상위 ${(bandPosition * 100).toFixed(0)}% 구간`);
+    } else if (bandPosition > 0.6) {
+      totalScore += 3;
     }
   }
 
-  const inHighDensity = zoneCount[currentZoneIdx] > avgCount * 1.5;
-
-  // 상단 매물대 저항
-  if (inHighDensity && resistanceStrength > 0) {
-    return {
-      presetId: id, level: 'warning', score: 60,
-      message: '상단 매물대 진입 — 저항 예상',
-      detail: `현재가(${currentPrice.toLocaleString()}원)가 거래 밀집 구간에 진입했습니다. 매물 소화에 어려움이 예상됩니다.`,
-      triggeredAt: Date.now(),
-    };
+  // ── ★ v5.1: PBR 밴드차트 비교 ──
+  if (data.pbrBand) {
+    if (data.pbrBand.current > data.pbrBand.high) {
+      totalScore += 12;
+      details.push(`PBR 5년 밴드 상단 초과 (상단 ${data.pbrBand.high} → 현재 ${data.pbrBand.current})`);
+    }
+  } else if (data.pbr && data.sectorAvgPbr) {
+    const pbrRatio = data.pbr / data.sectorAvgPbr;
+    if (pbrRatio > 2.5) {
+      totalScore += 10;
+      details.push(`PBR ${data.pbr.toFixed(1)}x — 고평가`);
+    } else if (pbrRatio > 1.8) {
+      totalScore += 5;
+    }
   }
 
-  // 하단 지지대 이탈 (새 로직)
-  if (currentZoneIdx > 0 && supportStrength > 2 && zoneCount[currentZoneIdx] < avgCount) {
-    return {
-      presetId: id, level: 'warning', score: 55,
-      message: '하단 매물대 이탈 가능성',
-      detail: `현재가 아래 강한 지지대가 있었으나, 현재 가격이 지지대 밖으로 나가고 있습니다. 이탈 확인 시 매도하세요.`,
-      triggeredAt: Date.now(),
-    };
+  // ── 실적 성장 변화 ──
+  if (data.earningsGrowth !== undefined) {
+    if (data.earningsGrowth < -20) {
+      totalScore += 20;
+      details.push(`실적 성장 ${data.earningsGrowth.toFixed(1)}% — 급격한 둔화`);
+    } else if (data.earningsGrowth < -5) {
+      totalScore += 10;
+      details.push(`실적 성장 ${data.earningsGrowth.toFixed(1)}% — 둔화 시작`);
+    } else if (data.earningsGrowth < 0) {
+      totalScore += 5;
+    }
   }
 
-  if (resistanceStrength > 2) {
-    return {
-      presetId: id, level: 'caution', score: 35,
-      message: '상단 매물대 접근 중',
-      detail: `현재가 위에 강한 매물대가 형성되어 있습니다. 돌파 실패 시 매도를 고려하세요.`,
-    };
+  // ── 매출 성장 변화 ──
+  if (data.revenueGrowth !== undefined && data.revenueGrowth < -10) {
+    totalScore += 10;
+    details.push(`매출 성장 ${data.revenueGrowth.toFixed(1)}% — 매출 감소`);
   }
+
+  // ── 악재/호재 이벤트 ──
+  if (data.newsEvent) {
+    switch (data.newsEvent) {
+      case 'spin_off':
+        totalScore += 25;
+        details.push('물적분할 발표 — 기업가치 훼손 우려');
+        break;
+      case 'rights_issue':
+        totalScore += 20;
+        details.push('유상증자 발표 — 주식 희석 우려');
+        break;
+      case 'earnings_miss':
+        totalScore += 20;
+        details.push('실적 컨센서스 미달 — 실적 쇼크');
+        break;
+      case 'downgrade':
+        totalScore += 15;
+        details.push('주요 증권사 투자의견 하향');
+        break;
+      case 'scandal':
+        totalScore += 20;
+        details.push('경영 리스크/스캔들 발생');
+        break;
+    }
+  }
+
+  // ── 판정 ──
+  const level: SignalLevel = totalScore >= 45 ? 'danger'
+    : totalScore >= 25 ? 'warning'
+    : totalScore >= 10 ? 'caution'
+    : 'safe';
+
+  const message = totalScore >= 45 ? '기업가치 훼손! 매도 권장'
+    : totalScore >= 25 ? '고평가 경고 (밴드 상단)'
+    : totalScore >= 10 ? '밸류에이션 주의'
+    : '기업가치 안정';
 
   return {
-    presetId: id, level: 'safe', score: 5,
-    message: '주요 매물대 없음',
-    detail: '현재가 주변에 강한 저항대가 감지되지 않았습니다.',
+    presetId: id,
+    level,
+    score: Math.min(totalScore, 100),
+    message,
+    detail: details.join(' | '),
+    triggeredAt: totalScore >= 25 ? Date.now() : undefined,
   };
 }
+*/
 
 
-// ============================================
-// 6. 추세선 매도법 (trendline) — 기존 유지
-// ============================================
-function checkTrendline(
-  candles: CandleData[],
-  currentPrice: number
-): SignalResult {
-  const id = 'trendline';
-
-  if (candles.length < 20) {
-    return { presetId: id, level: 'inactive', score: 0, message: '데이터 부족', detail: '' };
-  }
-
-  const lows = candles.map(c => c.low);
-  const n = lows.length;
-
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-  for (let i = 0; i < n; i++) {
-    sumX += i; sumY += lows[i]; sumXY += i * lows[i]; sumX2 += i * i;
-  }
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
-  const trendValue = slope * (n - 1) + intercept;
-  const isUptrend = slope > 0;
-
-  if (!isUptrend) {
-    return {
-      presetId: id, level: 'warning', score: 55,
-      message: '하락 추세 진행 중',
-      detail: `저점 연결 추세선이 하락하고 있습니다. 하락 추세에서의 보유는 위험합니다.`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  const deviationPct = ((currentPrice - trendValue) / trendValue) * 100;
-
-  if (currentPrice < trendValue) {
-    return {
-      presetId: id, level: 'danger', score: 80,
-      message: '상승 추세선 이탈!',
-      detail: `주가(${currentPrice.toLocaleString()})가 추세선(${Math.round(trendValue).toLocaleString()}) 아래로 이탈했습니다. (${deviationPct.toFixed(1)}%)`,
-      triggeredAt: Date.now(),
-    };
-  }
-
-  if (deviationPct < 2) {
-    return {
-      presetId: id, level: 'caution', score: 35,
-      message: `추세선 근접 (${deviationPct.toFixed(1)}% 위)`,
-      detail: `주가가 상승 추세선에 매우 근접해 있습니다. 이탈 여부를 주시하세요.`,
-    };
-  }
-
-  return {
-    presetId: id, level: 'safe', score: 5,
-    message: `추세선 위 안정적 (+${deviationPct.toFixed(1)}%)`,
-    detail: `주가가 상승 추세선 위에서 안정적으로 유지되고 있습니다.`,
-  };
-}
-
+// ═══════════════════════════════════════════════
+// SECTION F: checkCycle v5.1 (841~859줄 전체 교체)
+// ═══════════════════════════════════════════════
 
 // ============================================
-// 7. 기업가치 반전 매도법 (fundamental) — placeholder 유지
+// 8. 경기순환 매도법 v5.1 (cycle)
+// PPT: "코스톨라니 달걀 — 금리 인상 시작 시점부터 매도 고려"
+//      "장기 투자 관점, 금리와 경기 상황으로 판단"
+//
+// ★ v5.1: 단계별 점수 MarketCycleWidget 원본 기준
+//   1=5, 2=10, 3=75★, 4=85★★, 5=30, 6=5
 // ============================================
-function checkFundamental(): SignalResult {
-  return {
-    presetId: 'fundamental',
-    level: 'inactive',
-    score: 0,
-    message: '수동 판정 필요',
-    detail: '기업 실적/PER/PBR 데이터는 외부 연동이 필요합니다. 분기 실적 발표 시 직접 확인하세요.',
-  };
-}
-
-
-// ============================================
-// 8. 경기순환 매도법 (cycle)
-// ============================================
-function checkCycle(cycleStage?: number): SignalResult {
+/*
+function checkCycle(data?: CycleData): SignalResult {
   const id = 'cycle';
 
-  if (cycleStage === undefined || cycleStage === null) {
+  if (!data || data.stage === undefined) {
     return {
       presetId: id, level: 'inactive', score: 0,
       message: '사이클 단계 미설정',
-      detail: '코스톨라니 달걀 위젯에서 현재 시장 사이클 단계를 확인하세요.',
+      detail: '코스톨라니 달걀 위젯에서 현재 경기 단계를 설정하세요.',
     };
   }
 
-  if (cycleStage >= 3 && cycleStage <= 4) {
-    return {
-      presetId: id, level: 'danger', score: 75,
-      message: `경기순환 ${cycleStage}단계 — 매도 구간`,
-      detail: `코스톨라니 달걀 모형 기준 ${cycleStage}단계(과열/조정)입니다. 포지션 축소를 강력히 권장합니다.`,
-      triggeredAt: Date.now(),
-    };
+  const { stage, interestDirection, inflation, gdpGrowth, marketSentiment } = data;
+  let totalScore = 0;
+  const details: string[] = [];
+
+  // ── ★ v5.1: 단계별 기본 점수 (MarketCycleWidget 기준) ──
+  const stageScores: Record<number, number> = {
+    1: 5,    // 조정국면/매수 — 금리인하 시작
+    2: 10,   // 동행국면/관망 — 경기회복 동행
+    3: 75,   // 과장국면/매도 — 과열 경고 ★
+    4: 85,   // 조정국면/매도 — 금리인상 시작 ★★
+    5: 30,   // 동행국면/관망 — 경기침체 동행
+    6: 5,    // 과장국면/매수 — 바닥 형성
+  };
+  totalScore = stageScores[stage] || 5;
+
+  const stageNames: Record<number, string> = {
+    1: '조정국면 · 매수 (금리인하 시작)',
+    2: '동행국면 · 관망 (경기회복 동행)',
+    3: '과장국면 · 매도 (역금융장세 · 과열)',
+    4: '조정국면 · 적극매도 (금리인상 · 유동성 축소)',
+    5: '동행국면 · 관망 (경기침체 동행)',
+    6: '과장국면 · 매수 (바닥 · 역실적장세)',
+  };
+  details.push(`${stage}단계: ${stageNames[stage] || '알 수 없음'}`);
+
+  // ── 금리 방향 보정 ──
+  if (interestDirection === 'up_start') {
+    totalScore += 10;
+    details.push('금리 인상 시작');
+  } else if (interestDirection === 'up_continued') {
+    totalScore += 15;
+    details.push('금리 인상 지속');
+  } else if (interestDirection === 'down_start') {
+    totalScore = Math.max(totalScore - 15, 0);
+    details.push('금리 인하 시작 (매수 구간)');
   }
 
-  if (cycleStage === 5) {
-    return {
-      presetId: id, level: 'warning', score: 55,
-      message: `경기순환 ${cycleStage}단계 — 관망 구간`,
-      detail: `코스톨라니 달걀 모형 기준 ${cycleStage}단계(동행 하락)입니다.`,
-      triggeredAt: Date.now(),
-    };
+  // ── 인플레이션 경고 ──
+  if (inflation !== undefined && inflation > 4 && stage >= 3) {
+    totalScore += 5;
+    details.push(`인플레이션 ${inflation.toFixed(1)}%`);
   }
 
-  if (cycleStage === 2) {
-    return {
-      presetId: id, level: 'caution', score: 25,
-      message: `경기순환 ${cycleStage}단계 — 관망/보유`,
-      detail: '경기 확장 동행 구간입니다. 보유 유지하되 과열 신호를 주시하세요.',
-    };
+  // ── GDP 둔화 ──
+  if (gdpGrowth !== undefined && gdpGrowth < 2 && stage >= 3) {
+    totalScore += 10;
+    details.push(`GDP 성장 ${gdpGrowth.toFixed(1)}%`);
   }
+
+  // ── 시장 심리 ──
+  if (marketSentiment === 'euphoria' && stage >= 3) {
+    totalScore += 10;
+    details.push('시장 과열 (탐욕 심리)');
+  } else if (marketSentiment === 'fear' && stage <= 2) {
+    totalScore = Math.max(totalScore - 10, 0);
+  }
+
+  // ── 판정 ──
+  const level: SignalLevel = totalScore >= 60 ? 'danger'
+    : totalScore >= 40 ? 'warning'
+    : totalScore >= 15 ? 'caution'
+    : 'safe';
+
+  const actionMap: Record<string, string> = {
+    danger: '포지션 축소 강력 권장',
+    warning: '매도 준비 · 포지션 점검',
+    caution: '관찰 · 시장 동향 주시',
+    safe: '보유 유지',
+  };
 
   return {
-    presetId: id, level: 'safe', score: 5,
-    message: `경기순환 ${cycleStage}단계 — 매수/보유 구간`,
-    detail: '현재 시장 사이클 상 매도 시점이 아닙니다.',
+    presetId: id,
+    level,
+    score: Math.min(totalScore, 100),
+    message: `경기순환 ${stage}단계 — ${actionMap[level]}`,
+    detail: details.join(' | '),
+    triggeredAt: totalScore >= 40 ? Date.now() : undefined,
   };
 }
+*/
 
 
-// ============================================
-// 🔥 통합 계산 함수 v3
-// ============================================
-// 변경점:
-//   - checkStopLoss에 candles 전달 (ATR 계산용)
-//   - checkCandle3에 수익률 전달 (구간별 메시지용)
-//   - "음봉에서만 매도" 총점 보정 (양봉이면 총점 30% 감소)
-// ============================================
+// ═══════════════════════════════════════════════
+// SECTION G: calculateAllSignals v5.1 (865~939줄 교체)
+// ═══════════════════════════════════════════════
+
+/*
 export function calculateAllSignals(input: SignalInput): PositionSignals {
-  const { position, candles, currentPrice } = input;
-
+  const { position, candles, currentPrice, fundamentalData, cycleData } = input;
   const selectedPresets = position.selectedPresets || [];
   const presetSettings = position.presetSettings || {};
-
   const signals: SignalResult[] = [];
   const returnPct = calcReturn(position.buyPrice, currentPrice);
 
-  // 사용자가 선택한 프리셋에 대해서만 계산
   selectedPresets.forEach(presetId => {
     let result: SignalResult;
-
     switch (presetId) {
       case 'candle3':
         result = checkCandle3(candles, returnPct);
         break;
-
       case 'stopLoss': {
         const threshold = presetSettings.stopLoss?.value;
         result = checkStopLoss(position.buyPrice, currentPrice, candles, threshold);
         break;
       }
-
       case 'twoThird':
         result = checkTwoThird(position.buyPrice, position.highestPrice, currentPrice);
         break;
-
       case 'maSignal': {
         const period = presetSettings.maSignal?.value ?? 20;
         result = checkMASignal(candles, currentPrice, period);
         break;
       }
-
       case 'volumeZone':
         result = checkVolumeZone(candles, currentPrice);
         break;
-
       case 'trendline':
         result = checkTrendline(candles, currentPrice);
         break;
-
       case 'fundamental':
-        result = checkFundamental();
+        result = checkFundamental(fundamentalData);
         break;
-
       case 'cycle':
-        result = checkCycle(undefined); // 추후 cycleStage 연동
+        result = checkCycle(cycleData);
         break;
-
       default:
         result = { presetId, level: 'inactive', score: 0, message: '알 수 없는 프리셋', detail: '' };
     }
-
     signals.push(result);
   });
 
-  // ── "모든 매도는 음봉에서" 보정 ──
-  // PPT: 양봉이면 상승 기운 → 매도 긴급도 하향
+  // "모든 매도는 음봉에서" 보정 (기업가치/경기순환은 제외)
   const todayCandle = candles.length > 0 ? candles[candles.length - 1] : null;
-  const isToday양봉 = todayCandle ? todayCandle.close >= todayCandle.open : false;
+  const isYangbong = todayCandle ? todayCandle.close >= todayCandle.open : false;
 
-  const adjustedSignals = isToday양봉
+  const adjustedSignals = isYangbong
     ? signals.map(s => ({
         ...s,
-        // 양봉일 때 danger/warning 점수 30% 감소 (갭하락 제외)
-        score: (s.level === 'danger' || s.level === 'warning') && s.message.indexOf('갭하락') === -1
+        score: (s.level === 'danger' || s.level === 'warning')
+          && s.presetId !== 'fundamental'
+          && s.presetId !== 'cycle'
+          && s.message.indexOf('갭하락') === -1
           ? Math.round(s.score * 0.7)
           : s.score,
       }))
     : signals;
 
-  // 최고 위험 수준 판정
   const maxLevel = adjustedSignals.reduce<SignalLevel>((max, s) => {
     return LEVEL_PRIORITY[s.level] > LEVEL_PRIORITY[max] ? s.level : max;
   }, 'safe');
 
-  // 활성 시그널 수 (caution 이상)
   const activeCount = adjustedSignals.filter(s =>
     LEVEL_PRIORITY[s.level] >= LEVEL_PRIORITY['caution']
   ).length;
 
-  // 합산 점수
   const totalScore = adjustedSignals.reduce((sum, s) => sum + s.score, 0);
 
   return {
@@ -840,8 +514,14 @@ export function calculateAllSignals(input: SignalInput): PositionSignals {
     totalScore,
   };
 }
+*/
 
-// ── 개별 함수 export (테스트/확장용) ──
+
+// ═══════════════════════════════════════════════
+// SECTION H: export 목록 (941~957줄 교체)
+// ═══════════════════════════════════════════════
+
+/*
 export {
   checkCandle3,
   checkStopLoss,
@@ -849,11 +529,13 @@ export {
   checkMASignal,
   checkVolumeZone,
   checkTrendline,
-  checkFundamental,
-  checkCycle,
+  checkFundamental,    // ★ v5.1: PER/PBR 밴드차트 비교 포함
+  checkCycle,          // ★ v5.1: 단계점수 수정 (3=75, 4=85)
   calcMA,
   calcEMA,
   calcMACD,
   calcATR,
   calcReturn,
+  findLocalPeaks,
 };
+*/
