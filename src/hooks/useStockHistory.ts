@@ -3,14 +3,7 @@
 // useStockHistory - 과거 차트 데이터 조회 훅
 // 경로: src/hooks/useStockHistory.ts
 // 세션 22A: Yahoo Finance 과거 OHLCV → CandleData[]
-// ============================================
-//
-// 기능:
-//   - positions 배열에서 종목코드 추출 → /api/stocks/history 호출
-//   - 종목별 60일 캔들 데이터 조회
-//   - position.id 기준 Map으로 반환 (CRESTApp과 동일 인터페이스)
-//   - 이미 로드된 종목은 재요청하지 않음 (캐싱)
-//   - 새 종목 추가 시에만 해당 종목 fetch
+// 세션 61: volume 데이터 포함 + 자동 갱신 로직 보강
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -46,13 +39,14 @@ export default function useStockHistory(positions: Position[]) {
         const data = await res.json();
         if (!data.candles || data.candles.length === 0) return [];
 
-        // ISO string → Date 변환
+        // ★ 세션 61: volume 데이터 반드시 포함
         return data.candles.map((c: any) => ({
           date: new Date(c.date),
           open: c.open,
           high: c.high,
           low: c.low,
           close: c.close,
+          volume: c.volume || 0,  // ★ 매물대 매도법에 필수
         }));
       } catch (err) {
         console.error(`History fetch error for ${code}:`, err);
