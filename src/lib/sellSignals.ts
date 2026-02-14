@@ -165,7 +165,7 @@ function findLocalPeaks(candles: CandleData[], windowSize: number = 5): number[]
 // 시그널 계산 입력 인터페이스
 // ══════════════════════════════════════════════
 
-interface SignalInput {
+export interface SignalInput {
   position: Position;
   candles: CandleData[];
   currentPrice: number;
@@ -1049,7 +1049,7 @@ function checkCycle(data?: CycleData): SignalResult {
 // 통합 시그널 계산 (메인 엔트리)
 // ══════════════════════════════════════════════
 
-export function calculateAllSignals(input: SignalInput): PositionSignals {
+function calculateAllSignals(input: SignalInput): PositionSignals {
   const { position, candles, currentPrice, fundamentalData, cycleData } = input;
   const selectedPresets = position.selectedPresets || [];
   const presetSettings = position.presetSettings || {};
@@ -1146,6 +1146,8 @@ export function calculateAllSignals(input: SignalInput): PositionSignals {
 // ══════════════════════════════════════════════
 
 export {
+  // 메인 엔트리
+  calculateAllSignals,
   // 개별 매도법 함수
   checkCandle3,
   checkStopLoss,
