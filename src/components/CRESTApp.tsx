@@ -2,25 +2,26 @@
 // ============================================
 // CRESTApp - 메인 앱 컴포넌트
 // 경로: src/components/CRESTApp.tsx
-// 세션 63: API 연동 복구 + Mock 파라미터 버그 수정
+// 세션 63: 차트 API 직접 호출로 전면 수정
 //
-// [핵심 수정]
-// 1. generateMockPriceData(buyPrice, 60) → (buyPrice, currentPrice, 60)
-//    ← 60을 "현재가"로 인식하여 차트가 ₩58까지 추락하던 버그 수정
-// 2. useStockHistory + useStockPrices 훅 연동
-// 3. 3초 가짜 시뮬레이션 완전 제거
-// 4. 요약 통계: 실시간가 > 차트종가 > 매수가 우선순위
+// [핵심 수정사항]
+// 1. useStockHistory 훅 제거 → 직접 fetch로 차트 데이터 확보
+//    (훅 내부의 isFetchingRef/fetchedCodesRef 타이밍 문제 우회)
+// 2. generateMockPriceData(buyPrice, 60) 버그 수정
+//    → 60을 현재가로 인식하여 차트 ₩58까지 추락하던 문제
+// 3. 차트 기간: 60일 → 90일 (3개월 커버)
+// 4. 3초 가짜 시뮬레이션 완전 제거
+// 5. 데이터 소스 표시: API / Mock 구별
 // ============================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useResponsive from '@/hooks/useResponsive';
 import useAuth from '@/hooks/useAuth';
 import usePositions from '@/hooks/usePositions';
-import useStockHistory from '@/hooks/useStockHistory';
 import useStockPrices from '@/hooks/useStockPrices';
 import { SELL_PRESETS, generateMockPriceData, formatCompact } from '@/constants';
-import type { Position, Alert } from '@/types';
+import type { Position, Alert, CandleData } from '@/types';
 
 // 컴포넌트 import
 import CrestLogo from './CrestLogo';
@@ -36,6 +37,9 @@ import AlertCard from './AlertCard';
 import AddStockModal from './AddStockModal';
 import UpgradePopup from './UpgradePopup';
 import Footer from './Footer';
+
+// ── 차트 데이터 fetch 기간 ──
+const CHART_DAYS = 90; // 3개월
 
 // ── 데모 알림 ──
 const DEMO_ALERTS: Alert[] = [
@@ -59,20 +63,13 @@ export default function CRESTApp() {
     deletePosition,
   } = usePositions(user?.id ?? null);
 
-  // ★ 실시간 주가 API 훅 (Yahoo Finance, 60초 갱신)
+  // ★ 실시간 주가 API (Yahoo Finance, 60초 갱신) — 이건 정상 작동
   const {
     prices: stockPriceMap,
     isLoading: pricesLoading,
     error: pricesError,
     lastUpdated: pricesLastUpdated,
   } = useStockPrices(positions);
-
-  // ★ 과거 차트 API 훅 (Yahoo Finance, 60일 OHLCV)
-  const {
-    historyMap,
-    isLoading: historyLoading,
-    error: historyError,
-  } = useStockHistory(positions);
 
   const [activeTab, setActiveTab] = useState('positions');
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -85,32 +82,90 @@ export default function CRESTApp() {
   const [aiNewsUsedCount, setAiNewsUsedCount] = useState(0);
 
   // ============================================
-  // ★★★ 핵심 수정: 차트 데이터 통합 ★★★
-  //
-  // [이전 버그]
-  //   generateMockPriceData(p.buyPrice, 60)
-  //   → 두 번째 인자 60이 "현재가"로 해석됨
-  //   → 차트가 ₩60까지 하락하는 비정상 표시
-  //
-  // [수정 후]
-  //   generateMockPriceData(p.buyPrice, realCurrentPrice, 60)
-  //   → 실시간 현재가를 끝점으로 사용 → 정상 차트
+  // ★★★ 핵심 수정: 차트 데이터 직접 관리 ★★★
+  // useStockHistory 훅 대신 CRESTApp에서 직접 fetch
   // ============================================
-  const priceDataMap = useMemo(() => {
-    const map: Record<number, any[]> = {};
-    positions.forEach((p) => {
-      if (historyMap[p.id] && historyMap[p.id].length > 0) {
-        // ★ 1순위: API에서 받은 실제 캔들 데이터
-        map[p.id] = historyMap[p.id];
-      } else if (!historyLoading) {
-        // ★ 2순위: API 실패 시 Mock 폴백
-        // 반드시 3개 파라미터: (매수가, 현재가, 일수)
-        const realPrice = stockPriceMap[p.code]?.price || p.buyPrice;
-        map[p.id] = generateMockPriceData(p.buyPrice, realPrice, 60);
+  const [priceDataMap, setPriceDataMap] = useState<Record<number, CandleData[]>>({});
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartError, setChartError] = useState<string | null>(null);
+  // 이미 fetch한 포지션 ID 추적 (중복 방지)
+  const fetchedIdsRef = useRef<Set<number>>(new Set());
+
+  // ── 단일 종목 차트 데이터 fetch ──
+  const fetchChartData = useCallback(async (position: Position): Promise<CandleData[] | null> => {
+    try {
+      const market = /^\d{6}$/.test(position.code) ? 'KR' : 'US';
+      const url = `/api/stocks/history?code=${position.code}&days=${CHART_DAYS}&market=${market}`;
+
+      console.log(`[CREST] 차트 fetch: ${position.name} (${position.code}) → ${url}`);
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error(`[CREST] 차트 API 에러: ${position.code} → ${res.status}`);
+        return null;
       }
-    });
-    return map;
-  }, [positions, historyMap, historyLoading, stockPriceMap]);
+
+      const data = await res.json();
+      if (!data.candles || data.candles.length === 0) {
+        console.warn(`[CREST] 차트 데이터 없음: ${position.code}`);
+        return null;
+      }
+
+      console.log(`[CREST] 차트 성공: ${position.code} → ${data.candles.length}개 캔들`);
+
+      // CandleData 형태로 변환
+      return data.candles.map((c: any) => ({
+        date: new Date(c.date),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume || 0,
+      }));
+    } catch (err) {
+      console.error(`[CREST] 차트 fetch 실패: ${position.code}`, err);
+      return null;
+    }
+  }, []);
+
+  // ── positions 변경 시 차트 데이터 로드 ──
+  useEffect(() => {
+    if (positions.length === 0) return;
+
+    // 아직 fetch하지 않은 포지션만 필터링
+    const newPositions = positions.filter((p) => !fetchedIdsRef.current.has(p.id));
+    if (newPositions.length === 0) return;
+
+    setChartLoading(true);
+    setChartError(null);
+
+    const loadCharts = async () => {
+      const results: Record<number, CandleData[]> = {};
+
+      // 순차적으로 fetch (API 부하 방지)
+      for (const p of newPositions) {
+        const candles = await fetchChartData(p);
+        if (candles && candles.length > 0) {
+          results[p.id] = candles;
+          fetchedIdsRef.current.add(p.id);
+        } else {
+          // ★★★ API 실패 시 Mock 폴백 ★★★
+          // 반드시 3개 파라미터: (매수가, 현재가, 일수)
+          // 2개만 넣으면 60을 현재가로 인식하여 ₩58 차트 버그!
+          const currentPrice = stockPriceMap[p.code]?.price || p.buyPrice;
+          results[p.id] = generateMockPriceData(p.buyPrice, currentPrice, CHART_DAYS);
+          fetchedIdsRef.current.add(p.id);
+          console.warn(`[CREST] Mock 폴백 사용: ${p.code} (매수가: ${p.buyPrice}, 현재가: ${currentPrice})`);
+        }
+      }
+
+      // 기존 데이터 유지하면서 새 데이터 추가
+      setPriceDataMap((prev) => ({ ...prev, ...results }));
+      setChartLoading(false);
+    };
+
+    loadCharts();
+  }, [positions, fetchChartData, stockPriceMap]);
 
   // ── 핸들러 ──
   const handleUpdatePosition = (updated: Position) => {
@@ -118,6 +173,13 @@ export default function CRESTApp() {
   };
   const handleDeletePosition = (id: number) => {
     deletePosition(id);
+    // 삭제된 포지션의 차트 데이터도 정리
+    fetchedIdsRef.current.delete(id);
+    setPriceDataMap((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleAddStock = async (stock: {
@@ -205,7 +267,7 @@ export default function CRESTApp() {
         />
 
         {/* API 에러 배너 */}
-        {(historyError || pricesError) && (
+        {(chartError || pricesError) && (
           <div style={{
             margin: isMobile ? '0 16px 12px' : '0 0 12px',
             padding: '10px 14px',
@@ -219,14 +281,14 @@ export default function CRESTApp() {
             <div>
               <div style={{ fontWeight: '600' }}>주가 데이터 조회 지연</div>
               <div style={{ color: '#94a3b8', fontSize: '11px' }}>
-                {historyError || pricesError} — 임시 데이터로 표시 중
+                {chartError || pricesError} — 임시 데이터로 표시 중
               </div>
             </div>
           </div>
         )}
 
         {/* 차트 로딩 인디케이터 */}
-        {historyLoading && positions.length > 0 && (
+        {chartLoading && positions.length > 0 && (
           <div style={{
             margin: isMobile ? '0 16px 12px' : '0 0 12px',
             padding: '8px 14px',
@@ -354,7 +416,7 @@ export default function CRESTApp() {
               </div>
             )}
 
-            {/* ★★★ PositionCard에 stockPrice 전달 ★★★ */}
+            {/* ★★★ PositionCard: stockPrice + priceData 전달 ★★★ */}
             {positions.map((pos) => (
               <PositionCard key={pos.id}
                 position={pos}
