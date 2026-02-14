@@ -96,11 +96,39 @@ const PositionCard = ({
   (position.selectedPresets || []).forEach((pid) => {
     const setting = position.presetSettings?.[pid]?.value;
     switch (pid) {
+      case 'candle3': {
+        // ★ 세션60: 봉 3개 매도법 매도가격 계산
+        // PPT: "최근 양봉의 50%를 덮는 음봉 발생 시 절반 매도"
+        // 연속 양봉은 합쳐서 하나의 양봉으로 가정, 그 몸통의 50% 지점이 매도가격
+        if (priceData && priceData.length >= 3) {
+          const recent = priceData.slice(-5); // 최근 5일 캔들
+          // 최근 연속 양봉 찾기 (뒤에서부터)
+          let yangbongStart = -1;
+          let yangbongEnd = recent.length - 1;
+          for (let i = recent.length - 1; i >= 0; i--) {
+            if (recent[i].close >= recent[i].open) {
+              yangbongStart = i;
+            } else {
+              break; // 음봉 만나면 중단
+            }
+          }
+          if (yangbongStart >= 0 && yangbongStart <= yangbongEnd) {
+            // 연속 양봉 구간의 시가(시작봉의 open)와 종가(마지막봉의 close)
+            const mergedOpen = recent[yangbongStart].open;
+            const mergedClose = recent[yangbongEnd].close;
+            const bodyMid = Math.round((mergedOpen + mergedClose) / 2);
+            sellPrices.candle3 = bodyMid; // 합쳐진 양봉 몸통의 50% 지점
+          }
+        }
+        break;
+      }
       case 'stopLoss':
         sellPrices.stopLoss = Math.round(position.buyPrice * (1 + (setting || -5) / 100));
         break;
       case 'twoThird': {
-        const hp = position.highestPrice || cur;
+        // ★ 세션60: highestPrice가 현재가보다 낮을 수 있으므로 Math.max 적용
+        // PPT: "매수가와 최고가 사이를 3등분, 위에서부터 1/3 하락 지점에서 매도"
+        const hp = Math.max(position.highestPrice || 0, cur);
         sellPrices.twoThird = Math.round(hp - (hp - position.buyPrice) / 3);
         break;
       }
