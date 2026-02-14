@@ -104,7 +104,11 @@ const CardPresets = ({
               let priceText = '모니터링 중';
               let priceColor = '#94a3b8';
 
-              if (pid === 'stopLoss' && sellPrices.stopLoss) {
+              // ★ 세션60: 봉 3개 매도법 매도가격 표시 추가
+              if (pid === 'candle3' && sellPrices.candle3) {
+                priceText = '₩' + sellPrices.candle3.toLocaleString();
+                priceColor = currentPrice <= sellPrices.candle3 ? '#ef4444' : '#94a3b8';
+              } else if (pid === 'stopLoss' && sellPrices.stopLoss) {
                 priceText = '₩' + sellPrices.stopLoss.toLocaleString();
                 priceColor = currentPrice <= sellPrices.stopLoss ? '#ef4444' : '#94a3b8';
               } else if (pid === 'twoThird' && sellPrices.twoThird) {
