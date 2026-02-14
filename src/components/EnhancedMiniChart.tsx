@@ -1,12 +1,12 @@
 // ============================================
-// EnhancedMiniChart v4 - 캔들차트 + 기술적 분석 오버레이
+// EnhancedMiniChart v4.1 - 캔들차트 + 기술적 분석 오버레이
 // 경로: src/components/EnhancedMiniChart.tsx
 // 세션 63: React Error #310 수정 + 매물대 네이버 스타일
+// 세션 64: 매물대 색상 통일 + 매도선 라벨 "저항"→"지지" 수정
 //
-// [핵심 수정]
-// 1. React #310 에러: useMemo가 early return 뒤에 있어서 훅 순서 깨짐
-//    → 모든 훅을 컴포넌트 최상단으로 이동, early return 제거
-// 2. 매물대: 좌측 작은 바 → 차트 전체 폭 반투명 밴드 (네이버 스타일)
+// [핵심 수정 세션 64]
+// 1. 매물대: 고거래량=핑크/나머지=투명 → 모두 동일 슬레이트색, strength별 투명도만 차이
+// 2. volumeZone 매도선 라벨: "저항" → "지지" (PPT: 하단 지지 이탈 시 매도)
 // ============================================
 
 'use client';
@@ -310,7 +310,9 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
           );
         })}
 
-        {/* ★★★ 매물대 — 네이버 증권 스타일 (차트 전체 폭 밴드) ★★★ */}
+        {/* ★★★ 매물대 — 네이버 증권 스타일 (차트 전체 폭 반투명 밴드) ★★★ */}
+        {/* 세션 64: 모든 매물대 동일 색상 통일, 검정배경에 맞게 밝기 조절 */}
+        {/* 캔들을 가리지 않는 선에서 매물대를 은은하게 표시 */}
         {volProfile && volProfile.map((zone, i) => {
           const bandTop = y(zone.priceMax);
           const bandBottom = y(zone.priceMin);
@@ -318,18 +320,19 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
           // 거래량 비례 폭 (차트 영역의 strength%)
           const bandWidth = cW * zone.strength;
 
-          const fillColor = zone.isHigh
-            ? `rgba(219,39,119,${0.08 + zone.strength * 0.18})`
-            : `rgba(148,163,184,${0.02 + zone.strength * 0.06})`;
-          const borderColor = zone.isHigh ? `rgba(219,39,119,${0.15 + zone.strength * 0.2})` : 'transparent';
+          // ★ 통일 색상: 연보라/슬레이트 계열, strength에 따라 투명도만 차이
+          // 최소 투명도 0.06 ~ 최대 0.22 (캔들을 가리지 않도록)
+          const alpha = 0.06 + zone.strength * 0.16;
+          const fillColor = `rgba(148,163,184,${alpha})`;
 
           return (
             <g key={`vp${i}`}>
               <rect x={pad.left} y={bandTop} width={Math.max(2, bandWidth)} height={bandHeight}
-                fill={fillColor} stroke={borderColor} strokeWidth={zone.isHigh ? 0.5 : 0} rx={1} />
+                fill={fillColor} rx={1} />
+              {/* 고거래량 구간에만 거래량 라벨 표시 */}
               {zone.isHigh && bandHeight >= 10 && (
                 <text x={pad.left + 3} y={bandTop + bandHeight / 2 + 3}
-                  fill="rgba(219,39,119,0.7)" fontSize={isSmall ? 7 : 8} fontWeight="600">
+                  fill="rgba(148,163,184,0.55)" fontSize={isSmall ? 7 : 8} fontWeight="600">
                   {fmtVolShort(zone.volume)} ({zone.percent.toFixed(1)}%)
                 </text>
               )}
@@ -388,7 +391,7 @@ const EnhancedMiniChart: React.FC<EnhancedMiniChartProps> = ({
         {renderLine("stopLoss", sellPrices?.stopLoss, "#ef4444", "손절")}
         {renderLine("twoThird", sellPrices?.twoThird, "#8b5cf6", "2/3익")}
         {renderLine("maSignal", sellPrices?.maSignal, "#06b6d4", "이평", "4,2")}
-        {renderLine("volumeZone", sellPrices?.volumeZone, "#84cc16", "저항", "6,3")}
+        {renderLine("volumeZone", sellPrices?.volumeZone, "#84cc16", "지지", "6,3")}
         {renderLine("trendline", sellPrices?.trendline, "#ec4899", "지지", "8,4")}
 
         {/* MA 범례 */}
